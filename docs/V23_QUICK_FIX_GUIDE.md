@@ -6,6 +6,20 @@
 
 ---
 
+## 🌟 IMPORTANT: Natural Language Focus
+
+**This is NOT a command-based system!**
+
+We're building an AI that understands NATURAL LANGUAGE and user INTENT:
+- ✅ "who are my best agents" = "show me top performers" = "which team members are crushing it"
+- ✅ All route to the same action based on INTENT
+- ✅ Users can phrase things however they want
+- ✅ The AI understands GOALS, not just exact phrases
+
+**The fixes below ensure your v23 handles dynamic, natural language - not just specific commands.**
+
+---
+
 ## 🎯 What We're Fixing
 
 Your v23 architecture is solid. We just need to fix 4 specific bugs:
@@ -66,26 +80,41 @@ const cleaned = (text || '')
 
 **Problem:** Names and emails treated as generic keywords instead of person identifiers.
 
-**Solution:** Update system message with intent detection priority.
+**Solution:** Update system message with dynamic, natural language intent understanding.
 
 ### Steps:
 1. Open **Plan AI Agent** node (or **OpenAI Structured Output** node)
 2. Find **System Message** field
-3. **Replace entire system message** with the content from: `EXACT_CODE_FIXES_FOR_WORKFLOW.md` section "FIX #2 & #4"
-   - (Lines 108-333 from that document)
+3. **Replace entire system message** with the content from: `DYNAMIC_PLAN_AI_PROMPT.md`
+   - This version handles NATURAL LANGUAGE flexibly, not just specific commands
+   - Alternative: Use `EXACT_CODE_FIXES_FOR_WORKFLOW.md` section "FIX #2 & #4" (lines 108-333) if you prefer more structured guidance
 
 ### Key Changes:
-- ✅ Metrics/analytics detection FIRST
+- ✅ Understands USER INTENT, not just exact phrases
+- ✅ Handles natural language variations ("who are my best agents" = "show me top performers")
+- ✅ Metrics/analytics detection based on comparative/analytical intent
 - ✅ Email detection (route to `list_tickets` with `customer_email`)
 - ✅ Name detection (route to `find_user` with `name`)
-- ✅ Clear priority order for intent matching
+- ✅ Flexible language processing, not command matching
 
-### Test:
+### Test (with natural language variations):
 ```
-@Gorgias Terminal search tickets about ayub
+"show me ayub's tickets"
+"find ayub"
+"what's going on with ayub"
+"ayub's workload"
 ```
 
-**Expected:** Plan uses `find_user(name="ayub")` not `search_tickets(query="ayub")`
+**Expected:** All variations route to `find_user(name="ayub")` (not search_tickets!)
+
+**Also test metrics intent:**
+```
+"who are my best agents"
+"show me top performers"
+"which team members are crushing it"
+```
+
+**Expected:** All variations route to `list_metrics` (not list_tickets!)
 
 ---
 
