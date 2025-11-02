@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "properties": {
+    "output": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "number",
+                "description": "Step number in the plan"
+              },
+              "action": {
+                "type": "string",
+                "description": "Action to perform",
+                "enum": [
+                  "list_metrics",
+                  "get_customer",
+                  "find_user",
+                  "list_customers",
+                  "get_ticket",
+                  "list_tickets",
+                  "search_tickets",
+                  "create_ticket",
+                  "close_ticket",
+                  "set_status",
+                  "assign_ticket",
+                  "set_priority",
+                  "add_tags",
+                  "remove_tags",
+                  "reply_public",
+                  "comment_internal"
+                ]
+              },
+              "ticket_id": {
+                "type": "string",
+                "description": "Ticket ID (if applicable)"
+              },
+              "customer_id": {
+                "type": "string",
+                "description": "Customer ID (if applicable)"
+              },
+              "customer_email": {
+                "type": "string",
+                "description": "Customer email address (if applicable)"
+              },
+              "name": {
+                "type": "string",
+                "description": "Person name for search (if applicable)"
+              },
+              "query": {
+                "type": "string",
+                "description": "Search query (if applicable)"
+              },
+              "status": {
+                "type": "string",
+                "description": "Ticket status filter",
+                "enum": ["open", "closed", "pending", "all"]
+              },
+              "priority": {
+                "type": "string",
+                "description": "Ticket priority",
+                "enum": ["low", "normal", "high", "urgent"]
+              },
+              "limit": {
+                "type": "number",
+                "description": "Number of results to return"
+              },
+              "assignee_email": {
+                "type": "string",
+                "description": "Assignee email address (if applicable)"
+              },
+              "tags": {
+                "type": "string",
+                "description": "Comma-separated tags (if applicable)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Message text (if applicable)"
+              },
+              "subject": {
+                "type": "string",
+                "description": "Ticket subject (if applicable)"
+              }
+            },
+            "required": ["step", "action"]
+          }
+        }
+      },
+      "required": ["plan"]
+    }
+  },
+  "required": ["output"]
+}
