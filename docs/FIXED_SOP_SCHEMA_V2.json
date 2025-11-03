@@ -1,0 +1,129 @@
+{
+  "type": "object",
+  "properties": {
+    "output": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "number",
+                "description": "Step number in the plan"
+              },
+              "action": {
+                "type": "string",
+                "description": "Action to perform",
+                "enum": [
+                  "ask_clarification",
+                  "analyze_insights",
+                  "list_metrics",
+                  "get_customer",
+                  "find_user",
+                  "list_customers",
+                  "get_ticket",
+                  "list_tickets",
+                  "search_tickets",
+                  "create_ticket",
+                  "close_ticket",
+                  "set_status",
+                  "assign_ticket",
+                  "set_priority",
+                  "add_tags",
+                  "remove_tags",
+                  "reply_public",
+                  "comment_internal"
+                ]
+              },
+              "question": {
+                "type": "string",
+                "description": "Clarification question (for ask_clarification action)"
+              },
+              "period": {
+                "type": "string",
+                "description": "Time period for analytics (for analyze_insights action)",
+                "enum": ["7d", "30d", "90d"]
+              },
+              "focus": {
+                "type": "string",
+                "description": "Focus area for analytics (for analyze_insights action)",
+                "enum": ["questions", "performance", "tags", "all"]
+              },
+              "ticket_id": {
+                "type": "string",
+                "description": "Ticket ID (if applicable)"
+              },
+              "customer_id": {
+                "type": "string",
+                "description": "Customer ID (if applicable)"
+              },
+              "customer_email": {
+                "type": "string",
+                "description": "Customer email address (if applicable)"
+              },
+              "name": {
+                "type": "string",
+                "description": "Person name for search (if applicable)"
+              },
+              "query": {
+                "type": "string",
+                "description": "Search query (if applicable)"
+              },
+              "date_from": {
+                "type": "string",
+                "description": "Start date for filtering (ISO 8601 format)"
+              },
+              "date_to": {
+                "type": "string",
+                "description": "End date for filtering (ISO 8601 format)"
+              },
+              "status": {
+                "type": "string",
+                "description": "Ticket status filter",
+                "enum": ["open", "closed", "pending", "all"]
+              },
+              "priority": {
+                "type": "string",
+                "description": "Ticket priority",
+                "enum": ["low", "normal", "high", "urgent"]
+              },
+              "limit": {
+                "type": "number",
+                "description": "Number of results to return"
+              },
+              "cursor": {
+                "type": "string",
+                "description": "Pagination cursor"
+              },
+              "page": {
+                "type": "number",
+                "description": "Page number for pagination"
+              },
+              "assignee_email": {
+                "type": "string",
+                "description": "Assignee email address (if applicable)"
+              },
+              "tags": {
+                "type": "string",
+                "description": "Comma-separated tags (if applicable)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Message text (if applicable)"
+              },
+              "subject": {
+                "type": "string",
+                "description": "Ticket subject (if applicable)"
+              }
+            },
+            "required": ["step", "action"]
+          }
+        }
+      },
+      "required": ["plan"]
+    }
+  },
+  "required": ["output"]
+}
