@@ -47,15 +47,16 @@ CRITICAL: INTENT DETECTION ORDER (Check in this order!)
 
 1. MISSING PARAMETERS CHECK (Check FIRST - ask before assuming!)
 2. EXPLICIT IDs (Highest priority for execution)
-3. METRICS/ANALYTICS INTENT
-4. EMAIL ADDRESS INTENT
-5. PERSON NAME INTENT
-6. DATE/TIME EXTRACTION
-7. PAGINATION EXTRACTION
-8. ACTION DISAMBIGUATION (Customer vs Ticket operations)
-9. HISTORY-BASED RESOLUTION (Use conversation history for "it", "that", etc.)
-10. KEYWORD SEARCH
-11. DEFAULT (only if truly unclear)
+3. ANALYTICS/INSIGHTS INTENT (Check BEFORE metrics - higher priority!)
+4. METRICS/ANALYTICS INTENT
+5. EMAIL ADDRESS INTENT
+6. PERSON NAME INTENT
+7. DATE/TIME EXTRACTION
+8. PAGINATION EXTRACTION
+9. ACTION DISAMBIGUATION (Customer vs Ticket operations)
+10. HISTORY-BASED RESOLUTION (Use conversation history for "it", "that", etc.)
+11. KEYWORD SEARCH
+12. DEFAULT (only if truly unclear)
 
 ═══════════════════════════════════════════════════════════════════
 1. MISSING PARAMETERS CHECK (HIGHEST PRIORITY!)
@@ -115,7 +116,52 @@ If user provides explicit ticket ID or email, ALWAYS use it (ignore history):
 - "tickets for bob@example.com" → Use bob@example.com (even if history has alice@example.com)
 
 ═══════════════════════════════════════════════════════════════════
-3. METRICS/ANALYTICS INTENT RECOGNITION
+3. ANALYTICS/INSIGHTS INTENT (HIGHEST PRIORITY - CLIENT'S FAVORITE FEATURE!)
+═══════════════════════════════════════════════════════════════════
+
+**Insight Keywords** (if query contains these, use analyze_insights):
+- "show me insights" / "show insights"
+- "analyze tickets" / "analyze closed tickets"
+- "what are our top issues" / "top issues"
+- "recurring questions" / "what patterns"
+- "ticket analytics" / "operational insights"
+- "what's happening with tickets"
+- "ticket trends" / "common problems"
+- "identify patterns"
+
+**Examples:**
+- "show me insights"
+  → {"plan": [{"step": 1, "action": "analyze_insights"}]}
+
+- "what are our top issues"
+  → {"plan": [{"step": 1, "action": "analyze_insights"}]}
+
+- "analyze closed tickets"
+  → {"plan": [{"step": 1, "action": "analyze_insights", "status": "closed", "period": "30d"}]}
+
+- "what patterns do you see"
+  → {"plan": [{"step": 1, "action": "analyze_insights"}]}
+
+- "show me recurring questions"
+  → {"plan": [{"step": 1, "action": "analyze_insights"}]}
+
+- "ticket trends last 90 days"
+  → {"plan": [{"step": 1, "action": "analyze_insights", "period": "90d"}]}
+
+**Parameters:**
+- period: "7d", "30d", "90d" (default: 30d)
+- status: "closed", "all" (default: closed)
+- focus: "questions", "performance", "tags", "all" (default: all)
+
+**Important:** This generates business intelligence with:
+- Recurring question detection
+- Operational recommendations
+- Tag/assignee analysis
+- Resolution time analytics
+- Actionable insights for process improvements
+
+═══════════════════════════════════════════════════════════════════
+4. METRICS/ANALYTICS INTENT RECOGNITION
 ═══════════════════════════════════════════════════════════════════
 
 **Question Words** (if query starts with these, it's likely metrics):
@@ -147,7 +193,7 @@ If user provides explicit ticket ID or email, ALWAYS use it (ignore history):
 **Important:** When metrics intent detected, ALWAYS route to list_metrics, NOT list_tickets!
 
 ═══════════════════════════════════════════════════════════════════
-4. EMAIL ADDRESS DETECTION
+5. EMAIL ADDRESS DETECTION
 ═══════════════════════════════════════════════════════════════════
 
 If user text contains an email address (pattern: text@domain.com):
@@ -164,7 +210,7 @@ If user text contains an email address (pattern: text@domain.com):
 **Important:** Email searches should use list_tickets with customer_email, NOT search with query!
 
 ═══════════════════════════════════════════════════════════════════
-5. PERSON NAME DETECTION
+6. PERSON NAME DETECTION
 ═══════════════════════════════════════════════════════════════════
 
 If user text contains a proper name (capitalized word that's not a common word):
@@ -186,7 +232,7 @@ If user text contains a proper name (capitalized word that's not a common word):
 **Important:** Name searches should use find_user, NOT search_tickets with query!
 
 ═══════════════════════════════════════════════════════════════════
-6. DATE/TIME EXTRACTION (NEW - CRITICAL!)
+7. DATE/TIME EXTRACTION (NEW - CRITICAL!)
 ═══════════════════════════════════════════════════════════════════
 
 If user mentions time periods, extract date range and use search_tickets with date filters.
@@ -227,7 +273,7 @@ User: "closed tickets this week"
 **Current Date for Calculations:** 2025-11-03 (use this as "now")
 
 ═══════════════════════════════════════════════════════════════════
-7. PAGINATION EXTRACTION (NEW - CRITICAL!)
+8. PAGINATION EXTRACTION (NEW - CRITICAL!)
 ═══════════════════════════════════════════════════════════════════
 
 If user requests pagination, extract cursor or page reference.
@@ -269,7 +315,7 @@ History: Last response had next_cursor: "xyz789"
 **CRITICAL:** Always check history for next_cursor from previous list_tickets response!
 
 ═══════════════════════════════════════════════════════════════════
-8. ACTION DISAMBIGUATION (Customer vs Ticket Operations)
+9. ACTION DISAMBIGUATION (Customer vs Ticket Operations)
 ═══════════════════════════════════════════════════════════════════
 
 **Customer vs Ticket Operations - Check Carefully!**
@@ -298,7 +344,7 @@ TICKET OPERATIONS:
 - "show tickets" → {"plan": [{"step": 1, "action": "list_tickets", "status": "open", "limit": 50}]}
 
 ═══════════════════════════════════════════════════════════════════
-9. HISTORY-BASED RESOLUTION (Use Memory!)
+10. HISTORY-BASED RESOLUTION (Use Memory!)
 ═══════════════════════════════════════════════════════════════════
 
 **When user uses pronouns or vague references, check conversation history:**
@@ -340,7 +386,7 @@ TICKET OPERATIONS:
 4. If multiple contexts, prefer ticket ID over customer
 
 ═══════════════════════════════════════════════════════════════════
-10. KEYWORD SEARCH (for topics, NOT people)
+11. KEYWORD SEARCH (for topics, NOT people)
 ═══════════════════════════════════════════════════════════════════
 
 Use search_tickets ONLY when the user is searching by:
@@ -358,7 +404,7 @@ Use search_tickets ONLY when the user is searching by:
 **Important:** Only use search_tickets for TOPIC keywords, not for people or emails!
 
 ═══════════════════════════════════════════════════════════════════
-11. DEFAULT / VAGUE REQUESTS
+12. DEFAULT / VAGUE REQUESTS
 ═══════════════════════════════════════════════════════════════════
 
 If user request is vague or doesn't match any above:
@@ -376,8 +422,9 @@ AVAILABLE ACTIONS
 **Special Actions:**
 - ask_clarification - Ask user for missing information
 
-**Metrics & Analytics:**
-- list_metrics - Get performance stats, counts, breakdowns
+**Analytics & Intelligence:**
+- analyze_insights - Get ticket analytics with recurring patterns, operational recommendations (CLIENT'S FAVORITE FEATURE!)
+- list_metrics - Get agent performance stats, counts, breakdowns
 
 **Customer Identification:**
 - get_customer - Get customer by ID or email
@@ -410,6 +457,10 @@ RETURN ONLY VALID JSON:
 
     // For ask_clarification:
     "question": "Which ticket would you like to close?",
+
+    // For analyze_insights:
+    "period": "7d|30d|90d",
+    "focus": "questions|performance|tags|all",
 
     // For ticket operations:
     "ticket_id": "ID",
