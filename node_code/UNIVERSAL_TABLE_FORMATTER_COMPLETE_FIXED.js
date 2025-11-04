@@ -33,9 +33,15 @@ function formatListTickets(data) {
                      || ticket.excerpt
                      || 'No message available';
 
-    const preview = messageBody.length > 150
-      ? messageBody.substring(0, 150) + '...'
-      : messageBody;
+    // Clean message: collapse newlines and excessive whitespace
+    const cleanedMessage = messageBody
+      .replace(/\r?\n/g, ' ')           // Replace newlines with spaces
+      .replace(/\s+/g, ' ')              // Collapse multiple spaces
+      .trim();                           // Remove leading/trailing whitespace
+
+    const preview = cleanedMessage.length > 250
+      ? cleanedMessage.substring(0, 250) + '...'
+      : cleanedMessage;
 
     // Format ticket entry
     output += `${index + 1}. 🎫 #${ticket.id} - ${ticket.subject || 'No Subject'}\n`;
@@ -91,9 +97,15 @@ function formatGetTicket(data) {
                    || ticket.excerpt
                    || 'No message content available';
 
-  const preview = messageBody.length > 300
-    ? messageBody.substring(0, 300) + '...'
-    : messageBody;
+  // Clean message: collapse newlines and excessive whitespace
+  const cleanedMessage = messageBody
+    .replace(/\r?\n/g, ' ')           // Replace newlines with spaces
+    .replace(/\s+/g, ' ')              // Collapse multiple spaces
+    .trim();                           // Remove leading/trailing whitespace
+
+  const preview = cleanedMessage.length > 500
+    ? cleanedMessage.substring(0, 500) + '...'
+    : cleanedMessage;
 
   let output = `🎫 Ticket #${ticket.id} - ${ticket.subject || 'No Subject'}\n\n`;
 
