@@ -97,15 +97,13 @@ function formatGetTicket(data) {
                    || ticket.excerpt
                    || 'No message content available';
 
-  // Clean message: collapse newlines and excessive whitespace
-  const cleanedMessage = messageBody
-    .replace(/\r?\n/g, ' ')           // Replace newlines with spaces
-    .replace(/\s+/g, ' ')              // Collapse multiple spaces
+  // For single ticket view, show FULL message (no truncation)
+  // Keep formatting clean by preserving paragraphs but removing excessive whitespace
+  const fullMessage = messageBody
+    .replace(/\r\n/g, '\n')            // Normalize line endings
+    .replace(/\n{3,}/g, '\n\n')        // Max 2 consecutive newlines (paragraph breaks)
+    .replace(/[ \t]+/g, ' ')           // Collapse spaces/tabs on same line
     .trim();                           // Remove leading/trailing whitespace
-
-  const preview = cleanedMessage.length > 500
-    ? cleanedMessage.substring(0, 500) + '...'
-    : cleanedMessage;
 
   let output = `🎫 Ticket #${ticket.id} - ${ticket.subject || 'No Subject'}\n\n`;
 
@@ -122,7 +120,7 @@ function formatGetTicket(data) {
   output += `• Spam: ${ticket.spam ? 'Yes' : 'No'}\n\n`;
 
   output += `💬 Customer Message:\n`;
-  output += `"${preview}"\n\n`;
+  output += `"${fullMessage}"\n\n`;
 
   output += `💡 Quick Actions:\n`;
   output += `• Assign: "@Gorgias Terminal assign ticket ${ticket.id} to [email]"\n`;
