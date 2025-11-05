@@ -118,7 +118,37 @@ Slack → OpenAI HTTP (Structured Output) → Execute Loop → Conv AI (optimize
 
 ## 📚 Documentation Index
 
-### Essential Reading
+### 🚀 New: n8n Workflow Learning & Improvements
+**Based on analysis of 4,343 production workflows from industry repository**
+
+1. **[N8N_LEARNING_SUMMARY.md](docs/N8N_LEARNING_SUMMARY.md)** - Executive summary
+   - What we analyzed (4,343 workflows, 187 categories)
+   - Top 10 patterns discovered
+   - Gorgias strengths vs industry standards
+   - Quick start guide for developers/architects/PMs
+   - **Start here for overview**
+
+2. **[N8N_COMPREHENSIVE_PATTERN_LIBRARY.md](docs/N8N_COMPREHENSIVE_PATTERN_LIBRARY.md)** - Complete reference
+   - 7 major pattern categories
+   - 60+ code examples
+   - Best practices library
+   - Gorgias vs Reference comparison
+   - **Primary technical reference**
+
+3. **[IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)** - Action plan
+   - 10 prioritized tasks (P1, P2, P3)
+   - Step-by-step implementation
+   - Code snippets for each task
+   - Timeline: 1 day to 1 month
+   - **Start here to implement improvements**
+
+4. **[N8N_WORKFLOW_BEST_PRACTICES.md](docs/N8N_WORKFLOW_BEST_PRACTICES.md)** - Initial analysis
+   - HTTP workflow patterns
+   - Credential management
+   - Error handling basics
+   - Slack integration patterns
+
+### Essential Reading (Original Documentation)
 1. **[TECHNICAL_HANDOFF_V23.md](docs/TECHNICAL_HANDOFF_V23.md)** - Complete technical handoff
    - Session work summary
    - Problems solved
