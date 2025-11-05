@@ -1,4 +1,6 @@
-// FIXED: Handle flattened data structure with correct field names
+// FIXED: Format Clarification Response
+// Updated to handle flattened data structure with correct field names
+
 const action = $json.action;
 const question = $json.question || $json.clarification_question || 'Could you provide more details?';
 const channel = $json.slack_channel || $json.channel;
