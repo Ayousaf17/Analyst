@@ -816,61 +816,94 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 
 ### Step 2.4: Connect Error Outputs - OpenAI Nodes
 
-**Nodes to connect (2 nodes):**
+**IMPORTANT: n8n Error Handling Method**
 
-1. **OpenAI Structured Output**
-2. **Conversational Response AI**
+⚠️ **There are NO "red dots" in n8n** - error outputs appear as regular gray connector dots.
+
+**How n8n Error Outputs Work:**
+- Each node has an **"On Error"** setting with 3 options:
+  1. **Stop Workflow** - Halts execution on error
+  2. **Continue** - Passes error through regular output (not useful)
+  3. **Continue (using error output)** ⭐ - Creates separate error connector
+
+**When you select "Continue (using error output)":**
+- Node displays **TWO connectors** on the right side:
+  - **Top connector** = Success path (regular output)
+  - **Bottom connector** = Error path (routes to error handler)
+
+---
+
+**Nodes to connect:**
+
+1. ✅ **OpenAI Structured Output** (HTTP Request node)
+2. ⏭️ **Conversational Response AI** (AI Agent - skip, doesn't support error outputs)
+
+**For "OpenAI Structured Output":**
+
+1. Click on the node **"OpenAI Structured Output"**
+2. Click **"Settings"** tab at the top
+3. Find **"On Error"** dropdown (currently shows "Stop Workflow")
+4. Select: **"Continue (using error output)"**
+5. Click **"Save"**
+6. You'll now see **TWO connector dots** on the right side of the node
+7. Drag from the **BOTTOM connector** (error path) to **"Error Handler - Gorgias Terminal"**
+
+**Visual confirmation:**
+```
+┌────────────────────────────┐
+│  OpenAI Structured Output  │  ⚫ ← Top connector (success)
+│                            │  ⚫ ← Bottom connector (error)
+└────────────────────────────┘
+```
+
+**Progress:**
+- [ ] OpenAI Structured Output
+
+---
+
+### Step 2.5: Connect Error Outputs - Gorgias Nodes
+
+**All Gorgias HTTP Request nodes need error connections:**
+
+**Your actual nodes (from workflow):**
+1. list_tickets
+2. Search Text (search_tickets)
+3. get_ticket
+4. create_ticket
+5. assign_ticket
+6. set_priority
+7. set_status
+8. update_tags
+9. find_user
+10. reply_public
+11. comment_internal
+12. list_customers
+13. get_customer
 
 **For EACH node:**
 
 1. Click on the node
-2. Look for the **error output** (red dot on the right side)
-3. If you don't see it, right-click the node → **Add error connection**
-4. Drag from the red dot to **Error Handler - Gorgias Terminal**
-5. A red line should appear connecting them
-
-### Step 2.5: Connect Error Outputs - Gorgias Nodes
-
-**All 16 Gorgias HTTP Request nodes need error connections:**
-
-1. list_tickets
-2. search_tickets
-3. get_ticket
-4. create_ticket
-5. assign_ticket
-6. close_ticket
-7. set_priority
-8. set_status
-9. add_tags
-10. remove_tags
-11. reply_public
-12. comment_internal
-13. list_customers
-14. get_customer
-15. find_user
-16. list_metrics
-
-**For EACH node:**
-- Right-click → Add error connection
-- Connect to **Error Handler - Gorgias Terminal**
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** (error path) to **"Error Handler - Gorgias Terminal"**
 
 **Progress Tracking:**
 - [ ] list_tickets
-- [ ] search_tickets
+- [ ] Search Text
 - [ ] get_ticket
 - [ ] create_ticket
 - [ ] assign_ticket
-- [ ] close_ticket
 - [ ] set_priority
 - [ ] set_status
-- [ ] add_tags
-- [ ] remove_tags
+- [ ] update_tags
+- [ ] find_user
 - [ ] reply_public
 - [ ] comment_internal
 - [ ] list_customers
 - [ ] get_customer
-- [ ] find_user
-- [ ] list_metrics
+
+---
 
 ### Step 2.6: Connect Error Outputs - Supabase Nodes
 
@@ -879,15 +912,33 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 - Insert api_logs
 
 **For EACH node:**
-- Right-click → Add error connection
-- Connect to **Error Handler - Gorgias Terminal**
+
+1. Click on the node
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** to **"Error Handler - Gorgias Terminal"**
+
+**Progress:**
+- [ ] Insert Session
+- [ ] Insert api_logs
+
+---
 
 ### Step 2.7: Connect Error Output - Final Slack Reply
 
 **Node:** Final Slack Reply
 
-- Right-click → Add error connection
-- Connect to **Error Handler - Gorgias Terminal**
+**Instructions:**
+
+1. Click on **"Final Slack Reply"** node
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** to **"Error Handler - Gorgias Terminal"**
+
+**Progress:**
+- [ ] Final Slack Reply
 
 ### Step 2.8: Test Error Handling
 

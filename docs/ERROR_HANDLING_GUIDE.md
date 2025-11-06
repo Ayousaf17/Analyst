@@ -85,70 +85,114 @@ User receives friendly error message in thread
 
 Now connect the error output of critical nodes to the Error Handler node.
 
-#### A. OpenAI Nodes (2 nodes)
+**⚠️ IMPORTANT: How n8n Error Outputs Actually Work**
+
+**There are NO "red dots" or right-click "Add connection" options in n8n.**
+
+**Correct Method:**
+1. Each node has a **Settings** tab with an **"On Error"** dropdown
+2. The dropdown has **3 options**:
+   - **Stop Workflow** - Halts execution (default)
+   - **Continue** - Passes error through regular output (not useful)
+   - **Continue (using error output)** ⭐ - Creates separate error connector
+
+**When you select "Continue (using error output)":**
+- Node displays **TWO connector dots** on the right side:
+  - **Top connector** = Success path (regular output)
+  - **Bottom connector** = Error path (routes to error handler)
+
+**Visual Example:**
+```
+┌────────────────────────────┐
+│  HTTP Request Node         │  ⚫ ← Top connector (success)
+│                            │  ⚫ ← Bottom connector (error)
+└────────────────────────────┘
+         ↓                ↘
+    [Success path]    [Error Handler]
+```
+
+---
+
+#### A. OpenAI Nodes (1 node)
 
 **Nodes:**
-1. OpenAI Structured Output (HTTP Request)
-2. Conversational Response AI (HTTP Request)
+1. ✅ OpenAI Structured Output (HTTP Request)
+2. ⏭️ Conversational Response AI (AI Agent - skip, doesn't support error outputs)
 
-**Steps for Each:**
-1. Right-click the node
-2. Click "Add connection"
-3. Select "On Error" output
-4. Connect to "Error Handler - Gorgias Terminal" node
-5. Save workflow
+**Steps for OpenAI Structured Output:**
+1. Click on the node
+2. Click **"Settings"** tab at the top
+3. Find **"On Error"** dropdown (currently shows "Stop Workflow")
+4. Select: **"Continue (using error output)"**
+5. Click **"Save"**
+6. You'll now see **TWO connector dots** on the right side
+7. Drag from **BOTTOM connector** (error path) to "Error Handler - Gorgias Terminal"
+8. Save workflow
 
-#### B. Gorgias API Nodes (16 nodes)
+---
 
-**Nodes:**
+#### B. Gorgias API Nodes (13 nodes)
+
+**Actual Nodes in Workflow:**
 1. list_tickets
-2. search_tickets
+2. Search Text (search_tickets)
 3. get_ticket
 4. create_ticket
 5. assign_ticket
-6. close_ticket
-7. set_priority
-8. set_status
-9. add_tags
-10. remove_tags
-11. reply_public
-12. comment_internal
-13. list_customers
-14. get_customer
-15. find_user
-16. list_metrics
+6. set_priority
+7. set_status
+8. update_tags
+9. find_user
+10. reply_public
+11. comment_internal
+12. list_customers
+13. get_customer
 
-**Steps for Each:**
-1. Right-click the node
-2. Click "Add connection"
-3. Select "On Error" output
-4. Connect to "Error Handler - Gorgias Terminal" node
-5. Save workflow
+**Steps for Each Node:**
+1. Click on the node
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** to "Error Handler - Gorgias Terminal"
+6. Save workflow
 
-#### C. Supabase Nodes (2-4 nodes)
+---
+
+#### C. Supabase Nodes (2 nodes)
 
 **Nodes:**
 - Insert Session
 - Insert api_logs
-- Any other Supabase operations
 
-**Steps for Each:**
-1. Right-click the node
-2. Click "Add connection"
-3. Select "On Error" output
-4. Connect to "Error Handler - Gorgias Terminal" node
-5. Save workflow
+**Steps for Each Node:**
+1. Click on the node
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** to "Error Handler - Gorgias Terminal"
+6. Save workflow
 
-#### D. Final Slack Reply Node
+---
+
+#### D. Final Slack Reply Node (1 node)
 
 **Node:** Final Slack Reply
 
 **Steps:**
-1. Right-click the node
-2. Click "Add connection"
-3. Select "On Error" output
-4. Connect to "Error Handler - Gorgias Terminal" node
-5. Save workflow
+1. Click on the node
+2. Click **"Settings"** tab
+3. **"On Error"** dropdown → Select **"Continue (using error output)"**
+4. Click **"Save"**
+5. Drag from **BOTTOM connector** to "Error Handler - Gorgias Terminal"
+6. Save workflow
+
+---
+
+**Total Error Connections: 16 nodes**
+- 1 OpenAI node
+- 13 Gorgias nodes
+- 2 Supabase nodes
+- 1 Slack node
 
 ---
 
