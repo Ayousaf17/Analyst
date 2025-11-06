@@ -1,0 +1,10 @@
+{
+  "name": "Error Handler - Gorgias Terminal",
+  "type": "n8n-nodes-base.code",
+  "typeVersion": 2,
+  "position": [1000, 1000],
+  "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// Central Error Handler for Gorgias Terminal\n// Captures errors from any node and formats for logging/notification\n\nconst items = $input.all();\nconst errors = [];\n\n// Get correlation ID from Parse Slack node\nlet correlationId = 'unknown';\ntry {\n  correlationId = $('Parse Slack').first().json.correlation_id;\n} catch (e) {\n  console.log('⚠️ Could not retrieve correlation_id');\n}\n\n// Get user ID from Parse Slack node\nlet userId = 'unknown';\ntry {\n  userId = $('Parse Slack').first().json.user_id;\n} catch (e) {\n  console.log('⚠️ Could not retrieve user_id');\n}\n\n// Process each error\nfor (const item of items) {\n  const error = {\n    correlation_id: correlationId,\n    user_id: userId,\n    timestamp: new Date().toISOString(),\n    node: item.json.node || 'unknown',\n    action: item.json.action || 'unknown',\n    error_message: item.json.error?.message || item.json.message || 'Unknown error',\n    error_code: item.json.error?.code || null,\n    error_type: item.json.error?.type || 'UnknownError',\n    http_status: item.json.httpCode || null,\n    request_data: item.json.request || null,\n    response_data: item.json.response || null,\n    stack_trace: item.json.error?.stack || null\n  };\n\n  errors.push(error);\n  \n  // Log to console for n8n logs\n  console.error('❌ Gorgias Terminal Error:', {\n    correlation_id: error.correlation_id,\n    node: error.node,\n    action: error.action,\n    error: error.error_message\n  });\n}\n\n// Return errors for downstream processing\nreturn errors.map(error => ({ json: error }));"
+  }
+}

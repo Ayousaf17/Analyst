@@ -1,0 +1,21 @@
+{
+  "name": "Send Error to Slack",
+  "type": "n8n-nodes-base.slack",
+  "typeVersion": 2,
+  "position": [1400, 1000],
+  "parameters": {
+    "resource": "message",
+    "operation": "post",
+    "channel": "={{ $json.channel }}",
+    "text": "={{ $json.text }}",
+    "otherOptions": {
+      "thread_ts": "={{ $json.thread_ts }}"
+    }
+  },
+  "credentials": {
+    "slackApi": {
+      "id": "YOUR_SLACK_CREDENTIAL_ID",
+      "name": "Slack account"
+    }
+  }
+}
