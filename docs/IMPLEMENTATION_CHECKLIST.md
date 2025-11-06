@@ -625,7 +625,7 @@ return [{
 
 ---
 
-### Step 1.4: Update Conversational Response AI (AI Agent + OpenAI Chat Model)
+### Step 1.4: Update Conversational Response AI (AI Agent + OpenAI Chat Model) - OPTIONAL
 
 **What this does:** Updates the OpenAI Chat Model sub-node to use environment variables for the model name and adds temperature setting.
 
@@ -636,36 +636,16 @@ return [{
 - Sub-node: "OpenAI Chat Model" (LangChain OpenAI model)
 - Currently uses: `gpt-4.1-mini` (hardcoded)
 
-#### Instructions:
+**⚠️ RECOMMENDATION: SKIP THIS STEP**
 
-1. **Find the "OpenAI Chat Model" node** (the small node connected BELOW "Conversational Response AI")
-2. **Click on it** to open the settings
-3. **Find the "Model" field** (currently shows "gpt-4.1-mini")
-4. **Click the dropdown** and look for an option to switch to expression mode
-   - Look for a **gear icon**, **"Expression"** tab, or **"=" icon**
-   - If you see a dropdown list, there may be a way to switch to custom/expression mode
+AI Agent nodes with LangChain models don't easily support environment variables. Your current setup works perfectly:
+- Model: `gpt-4.1-mini` (hardcoded)
+- Temperature: Set via Options if needed
+- Uses OpenAI credentials (secure)
 
-**Option A: If Expression Mode is Available**
-5. Switch to expression mode
-6. Replace with: `{{ $vars.OPENAI_MODEL }}`
-7. Scroll down to **Options** section
-8. Click "Add Option"
-9. Select "Temperature"
-10. Set Temperature to: `{{ parseFloat($vars.OPENAI_TEMPERATURE_CONVERSATION) }}`
-11. Click "Save"
+**This node is fine as-is. No changes needed.**
 
-**Option B: If No Expression Mode (Dropdown Only)**
-5. **SKIP THIS STEP FOR NOW** - LangChain nodes may not support expressions for model selection
-6. Leave as `gpt-4.1-mini` (hardcoded is fine for this node type)
-7. Scroll down to **Options** section
-8. Click "Add Option"
-9. Select "Temperature"
-10. Enter: `0.7` (the value from OPENAI_TEMPERATURE_CONVERSATION)
-11. Click "Save"
-
-**Note:** AI Agent nodes with LangChain models often don't support environment variables for model selection. If you can't use expressions, keeping `gpt-4.1-mini` hardcoded is acceptable since this is specifically for conversational responses.
-
-✅ **Step 1.4 Complete!**
+✅ **Step 1.4 Complete (Skipped)!**
 
 ---
 
