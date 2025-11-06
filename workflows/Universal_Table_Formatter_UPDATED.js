@@ -83,14 +83,10 @@ function formatGetTicket(summaries, emoji) {
 
   const ticket = summaries[0];
 
-  // Message body with fallback chain
+  // Message body with fallback chain (FULL message, no truncation)
   const messageBody = ticket.first_message?.body_text
                    || ticket.excerpt
                    || 'No message content available';
-
-  const preview = messageBody.length > 300
-    ? messageBody.substring(0, 300) + '...'
-    : messageBody;
 
   let output = `${emoji} Ticket #${ticket.id} - ${ticket.subject || 'No Subject'}\n\n`;
 
@@ -107,7 +103,7 @@ function formatGetTicket(summaries, emoji) {
   output += `• Spam: ${ticket.spam ? 'Yes' : 'No'}\n\n`;
 
   output += `💬 Customer Message:\n`;
-  output += `"${preview}"\n\n`;
+  output += `"${messageBody}"\n\n`;
 
   output += `💡 Quick Actions:\n`;
   output += `• Assign: "@Gorgias Terminal assign ticket ${ticket.id} to [email]"\n`;
