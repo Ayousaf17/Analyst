@@ -30,6 +30,14 @@ This checklist guides you through implementing all Priority 1 and Priority 2 com
 **Estimated Time:** 20-30 minutes
 **Impact:** Critical - Required for all other features
 
+**🌐 n8n.cloud Specific:** This guide is tailored for **n8n.cloud** ($60 subscription plan).
+
+**Important Syntax Note:**
+- In n8n.cloud, environment variables are accessed using: `{{ $vars.VARIABLE_NAME }}`
+- NOT `$env.VARIABLE_NAME` (that's for self-hosted only)
+
+---
+
 ### Step 1.1: Configure n8n.cloud Environment Variables
 
 **For n8n.cloud users ($60 subscription plan):**
@@ -264,33 +272,9 @@ RETRY_DELAY
 
 **No restart needed!** Changes take effect immediately in n8n.cloud.
 
-### Step 1.2: Verify Environment Variables
+---
 
-**Test in n8n:**
-
-1. Create a temporary test workflow
-2. Add a **Code** node
-3. Paste this code:
-```javascript
-console.log('OPENAI_API_URL:', $env.OPENAI_API_URL);
-console.log('GORGIAS_BASE_URL:', $env.GORGIAS_BASE_URL);
-console.log('SUPABASE_URL:', $env.SUPABASE_URL);
-
-return [{
-  json: {
-    openai: $env.OPENAI_API_URL,
-    gorgias: $env.GORGIAS_BASE_URL,
-    supabase: $env.SUPABASE_URL
-  }
-}];
-```
-4. Execute the node
-5. Verify all values are correct (not `undefined`)
-
-**✅ If all values show correctly, proceed to Step 1.3**
-**❌ If values are `undefined`, check n8n restart and variable syntax**
-
-### Step 1.3: Update OpenAI Structured Output Node
+### Step 1.2: Update OpenAI Structured Output Node
 
 **Location:** Your main workflow → "OpenAI Structured Output" (HTTP Request node)
 
@@ -305,25 +289,25 @@ return [{
 1. Click on the node
 2. Find the **URL** field
 3. Click the **=** icon (enable expression mode)
-4. Replace with: `={{ $env.OPENAI_API_URL }}`
+4. Replace with: `{{ $vars.OPENAI_API_URL }}`
 5. Scroll to **Body** → **Parameters**
-6. Find `model` field → Enable expression → Replace with: `={{ $env.OPENAI_MODEL }}`
-7. Find `max_tokens` field → Enable expression → Replace with: `={{ parseInt($env.OPENAI_MAX_TOKENS) }}`
-8. Find `temperature` field → Enable expression → Replace with: `={{ parseFloat($env.OPENAI_TEMPERATURE_PLAN) }}`
+6. Find `model` field → Enable expression → Replace with: `{{ $vars.OPENAI_MODEL }}`
+7. Find `max_tokens` field → Enable expression → Replace with: `{{ parseInt($vars.OPENAI_MAX_TOKENS) }}`
+8. Find `temperature` field → Enable expression → Replace with: `{{ parseFloat($vars.OPENAI_TEMPERATURE_PLAN) }}`
 9. Click **Save**
 
 **Test:**
 - Execute the node manually
 - Verify it still works with environment variables
 
-### Step 1.4: Update Conversational Response AI Node
+### Step 1.3: Update Conversational Response AI Node
 
 **Location:** Your main workflow → "Conversational Response AI" (HTTP Request node)
 
-**Follow same process as Step 1.3, but:**
-- Use `OPENAI_TEMPERATURE_CONVERSATION` instead of `OPENAI_TEMPERATURE_PLAN`
+**Follow same process as Step 1.2, but:**
+- Use `{{ $vars.OPENAI_TEMPERATURE_CONVERSATION }}` instead of `{{ $vars.OPENAI_TEMPERATURE_PLAN }}`
 
-### Step 1.5: Update All 16 Gorgias API Nodes
+### Step 1.4: Update All 16 Gorgias API Nodes
 
 **Nodes to update:**
 1. list_tickets
@@ -347,16 +331,16 @@ return [{
 
 1. Open the HTTP Request node
 2. Find the **URL** field
-3. Current value example: `https://ironside.gorgias.com/api/tickets`
+3. Current value example: `https://ironsidecomputers.gorgias.com/api/tickets`
 4. Click **=** to enable expression mode
-5. Replace `https://ironside.gorgias.com` with `={{ $env.GORGIAS_BASE_URL }}`
+5. Replace `https://ironsidecomputers.gorgias.com` with `{{ $vars.GORGIAS_BASE_URL }}`
 6. Keep the rest of the URL: `/api/tickets` or `/api/tickets/{{$json.ticket_id}}`, etc.
-7. Final example: `={{ $env.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}`
+7. Final example: `{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}`
 8. Click **Save**
 
 **Quick Find:**
 - Use Ctrl+F (Cmd+F on Mac) in the workflow canvas
-- Search for: `ironside.gorgias.com`
+- Search for: `ironsidecomputers.gorgias.com`
 - Replace each occurrence one by one
 
 **Tracking Progress:**
@@ -377,7 +361,7 @@ return [{
 - [ ] find_user
 - [ ] list_metrics
 
-### Step 1.6: Update Supabase Nodes
+### Step 1.5: Update Supabase Nodes
 
 **Nodes to update:**
 - Insert Session (Supabase node)
@@ -386,10 +370,10 @@ return [{
 **For native Supabase nodes:**
 1. The URL is configured in the **credential**, not the node
 2. Open n8n → Credentials → Find your Supabase credential
-3. Update **Host** field to use: `={{ $env.SUPABASE_URL }}`
+3. Update **Host** field to use: `{{ $vars.SUPABASE_URL }}`
 4. If using HTTP Request nodes for Supabase, update URL like Gorgias nodes
 
-### Step 1.7: Test Environment Variable Migration
+### Step 1.6: Test Environment Variable Migration
 
 **Test each action type:**
 
