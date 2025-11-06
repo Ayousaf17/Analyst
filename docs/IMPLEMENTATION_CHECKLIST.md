@@ -625,25 +625,45 @@ return [{
 
 ---
 
-### Step 1.4: Update Conversational Response AI HTTP Request Node
+### Step 1.4: Update Conversational Response AI (AI Agent + OpenAI Chat Model)
 
-**What this does:** Similar to Step 1.3, but this is for the second OpenAI call that creates the conversational response.
+**What this does:** Updates the OpenAI Chat Model sub-node to use environment variables for the model name and adds temperature setting.
 
-**Location:** Your main workflow → "Conversational Response AI" (HTTP Request node, near the end of the workflow)
+**Location:** Your main workflow → "Conversational Response AI" (AI Agent node) → "OpenAI Chat Model" (sub-node connected to it)
+
+**Your Setup:**
+- Main node: "Conversational Response AI" (AI Agent type)
+- Sub-node: "OpenAI Chat Model" (LangChain OpenAI model)
+- Currently uses: `gpt-4.1-mini` (hardcoded)
 
 #### Instructions:
 
-1. **Find the "Conversational Response AI" node** (it's an HTTP Request node)
-2. **Click on the node** to open it
-3. **Find the "URL" field**
-4. **Click the "=" icon** next to the URL field
-5. **Replace** the current URL with:
-   ```
-   {{ $vars.OPENAI_API_URL }}
-   ```
-6. **Click "Save"**
+1. **Find the "OpenAI Chat Model" node** (the small node connected BELOW "Conversational Response AI")
+2. **Click on it** to open the settings
+3. **Find the "Model" field** (currently shows "gpt-4.1-mini")
+4. **Click the dropdown** and look for an option to switch to expression mode
+   - Look for a **gear icon**, **"Expression"** tab, or **"=" icon**
+   - If you see a dropdown list, there may be a way to switch to custom/expression mode
 
-**Note:** This node also sends `{{ $json }}` in the body, which is built by a previous Code node. That Code node will be updated separately if needed (it likely uses the OPENAI_TEMPERATURE_CONVERSATION variable).
+**Option A: If Expression Mode is Available**
+5. Switch to expression mode
+6. Replace with: `{{ $vars.OPENAI_MODEL }}`
+7. Scroll down to **Options** section
+8. Click "Add Option"
+9. Select "Temperature"
+10. Set Temperature to: `{{ parseFloat($vars.OPENAI_TEMPERATURE_CONVERSATION) }}`
+11. Click "Save"
+
+**Option B: If No Expression Mode (Dropdown Only)**
+5. **SKIP THIS STEP FOR NOW** - LangChain nodes may not support expressions for model selection
+6. Leave as `gpt-4.1-mini` (hardcoded is fine for this node type)
+7. Scroll down to **Options** section
+8. Click "Add Option"
+9. Select "Temperature"
+10. Enter: `0.7` (the value from OPENAI_TEMPERATURE_CONVERSATION)
+11. Click "Save"
+
+**Note:** AI Agent nodes with LangChain models often don't support environment variables for model selection. If you can't use expressions, keeping `gpt-4.1-mini` hardcoded is acceptable since this is specifically for conversational responses.
 
 ✅ **Step 1.4 Complete!**
 
