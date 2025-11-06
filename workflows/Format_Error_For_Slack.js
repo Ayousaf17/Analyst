@@ -25,8 +25,28 @@ const errorTypeMessages = {
   'UnknownError': '❓ An unexpected error occurred'
 };
 
+// Determine error type - check HTTP status code first, then error_type field
+let errorType = error.error_type || 'UnknownError';
+
+// Map HTTP status codes to error types
+if (error.http_status) {
+  const status = parseInt(error.http_status);
+
+  if (status === 404) {
+    errorType = 'NotFoundError';
+  } else if (status === 401 || status === 403) {
+    errorType = 'AuthenticationError';
+  } else if (status === 429) {
+    errorType = 'RateLimitError';
+  } else if (status === 400) {
+    errorType = 'ValidationError';
+  } else if (status >= 500) {
+    errorType = 'HTTPError';
+  }
+}
+
 // Get user-friendly error type message
-const errorTypeMessage = errorTypeMessages[error.error_type] || errorTypeMessages['UnknownError'];
+const errorTypeMessage = errorTypeMessages[errorType] || errorTypeMessages['UnknownError'];
 
 // Build detailed error message
 let errorDetails = `*Action:* ${error.action}\n*Error:* ${error.error_message}`;
