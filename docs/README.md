@@ -1,342 +1,480 @@
-# Gorgias Slack Terminal - Documentation
+# Gorgias Terminal - Documentation Package
 
-**Project:** n8n Workflow Optimization for Gorgias Integration
-**Last Updated:** November 5, 2025
-**Status:** Implementation Ready
+Complete documentation for the Slack + Gorgias AI Agent workflow.
 
 ---
 
-## 📂 Documentation Structure
+## Quick Start
 
-This directory contains all documentation for improving the Gorgias Slack Terminal n8n workflow project.
+**New to the project?** Start here:
+1. Read [`CLAUDE_START_HERE.md`](CLAUDE_START_HERE.md) - 5 minute overview
+2. Skim [`ARCHITECTURE.md`](ARCHITECTURE.md) - Comprehensive reference
+3. Check [`NODE_MAP.json`](NODE_MAP.json) - Physical locations
 
----
-
-## 🚀 **START HERE** - Implementation Guides
-
-### **NEW TO THE PROJECT?**
-
-👉 **Start with:** [`QUICK_START_IMPLEMENTATION.md`](QUICK_START_IMPLEMENTATION.md)
-
-This guide provides:
-- Overview of what you're implementing
-- Clear reading order for all documents
-- Time estimates and difficulty levels
-- Success criteria and troubleshooting
+**Need to debug?** → [`docs/DEBUGGING.md`](docs/DEBUGGING.md)  
+**Adding features?** → [`docs/EXTENSION_GUIDE.md`](docs/EXTENSION_GUIDE.md)  
+**Node details?** → [`docs/NODE_REFERENCE.md`](docs/NODE_REFERENCE.md)
 
 ---
 
-## 📋 Active Implementation (HTTP Request Fix)
-
-These documents guide you through replacing the AI Agent with HTTP Request:
-
-| Document | Purpose | When to Use |
-|----------|---------|-------------|
-| **[QUICK_START_IMPLEMENTATION.md](QUICK_START_IMPLEMENTATION.md)** ⭐ | Entry point and overview | Read first, before starting |
-| **[IMPLEMENTATION_PLAN_HTTP_FIX.md](IMPLEMENTATION_PLAN_HTTP_FIX.md)** 📋 | Master checklist with 48 items | Keep open during implementation |
-| **[HTTP_REQUEST_REPLACEMENT_GUIDE.md](HTTP_REQUEST_REPLACEMENT_GUIDE.md)** 🔧 | Technical step-by-step guide | Reference when stuck |
-| **[BUILTIN_VS_HTTP_CLARIFICATION.md](BUILTIN_VS_HTTP_CLARIFICATION.md)** 🤔 | Built-in vs HTTP comparison | Understanding the options |
-
-### Supporting Code Files
-
-| File | Location | Purpose |
-|------|----------|---------|
-| `OpenAI_Structured_Output_Node.json` | `workflows/` | HTTP Request node configuration |
-| `Handle_Plan_Response_Simplified.js` | `workflows/` | Simplified parsing code |
-
----
-
-## 📚 Reference Documentation
-
-These documents provide context and best practices:
-
-### Analysis & Learning
-
-| Document | Purpose | Use Case |
-|----------|---------|----------|
-| **[N8N_LEARNING_SUMMARY.md](N8N_LEARNING_SUMMARY.md)** | Executive summary of findings | Quick overview |
-| **[N8N_COMPREHENSIVE_PATTERN_LIBRARY.md](N8N_COMPREHENSIVE_PATTERN_LIBRARY.md)** | Complete analysis of 4,343 workflows | Reference for best practices |
-| **[N8N_WORKFLOW_BEST_PRACTICES.md](N8N_WORKFLOW_BEST_PRACTICES.md)** | Initial HTTP workflow analysis | Understanding patterns |
-
-### Roadmap & Planning
-
-| Document | Purpose | Use Case |
-|----------|---------|----------|
-| **[IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md)** | P1/P2/P3 prioritized improvements | Future planning |
-| **[ROOT_CAUSE_ANALYSIS.md](ROOT_CAUSE_ANALYSIS.md)** | Analysis of workflow failures | Understanding issues |
-
-### Architecture & Design
-
-| Document | Purpose | Use Case |
-|----------|---------|----------|
-| **[HYBRID_ARCHITECTURE_PROPOSAL.md](HYBRID_ARCHITECTURE_PROPOSAL.md)** | v19 efficiency + v23 capabilities | Architecture decisions |
-| **[WORKFLOW_RECOMMENDATIONS.md](WORKFLOW_RECOMMENDATIONS.md)** | Comprehensive improvement guide | Optimization planning |
-
----
-
-## 🎯 Implementation Phases
-
-### **Phase 1: HTTP Request Fix** 🔴 CRITICAL (Current Phase)
-**Status:** Ready to start
-**Time:** 2-3 hours
-**Priority:** P0 (Must do first)
-
-**Goal:** Replace AI Agent with HTTP Request for 100% reliability
-
-**Documents:**
-- Start: `QUICK_START_IMPLEMENTATION.md`
-- Follow: `IMPLEMENTATION_PLAN_HTTP_FIX.md`
-- Reference: `HTTP_REQUEST_REPLACEMENT_GUIDE.md`
-
-**Success Criteria:**
-- ✅ Zero "Model output doesn't fit required format" errors
-- ✅ All 16 Gorgias actions work correctly
-- ✅ Full workflow executes end-to-end
-
----
-
-### **Phase 2: Environment Variables** 🟡 HIGH PRIORITY (After Phase 1)
-**Status:** Planned
-**Time:** 1-2 hours
-**Priority:** P1
-
-**Goal:** Move hardcoded values to environment variables
-
-**Tasks:**
-- Extract hardcoded Supabase URLs
-- Extract API endpoints
-- Create environment variable structure
-- Update all 20+ nodes
-
-**Reference:** `IMPLEMENTATION_ROADMAP.md` (Task 2)
-
----
-
-### **Phase 3: Error Handlers** 🟡 HIGH PRIORITY (After Phase 2)
-**Status:** Planned
-**Time:** 2-3 hours
-**Priority:** P1
-
-**Goal:** Add centralized error handling
-
-**Tasks:**
-- Create Error Handler node
-- Connect to all nodes
-- Add retry logic
-- Implement error notifications
-
-**Reference:** `IMPLEMENTATION_ROADMAP.md` (Task 3)
-
----
-
-### **Phase 4: Workflow Settings & Optimization** 🟢 MEDIUM PRIORITY
-**Status:** Planned
-**Time:** 5-7 hours
-**Priority:** P1-P2
-
-**Goals:**
-- Add workflow timeout and retry settings
-- Improve Slack error formatting
-- Add action emojis
-- Implement deduplication
-- Add health check endpoint
-
-**Reference:** `IMPLEMENTATION_ROADMAP.md` (Tasks 5-8)
-
----
-
-### **Phase 5: Advanced Features** 🔵 LOW PRIORITY
-**Status:** Future consideration
-**Time:** 12+ hours
-**Priority:** P3
-
-**Goals:**
-- Create sub-workflow utilities
-- Add performance metrics dashboard
-- Implement advanced error recovery
-
-**Reference:** `IMPLEMENTATION_ROADMAP.md` (Tasks 9-10)
-
----
-
-## 📖 Reading Paths
-
-### **Path 1: Quick Implementation** (Fastest)
-For users who want to fix the critical issue immediately:
-
-1. `QUICK_START_IMPLEMENTATION.md` (5 min read)
-2. `IMPLEMENTATION_PLAN_HTTP_FIX.md` (10 min read)
-3. Start implementation (2-3 hours)
-4. Reference `HTTP_REQUEST_REPLACEMENT_GUIDE.md` as needed
-
-**Total Time:** ~3 hours
-
----
-
-### **Path 2: Comprehensive Understanding** (Recommended)
-For users who want to understand the full context:
-
-1. `N8N_LEARNING_SUMMARY.md` (15 min) - Understand best practices
-2. `ROOT_CAUSE_ANALYSIS.md` (10 min) - Understand current issues
-3. `BUILTIN_VS_HTTP_CLARIFICATION.md` (5 min) - Understand options
-4. `QUICK_START_IMPLEMENTATION.md` (5 min) - Implementation overview
-5. `IMPLEMENTATION_PLAN_HTTP_FIX.md` (10 min) - Detailed plan
-6. Start implementation (2-3 hours)
-
-**Total Time:** ~3.5 hours
-
----
-
-### **Path 3: Deep Dive** (For Learning)
-For users who want to learn n8n workflow best practices:
-
-1. `N8N_LEARNING_SUMMARY.md` (15 min)
-2. `N8N_COMPREHENSIVE_PATTERN_LIBRARY.md` (45 min)
-3. `N8N_WORKFLOW_BEST_PRACTICES.md` (20 min)
-4. `WORKFLOW_RECOMMENDATIONS.md` (30 min)
-5. `IMPLEMENTATION_ROADMAP.md` (15 min)
-6. Then follow Path 1 or Path 2 for implementation
-
-**Total Time:** ~5-6 hours
-
----
-
-## 🗂️ File Organization
+## File Structure
 
 ```
-docs/
-├── README.md (this file)
+gorgias-terminal/
+├── README.md                      # This file
+├── ARCHITECTURE.md                # Comprehensive technical reference (~8000 lines)
+├── CLAUDE_START_HERE.md           # Quick start guide (~500 lines)
+├── NODE_MAP.json                  # Node metadata and physical locations
+├── workflow.json                  # n8n workflow export (your existing file)
 │
-├── 🚀 IMPLEMENTATION (Active)
-│   ├── QUICK_START_IMPLEMENTATION.md ⭐ START HERE
-│   ├── IMPLEMENTATION_PLAN_HTTP_FIX.md 📋 MASTER CHECKLIST
-│   ├── HTTP_REQUEST_REPLACEMENT_GUIDE.md 🔧 TECHNICAL GUIDE
-│   └── BUILTIN_VS_HTTP_CLARIFICATION.md 🤔 OPTIONS EXPLAINED
+├── database/
+│   ├── schema.sql                 # Supabase table definitions with indexes
+│   └── queries.sql                # Common debugging queries
 │
-├── 📚 REFERENCE (Background)
-│   ├── N8N_LEARNING_SUMMARY.md
-│   ├── N8N_COMPREHENSIVE_PATTERN_LIBRARY.md
-│   ├── N8N_WORKFLOW_BEST_PRACTICES.md
-│   ├── IMPLEMENTATION_ROADMAP.md
-│   └── ROOT_CAUSE_ANALYSIS.md
+├── docs/
+│   ├── DEBUGGING.md               # Troubleshooting guide with examples
+│   ├── EXTENSION_GUIDE.md         # How to add new features
+│   └── NODE_REFERENCE.md          # Detailed documentation for all 54 nodes
 │
-└── 🏗️ ARCHITECTURE (Design)
-    ├── HYBRID_ARCHITECTURE_PROPOSAL.md
-    └── WORKFLOW_RECOMMENDATIONS.md
-
-workflows/
-├── OpenAI_Structured_Output_Node.json (HTTP Request config)
-└── Handle_Plan_Response_Simplified.js (Parsing code)
-
-archive/
-└── (Workflow backups will go here)
+└── nodes/                         # (Optional) Extracted node code
+    ├── parse-slack.js             # Extract from workflow.json
+    ├── build-openai-request.js
+    ├── handle-plan-response.js
+    ├── client-side-filter.js
+    ├── calculate-metrics.js
+    └── universal-formatter.js
 ```
 
 ---
 
-## 🎯 Quick Reference
+## Documentation Overview
 
-### What's Wrong with Current Workflow?
+### Core Documentation (Required Reading)
 
-**Issue #1: AI Agent Reliability** 🔴 CRITICAL
-- Current: AI Agent with Structured Output Parser (95% reliable)
-- Problem: "Model output doesn't fit required format" errors
-- Fix: Replace with HTTP Request + Structured Outputs (100% reliable)
-- **Time to fix:** 2-3 hours
+#### [`ARCHITECTURE.md`](ARCHITECTURE.md)
+**~8000 lines** | **Comprehensive Reference**
 
-**Issue #2: Hardcoded Values** 🟡 HIGH PRIORITY
-- Current: Supabase URLs hardcoded in 20+ nodes
-- Problem: Can't deploy to staging/production environments
-- Fix: Environment variables
-- **Time to fix:** 1-2 hours
+The source of truth for the entire system. Contains:
+- System overview and tech stack
+- Complete data flow diagrams
+- All 54 nodes documented with code examples
+- Database schema and relationships
+- Token optimization strategies
+- Performance budgets
+- Extension points
+- What Claude Code should/shouldn't do
 
-**Issue #3: No Error Handling** 🟡 HIGH PRIORITY
-- Current: No dedicated error handler nodes
-- Problem: Errors fail silently or show unhelpful messages
-- Fix: Centralized error handler
-- **Time to fix:** 2-3 hours
+**When to read**: Before making any code changes
 
 ---
 
-## ✅ Success Metrics
+#### [`CLAUDE_START_HERE.md`](CLAUDE_START_HERE.md)
+**~500 lines** | **Quick Start**
 
-### Phase 1 Success (HTTP Request Fix)
-- [ ] Zero "Model output doesn't fit required format" errors
-- [ ] 100% of test queries work correctly
-- [ ] All 16 Gorgias actions generate valid plans
-- [ ] Full workflow executes end-to-end
+10-minute overview to get oriented. Contains:
+- Architecture in 10 seconds
+- Core flow diagram
+- Critical vs. safe files
+- How to add a new action (step-by-step)
+- How to debug issues
+- Common tasks with examples
 
-### Long-term Success (After All Phases)
-- [ ] 99.9%+ workflow reliability
-- [ ] Sub-3-second response times
-- [ ] Multi-environment deployment capability
-- [ ] Comprehensive error logging and recovery
-- [ ] Production-ready architecture
+**When to read**: First time working with the project
 
 ---
 
-## 📞 Support & Troubleshooting
+#### [`NODE_MAP.json`](NODE_MAP.json)
+**JSON** | **Physical Locations**
 
-### Common Issues
+Machine-readable reference showing:
+- All 54 nodes with IDs, types, positions
+- Node categories (critical, code, HTTP, database)
+- Input/output formats
+- Safe vs. dangerous modifications
+- Data flow paths (main, analytics, error, clarification)
+- Environment variables and credentials
 
-**"Where do I start?"**
-→ Read `QUICK_START_IMPLEMENTATION.md`
-
-**"I'm confused about built-in vs HTTP"**
-→ Read `BUILTIN_VS_HTTP_CLARIFICATION.md`
-
-**"I'm stuck during implementation"**
-→ Check `HTTP_REQUEST_REPLACEMENT_GUIDE.md` troubleshooting section
-
-**"I want to understand the big picture"**
-→ Read `N8N_LEARNING_SUMMARY.md` and `IMPLEMENTATION_ROADMAP.md`
-
-**"I need to rollback my changes"**
-→ Import backup from `archive/` directory
+**When to use**: Finding a specific node, understanding connections
 
 ---
 
-## 🔄 Document Status
+### Database Documentation
 
-| Document | Status | Last Updated | Next Review |
-|----------|--------|--------------|-------------|
-| QUICK_START_IMPLEMENTATION.md | ✅ Complete | Nov 5, 2025 | After Phase 1 completion |
-| IMPLEMENTATION_PLAN_HTTP_FIX.md | ✅ Complete | Nov 5, 2025 | After Phase 1 completion |
-| HTTP_REQUEST_REPLACEMENT_GUIDE.md | ✅ Complete | Nov 5, 2025 | After Phase 1 completion |
-| BUILTIN_VS_HTTP_CLARIFICATION.md | ✅ Complete | Nov 5, 2025 | As needed |
-| N8N_COMPREHENSIVE_PATTERN_LIBRARY.md | ✅ Complete | Nov 5, 2025 | Quarterly |
-| IMPLEMENTATION_ROADMAP.md | 🔄 Active | Nov 5, 2025 | After each phase |
+#### [`database/schema.sql`](database/schema.sql)
+**~400 lines** | **Supabase Schema**
 
----
+Complete database schema with:
+- `agent_sessions` table (tracks commands)
+- `api_logs` table (full observability)
+- Indexes for performance
+- Views for analytics dashboards
+- Helper functions for debugging
+- Triggers for auto-timestamps
+- Data retention policies
 
-## 🎓 Learning Resources
-
-### External Resources
-
-**n8n Documentation:**
-- [n8n HTTP Request Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/)
-- [n8n Error Workflows](https://docs.n8n.io/workflows/error-workflows/)
-- [n8n Environment Variables](https://docs.n8n.io/hosting/environment-variables/)
-
-**OpenAI API:**
-- [Structured Outputs Guide](https://platform.openai.com/docs/guides/structured-outputs)
-- [JSON Schema Documentation](https://json-schema.org/understanding-json-schema/)
-
-**Best Practices:**
-- Reference repository: https://github.com/Zie619/n8n-workflows (4,343 workflows)
+**When to use**: Setting up database, adding fields, optimizing queries
 
 ---
 
-## 🚀 Ready to Begin?
+#### [`database/queries.sql`](database/queries.sql)
+**~600 lines** | **Debugging Queries**
 
-**Your next 3 steps:**
+Pre-written SQL queries for common tasks:
+- Execution tracing by correlation_id
+- Error analysis (last 24 hours, by node, by user)
+- Performance metrics (slow queries, averages, percentiles)
+- Usage analytics (commands per day, top actions, adoption)
+- Ticket operations (most operated, by type)
+- System health checks
 
-1. **Right now:** Read [`QUICK_START_IMPLEMENTATION.md`](QUICK_START_IMPLEMENTATION.md)
-2. **Then:** Open [`IMPLEMENTATION_PLAN_HTTP_FIX.md`](IMPLEMENTATION_PLAN_HTTP_FIX.md)
-3. **Finally:** Start Step 0 (Backup your workflow)
+**When to use**: Debugging issues, monitoring system, analyzing usage
 
 ---
 
-**Questions?** Review the documentation above or check the troubleshooting sections in each implementation guide.
+### Guides & References
 
-**Good luck! 🎯**
+#### [`docs/DEBUGGING.md`](docs/DEBUGGING.md)
+**~800 lines** | **Troubleshooting Guide**
+
+Step-by-step debugging for common issues:
+- Command not understood → Fix function descriptions
+- Search returns wrong results → Fix filter logic
+- Getting errors → Decode status codes
+- Slow responses → Identify bottlenecks
+- Duplicate tickets → Fix deduplication
+- Analytics too slow → Optimize data fetching
+
+Each issue includes:
+- Symptoms
+- Root causes
+- How to debug (with SQL queries)
+- How to fix (with code examples)
+- Testing checklist
+
+**When to use**: Something isn't working, need to diagnose issues
+
+---
+
+#### [`docs/EXTENSION_GUIDE.md`](docs/EXTENSION_GUIDE.md)
+**~700 lines** | **Adding Features**
+
+Step-by-step instructions for:
+- Adding new Gorgias actions (with complete example)
+- Adding client-side filters
+- Adding new metrics to calculations
+- Adding response formatting
+- Adding error handling
+- Adding workflow automations
+- Adding proactive notifications
+
+Each guide includes:
+- Complete code examples
+- Testing procedures
+- Best practices
+- Common pitfalls
+
+**When to use**: Extending functionality, adding features
+
+---
+
+#### [`docs/NODE_REFERENCE.md`](docs/NODE_REFERENCE.md)
+**~1000 lines** | **Complete Node Catalog**
+
+Detailed documentation for all 54 nodes:
+- Purpose and description
+- Input/output formats
+- Configuration details
+- Code examples
+- Performance characteristics
+- When to modify vs. when to ask
+
+Organized by:
+- Entry & Parsing
+- Intelligence Layer
+- Orchestration
+- Execution & Routing
+- Gorgias API Nodes
+- Processing & Analysis
+- Response Generation
+- Error Handling
+- Database Operations
+
+**When to use**: Understanding what a specific node does, modifying nodes
+
+---
+
+## System Architecture (High-Level)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      USER (Slack)                          │
+│         @Gorgias Terminal show urgent tickets              │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│                   ENTRY & PARSING                          │
+│  ┌──────────────┐    ┌────────────────────────────────┐   │
+│  │ Slack Trigger│───▶│ Parse Slack (clean formatting) │   │
+│  └──────────────┘    └──────────────┬─────────────────┘   │
+└───────────────────────────────────────┼─────────────────────┘
+                                        │
+┌───────────────────────────────────────▼─────────────────────┐
+│                INTELLIGENCE LAYER (OpenAI)                  │
+│  ┌───────────────────┐   ┌──────────────────────────┐     │
+│  │ Build 20+ Function│──▶│ OpenAI Function Calling  │     │
+│  │   Definitions     │   │   (GPT-4.1-mini)         │     │
+│  └───────────────────┘   └──────────┬───────────────┘     │
+│                                     │                       │
+│  ┌──────────────────────────────────▼───────────────────┐ │
+│  │ Handle Plan Response (parse function call)           │ │
+│  └──────────────────────────┬───────────────────────────┘ │
+└───────────────────────────────┼───────────────────────────┘
+                                │
+┌───────────────────────────────▼─────────────────────────────┐
+│                   ORCHESTRATION LAYER                        │
+│  ┌────────────┐  ┌────────────┐  ┌──────────┐  ┌────────┐ │
+│  │Format     │─▶│Insert     │─▶│Expand    │─▶│Split   │ │
+│  │Session    │  │Session    │  │Plan      │  │Steps   │ │
+│  │           │  │(Supabase) │  │          │  │(Loop)  │ │
+│  └────────────┘  └────────────┘  └──────────┘  └───┬────┘ │
+└─────────────────────────────────────────────────────┼──────┘
+                                                      │
+┌─────────────────────────────────────────────────────▼──────┐
+│              EXECUTION LAYER (21-way Router)               │
+│  ┌──────────────┐    ┌────────────────────────────────┐   │
+│  │ Normalize   │───▶│ Route by Action (Switch)       │   │
+│  │ Step        │    │                                 │   │
+│  └──────────────┘    └──────┬─────────────────────────┘   │
+│                             │                              │
+│    ┌────────────────────────┴─────────────────────┐       │
+│    │  Gorgias API Nodes (15 HTTP Request nodes)  │       │
+│    │  - list_tickets    - assign_ticket          │       │
+│    │  - get_ticket      - set_priority            │       │
+│    │  - search_tickets  - set_status              │       │
+│    │  - create_ticket   - update_tags             │       │
+│    │  - reply_public    - comment_internal        │       │
+│    └────────────────────────┬─────────────────────┘       │
+└─────────────────────────────────────────────────┼─────────┘
+                                                  │
+┌─────────────────────────────────────────────────▼─────────┐
+│                    LOGGING & TRACKING                      │
+│  ┌─────────────┐    ┌────────────────────────────────┐   │
+│  │ Format Log │───▶│ Insert api_logs (Supabase)     │   │
+│  └─────────────┘    └────────────────┬───────────────┘   │
+└─────────────────────────────────────────┼─────────────────┘
+                                          │
+┌─────────────────────────────────────────▼─────────────────┐
+│              RESULTS PROCESSING PIPELINE                   │
+│  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐  │
+│  │ Fetch   │▶│Collect  │▶│Dedupe    │▶│Summarize    │  │
+│  │ Loop    │ │Results  │ │Results   │ │for AI       │  │
+│  │ Results │ └─────────┘ └──────────┘ └──────┬──────┘  │
+│  └─────────┘                                  │          │
+│  ┌────────────────────────────────────────────▼──────┐   │
+│  │ Calculate Standard Metrics (100+ metrics in JS)  │   │
+│  │ (0 tokens, ~100ms, saves $0.05-0.10/query)       │   │
+│  └────────────────────────────┬──────────────────────┘   │
+└─────────────────────────────────────────────┼───────────┘
+                                              │
+┌─────────────────────────────────────────────▼─────────────┐
+│              RESPONSE GENERATION LAYER                     │
+│  ┌────────────┐   ┌──────────────┐   ┌────────────────┐  │
+│  │Get Action │──▶│Universal     │──▶│Conversational  │  │
+│  │Emoji      │   │Table         │   │Response AI     │  │
+│  │           │   │Formatter     │   │(GPT-4 +Memory) │  │
+│  └────────────┘   └──────────────┘   └───────┬────────┘  │
+└─────────────────────────────────────────────────┼─────────┘
+                                                  │
+┌─────────────────────────────────────────────────▼─────────┐
+│                 FINAL SLACK REPLY                          │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │ Post formatted response with emoji + tables +       │  │
+│  │ AI insights + suggested next actions               │  │
+│  └─────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Key Concepts
+
+### 1. Function Calling Pattern
+OpenAI GPT-4.1-mini uses function calling to convert natural language into structured actions:
+```
+"show urgent tickets" → search_tickets(priority="urgent")
+```
+
+### 2. Hybrid Filtering
+- **API**: Basic text search
+- **Client-Side**: Complex filters (status, priority, assignee, customer, tags, dates)
+- **Why**: Gorgias API has limited filter support
+
+### 3. Token Optimization
+- **JavaScript**: Filtering, calculations, formatting (0 tokens)
+- **AI**: Intent detection, natural language responses (~500-1000 tokens/query)
+- **Result**: 90% cost reduction vs. sending everything to AI
+
+### 4. Dual Intelligence
+- **GPT-4.1-mini**: Fast intent detection + conversational responses (~$0.001/query)
+- **Claude Sonnet 4.5**: Deep analytics only when needed (~$0.10/analysis)
+
+### 5. Full Observability
+Every API call logged to `api_logs` with:
+- Request/response bodies
+- Correlation ID for tracing
+- Duration, status code, errors
+- User context (who, where, when)
+
+---
+
+## Performance Targets
+
+| Metric | Target | Current | Status |
+|--------|--------|---------|--------|
+| Simple query latency | <5s | 3-5s | ✅ |
+| Search with filters | <8s | 5-8s | ✅ |
+| Get single ticket | <4s | 2-4s | ✅ |
+| Analytics | <30s | 15-25s | ✅ |
+| Token usage per query | <1000 | 500-1000 | ✅ |
+| Cost per query | <$0.01 | $0.001-0.005 | ✅ |
+| Error rate | <2% | TBD | ⏳ |
+| Uptime | >99% | TBD | ⏳ |
+
+---
+
+## Environment Setup
+
+### Required Environment Variables
+
+```bash
+# OpenAI Configuration
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_TEMPERATURE_PLAN=0.1
+OPENAI_MAX_TOKENS=4000
+
+# Gorgias Configuration
+GORGIAS_BASE_URL=https://ironsidecomputers.gorgias.com
+```
+
+### Required Credentials (in n8n)
+
+1. **OpenAI API** - OpenAI account credentials
+2. **Gorgias API** - HTTP Basic Auth (email + API key)
+3. **Supabase** - Connection URL + API key
+4. **Slack OAuth** - OAuth2 token
+5. **OpenRouter** - API key (for Claude Sonnet)
+
+---
+
+## Database Setup
+
+1. Create Supabase project
+2. Run `database/schema.sql` to create tables
+3. Verify indexes created:
+```sql
+SELECT * FROM pg_indexes WHERE tablename IN ('agent_sessions', 'api_logs');
+```
+4. Test with sample queries from `database/queries.sql`
+
+---
+
+## Testing
+
+### Unit Testing
+Test individual nodes in isolation:
+```javascript
+// Test Parse Slack
+const input = { event: { text: '<@U123> show urgent tickets' } };
+const result = parseSlack(input);
+// Expect: user_text = "show urgent tickets"
+```
+
+### Integration Testing
+Test in `#test_gorgias` Slack channel:
+```
+@Gorgias Terminal list tickets
+@Gorgias Terminal search urgent tickets
+@Gorgias Terminal get ticket 123
+@Gorgias Terminal analyze insights
+```
+
+### Error Testing
+```
+@Gorgias Terminal get ticket 999999999  (non-existent)
+@Gorgias Terminal [gibberish]
+```
+
+---
+
+## Monitoring
+
+### Key Metrics to Track
+
+**System Health**:
+```sql
+SELECT COUNT(*) FROM agent_sessions WHERE DATE(created_at) = CURRENT_DATE;
+SELECT COUNT(*) FROM api_logs WHERE error_message IS NOT NULL AND created_at > NOW() - INTERVAL '1 hour';
+```
+
+**Performance**:
+```sql
+SELECT node_name, AVG(duration_ms), MAX(duration_ms) FROM api_logs WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY node_name;
+```
+
+**Adoption**:
+```sql
+SELECT COUNT(DISTINCT user_id) FROM agent_sessions WHERE created_at > NOW() - INTERVAL '7 days';
+```
+
+---
+
+## Common Issues
+
+| Issue | Quick Fix |
+|-------|-----------|
+| Command not understood | Check `Build OpenAI Request` function descriptions |
+| Wrong search results | Check `Client-Side Filter` logic |
+| Errors in Slack | Check `api_logs` table for error_message |
+| Slow responses | Check `api_logs.duration_ms` for bottlenecks |
+| Duplicates | Check `Deduplicate Results` node |
+
+See [`docs/DEBUGGING.md`](docs/DEBUGGING.md) for detailed troubleshooting.
+
+---
+
+## Contributing
+
+Before making changes:
+1. Read relevant documentation
+2. Test in `#test_gorgias` channel
+3. Update `NODE_MAP.json` if adding nodes
+4. Update documentation if changing behavior
+5. Check `api_logs` for errors
+
+---
+
+## Support
+
+**Questions?** Check documentation in this order:
+1. `CLAUDE_START_HERE.md` - Quick answers
+2. `docs/DEBUGGING.md` - Common issues
+3. `ARCHITECTURE.md` - Deep dive
+4. `docs/NODE_REFERENCE.md` - Specific nodes
+
+**Still stuck?** Provide:
+- correlation_id (from Slack or `agent_sessions`)
+- User's command
+- Error message (from `api_logs`)
+- What you've tried
+
+---
+
+## License
+
+© 2025 Aasani Systems. All rights reserved.
+
+---
+
+**Last Updated**: November 6, 2025  
+**Version**: 2.0  
+**Total Documentation**: ~12,000 lines across 9 files
