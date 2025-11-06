@@ -39,21 +39,59 @@ if (filters.priority) {
   console.log(`✅ Priority filter (${filters.priority}): ${beforeCount} → ${tickets.length}`);
 }
 
-// FILTER 3: Assignee Email
+// FILTER 3: Assignee Email (supports partial matching)
 if (filters.assignee_email) {
   const beforeCount = tickets.length;
-  tickets = tickets.filter(ticket =>
-    ticket.assignee_user?.email?.toLowerCase() === filters.assignee_email.toLowerCase()
-  );
+  const searchValue = filters.assignee_email.toLowerCase();
+
+  tickets = tickets.filter(ticket => {
+    if (!ticket.assignee_user) return false;
+
+    const email = ticket.assignee_user.email?.toLowerCase() || '';
+    const name = ticket.assignee_user.name?.toLowerCase() || '';
+    const firstname = ticket.assignee_user.firstname?.toLowerCase() || '';
+    const lastname = ticket.assignee_user.lastname?.toLowerCase() || '';
+
+    // If filter contains "@", do exact email match
+    if (searchValue.includes('@')) {
+      return email === searchValue;
+    }
+
+    // Otherwise, do partial match on email or name fields
+    return email.includes(searchValue) ||
+           name.includes(searchValue) ||
+           firstname.includes(searchValue) ||
+           lastname.includes(searchValue);
+  });
+
   console.log(`✅ Assignee filter (${filters.assignee_email}): ${beforeCount} → ${tickets.length}`);
 }
 
-// FILTER 4: Customer Email
+// FILTER 4: Customer Email (supports partial matching)
 if (filters.customer_email) {
   const beforeCount = tickets.length;
-  tickets = tickets.filter(ticket =>
-    ticket.customer?.email?.toLowerCase() === filters.customer_email.toLowerCase()
-  );
+  const searchValue = filters.customer_email.toLowerCase();
+
+  tickets = tickets.filter(ticket => {
+    if (!ticket.customer) return false;
+
+    const email = ticket.customer.email?.toLowerCase() || '';
+    const name = ticket.customer.name?.toLowerCase() || '';
+    const firstname = ticket.customer.firstname?.toLowerCase() || '';
+    const lastname = ticket.customer.lastname?.toLowerCase() || '';
+
+    // If filter contains "@", do exact email match
+    if (searchValue.includes('@')) {
+      return email === searchValue;
+    }
+
+    // Otherwise, do partial match on email or name fields
+    return email.includes(searchValue) ||
+           name.includes(searchValue) ||
+           firstname.includes(searchValue) ||
+           lastname.includes(searchValue);
+  });
+
   console.log(`✅ Customer filter (${filters.customer_email}): ${beforeCount} → ${tickets.length}`);
 }
 
