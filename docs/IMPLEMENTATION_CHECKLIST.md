@@ -250,25 +250,26 @@ Click "Add Variable" → Paste name and value → Save
 
 #### ✅ All Variables Added!
 
-**You should now have approximately 14 variables in your list:**
+**You should now have exactly 14 environment variables in your list:**
 
 ```
-OPENAI_API_URL
-OPENAI_MODEL
-OPENAI_MAX_TOKENS
-OPENAI_TEMPERATURE_PLAN
-OPENAI_TEMPERATURE_CONVERSATION
-GORGIAS_BASE_URL
-GORGIAS_API_VERSION
-SUPABASE_URL (already existed)
-SUPABASE_SERVICE_KEY (already existed)
-SUPABASE_API_VERSION
-SLACK_ERROR_CHANNEL
-SLACK_LOG_CHANNEL
-EXECUTION_TIMEOUT
-RETRY_COUNT
-RETRY_DELAY
+1.  OPENAI_API_URL
+2.  OPENAI_MODEL
+3.  OPENAI_MAX_TOKENS
+4.  OPENAI_TEMPERATURE_PLAN
+5.  OPENAI_TEMPERATURE_CONVERSATION
+6.  GORGIAS_BASE_URL
+7.  GORGIAS_API_VERSION
+8.  SUPABASE_URL (already existed)
+9.  SUPABASE_API_VERSION
+10. SLACK_ERROR_CHANNEL
+11. SLACK_LOG_CHANNEL
+12. EXECUTION_TIMEOUT
+13. RETRY_COUNT
+14. RETRY_DELAY
 ```
+
+**Note:** `SUPABASE_SERVICE_KEY` is stored in your **Supabase Credential** (not as an environment variable), which is correct and more secure.
 
 **No restart needed!** Changes take effect immediately in n8n.cloud.
 
