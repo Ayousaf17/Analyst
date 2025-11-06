@@ -982,35 +982,51 @@ Same process as above:
 **Estimated Time:** 15 minutes
 **Impact:** Medium - Improves resilience
 
+**⚠️ n8n.cloud Specific:** This guide is tailored for **n8n.cloud** ($60 subscription tier).
+
+---
+
 ### Step 3.1: Update Workflow Settings
 
 1. Open your workflow in n8n
-2. Click **Settings** (gear icon in top right)
-3. Go to **Workflow Settings** tab
+2. Click the **menu icon** (☰) in top left
+3. Click **"Settings"** from dropdown
+4. Workflow Settings panel opens on the right
 
 **Configure the following:**
 
 **Execution:**
-- **Execution Timeout:** `3600` (seconds)
+- **Timeout:** `2400` (seconds = 40 minutes)
+  - ⚠️ **n8n.cloud limit:** Maximum 40 minutes (not 60)
 - **Save Manual Executions:** ✅ Enable
 - **Save Execution Progress:** ✅ Enable
 
-**Error Handling:**
-- **Retry on Fail:** ✅ Enable
-- **Retry Count:** `3`
-- **Retry Delay:** `1000` (milliseconds)
+**Error Workflow:**
+- **Error Workflow:** None (skip - using node-level error handling from Phase 2)
 
-**General:**
-- **Timezone:** `UTC`
-- **Caller Policy:** `Workflows from same owner`
+**Timezone:**
+- **Timezone:** `UTC` (or your preferred timezone)
 
-4. Click **Save**
+**Caller Policy:**
+- ⏭️ **Skip** - Not available on n8n.cloud (self-hosted feature only)
+
+**Retry on Fail:**
+- ⏭️ **Skip** - Retry is configured per-node, not at workflow level
+- (Optional: Configure retry on individual critical nodes if needed)
+
+Click **Save**
+
+---
 
 ### Step 3.2: Verify Settings
 
-1. Click **Settings** again
-2. Verify all values are set correctly
-3. Download workflow to check JSON (optional)
+1. Click menu icon (☰) → **"Settings"** again
+2. Verify all values are set correctly:
+   - ✅ Timeout: 2400 seconds
+   - ✅ Save Manual Executions: ON
+   - ✅ Save Execution Progress: ON
+   - ✅ Timezone: UTC
+3. Close Settings panel
 
 ---
 
@@ -1303,10 +1319,11 @@ LIMIT 1;
 - [ ] Error message received in Slack
 
 ### Phase 3: Workflow Settings ✅
-- [ ] Execution timeout set to 3600
-- [ ] Retry on fail enabled (3 retries, 1000ms delay)
-- [ ] Save executions and progress enabled
+- [ ] Execution timeout set to 2400 seconds (40 min - n8n.cloud max)
+- [ ] Save Manual Executions enabled
+- [ ] Save Execution Progress enabled
 - [ ] Timezone set to UTC
+- [ ] Caller Policy: N/A (not available on n8n.cloud)
 
 ### Phase 4: Priority 2 Features ✅
 - [ ] Get Action Emoji node added
