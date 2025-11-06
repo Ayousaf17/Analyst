@@ -836,7 +836,7 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 **Nodes to connect:**
 
 1. ✅ **OpenAI Structured Output** (HTTP Request node)
-2. ⏭️ **Conversational Response AI** (AI Agent - skip, doesn't support error outputs)
+2. ✅ **Conversational Response AI** (AI Agent node - CAN connect error output)
 
 **For "OpenAI Structured Output":**
 
@@ -856,8 +856,18 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 └────────────────────────────┘
 ```
 
+**For "Conversational Response AI":**
+
+Same process as above:
+1. Click on the node
+2. Settings tab
+3. "On Error" → "Continue (using error output)"
+4. Save
+5. Connect BOTTOM connector to Error Handler
+
 **Progress:**
 - [ ] OpenAI Structured Output
+- [ ] Conversational Response AI
 
 ---
 
@@ -879,6 +889,7 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 11. comment_internal
 12. list_customers
 13. get_customer
+14. Fetch Tickets for Analytics
 
 **For EACH node:**
 
@@ -902,6 +913,7 @@ https://ironsidecomputers.gorgias.com/api/tickets/search
 - [ ] comment_internal
 - [ ] list_customers
 - [ ] get_customer
+- [ ] Fetch Tickets for Analytics
 
 ---
 
@@ -1286,7 +1298,7 @@ LIMIT 1;
 - [ ] Error Handler node added
 - [ ] Format Error for Slack node added
 - [ ] Send Error to Slack node added
-- [ ] All 22+ nodes connected to error handler
+- [ ] All 18 nodes connected to error handler (2 OpenAI + 14 Gorgias + 2 Supabase + 1 Slack)
 - [ ] Error test successful (invalid ticket ID)
 - [ ] Error message received in Slack
 

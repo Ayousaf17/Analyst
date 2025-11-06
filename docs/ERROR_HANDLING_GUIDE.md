@@ -113,13 +113,13 @@ Now connect the error output of critical nodes to the Error Handler node.
 
 ---
 
-#### A. OpenAI Nodes (1 node)
+#### A. OpenAI Nodes (2 nodes)
 
 **Nodes:**
 1. ✅ OpenAI Structured Output (HTTP Request)
-2. ⏭️ Conversational Response AI (AI Agent - skip, doesn't support error outputs)
+2. ✅ Conversational Response AI (AI Agent - DOES support error outputs)
 
-**Steps for OpenAI Structured Output:**
+**Steps for Each Node:**
 1. Click on the node
 2. Click **"Settings"** tab at the top
 3. Find **"On Error"** dropdown (currently shows "Stop Workflow")
@@ -131,7 +131,7 @@ Now connect the error output of critical nodes to the Error Handler node.
 
 ---
 
-#### B. Gorgias API Nodes (13 nodes)
+#### B. Gorgias API Nodes (14 nodes)
 
 **Actual Nodes in Workflow:**
 1. list_tickets
@@ -147,6 +147,7 @@ Now connect the error output of critical nodes to the Error Handler node.
 11. comment_internal
 12. list_customers
 13. get_customer
+14. Fetch Tickets for Analytics
 
 **Steps for Each Node:**
 1. Click on the node
@@ -188,9 +189,9 @@ Now connect the error output of critical nodes to the Error Handler node.
 
 ---
 
-**Total Error Connections: 16 nodes**
-- 1 OpenAI node
-- 13 Gorgias nodes
+**Total Error Connections: 18 nodes**
+- 2 OpenAI nodes (OpenAI Structured Output + Conversational Response AI)
+- 14 Gorgias nodes (including Fetch Tickets for Analytics)
 - 2 Supabase nodes
 - 1 Slack node
 
