@@ -27,60 +27,242 @@ This checklist guides you through implementing all Priority 1 and Priority 2 com
 
 ## Phase 1: Environment Variables Setup
 
-**Estimated Time:** 30-45 minutes
+**Estimated Time:** 20-30 minutes
 **Impact:** Critical - Required for all other features
 
-### Step 1.1: Configure n8n Environment Variables
+### Step 1.1: Configure n8n.cloud Environment Variables
 
-**Option A: Docker Deployment**
+**For n8n.cloud users ($60 subscription plan):**
 
-Edit your `docker-compose.yml` or `.env` file:
+This is the recommended and easiest method. All variables are managed through the web UI and apply globally to all workflows.
 
-```yaml
-services:
-  n8n:
-    environment:
-      # OpenAI Configuration
-      - OPENAI_API_URL=https://api.openai.com/v1/chat/completions
-      - OPENAI_MODEL=gpt-4o-mini-2024-07-18
-      - OPENAI_MAX_TOKENS=8000
-      - OPENAI_TEMPERATURE_PLAN=0.3
-      - OPENAI_TEMPERATURE_CONVERSATION=0.7
+#### Access Environment Variables Page
 
-      # Gorgias Configuration
-      - GORGIAS_BASE_URL=https://ironside.gorgias.com
-      - GORGIAS_API_VERSION=v1
+1. Go to **n8n Homepage**
+2. Click **Settings** (⚙️ gear icon in the top navigation)
+3. Click **Environment Variables** in the left sidebar
+4. You should see any existing variables (like SUPABASE_URL)
 
-      # Supabase Configuration
-      - SUPABASE_URL=https://your-project.supabase.co
-      - SUPABASE_API_VERSION=v1
+---
 
-      # Slack Configuration
-      - SLACK_ERROR_CHANNEL=#gorgias-errors
-      - SLACK_LOG_CHANNEL=#gorgias-logs
+#### Add Variables One-by-One
 
-      # Workflow Configuration
-      - EXECUTION_TIMEOUT=3600
-      - RETRY_COUNT=3
-      - RETRY_DELAY=1000
+For each variable below, follow these steps:
+
+1. Click **"Add Variable"** button
+2. **Variable Name:** Copy the exact name (case-sensitive!)
+3. **Value:** Copy the exact value
+4. Click **"Save"**
+
+---
+
+#### Variable #1: OPENAI_API_URL
+
+**What it does:** Base URL for OpenAI API calls
+
+- **Variable Name:** `OPENAI_API_URL`
+- **Value:** `https://api.openai.com/v1/chat/completions`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #2: OPENAI_MODEL
+
+**What it does:** Specifies which OpenAI model to use
+
+- **Variable Name:** `OPENAI_MODEL`
+- **Value:** `gpt-4o-mini-2024-07-18`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #3: OPENAI_MAX_TOKENS
+
+**What it does:** Maximum tokens (words) OpenAI can use in responses
+
+- **Variable Name:** `OPENAI_MAX_TOKENS`
+- **Value:** `8000`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #4: OPENAI_TEMPERATURE_PLAN
+
+**What it does:** Controls creativity for planning phase (lower = more focused)
+
+- **Variable Name:** `OPENAI_TEMPERATURE_PLAN`
+- **Value:** `0.3`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #5: OPENAI_TEMPERATURE_CONVERSATION
+
+**What it does:** Controls creativity for conversational responses (higher = more creative)
+
+- **Variable Name:** `OPENAI_TEMPERATURE_CONVERSATION`
+- **Value:** `0.7`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #6: GORGIAS_BASE_URL
+
+**What it does:** Base URL for your Gorgias API
+
+- **Variable Name:** `GORGIAS_BASE_URL`
+- **Value:** `https://ironside.gorgias.com`
+  - ⚠️ **Replace "ironside"** with your Gorgias subdomain!
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #7: GORGIAS_API_VERSION
+
+**What it does:** Gorgias API version to use
+
+- **Variable Name:** `GORGIAS_API_VERSION`
+- **Value:** `v1`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #8: SUPABASE_URL
+
+**What it does:** Your Supabase project URL
+
+- **Variable Name:** `SUPABASE_URL`
+- **Value:** `https://your-project-id.supabase.co`
+  - ✅ **You already have this!** Skip if it exists.
+
+- [ ] Already exists or added ✅
+
+---
+
+#### Variable #9: SUPABASE_API_VERSION
+
+**What it does:** Supabase API version to use
+
+- **Variable Name:** `SUPABASE_API_VERSION`
+- **Value:** `v1`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #10: SLACK_ERROR_CHANNEL
+
+**What it does:** Slack channel for error notifications
+
+- **Variable Name:** `SLACK_ERROR_CHANNEL`
+- **Value:** `#gorgias-errors`
+  - ⚠️ **Change to your actual error channel name** (must start with #)
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #11: SLACK_LOG_CHANNEL
+
+**What it does:** Slack channel for general logs (optional)
+
+- **Variable Name:** `SLACK_LOG_CHANNEL`
+- **Value:** `#gorgias-logs`
+  - ⚠️ **Change to your actual log channel name** (must start with #)
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #12: EXECUTION_TIMEOUT
+
+**What it does:** Maximum time (seconds) a workflow can run
+
+- **Variable Name:** `EXECUTION_TIMEOUT`
+- **Value:** `3600`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #13: RETRY_COUNT
+
+**What it does:** How many times to retry on failure
+
+- **Variable Name:** `RETRY_COUNT`
+- **Value:** `3`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### Variable #14: RETRY_DELAY
+
+**What it does:** Wait time (milliseconds) between retries
+
+- **Variable Name:** `RETRY_DELAY`
+- **Value:** `1000`
+
+Click "Add Variable" → Paste name and value → Save
+
+- [ ] Added ✅
+
+---
+
+#### ✅ All Variables Added!
+
+**You should now have approximately 14 variables in your list:**
+
+```
+OPENAI_API_URL
+OPENAI_MODEL
+OPENAI_MAX_TOKENS
+OPENAI_TEMPERATURE_PLAN
+OPENAI_TEMPERATURE_CONVERSATION
+GORGIAS_BASE_URL
+GORGIAS_API_VERSION
+SUPABASE_URL (already existed)
+SUPABASE_SERVICE_KEY (already existed)
+SUPABASE_API_VERSION
+SLACK_ERROR_CHANNEL
+SLACK_LOG_CHANNEL
+EXECUTION_TIMEOUT
+RETRY_COUNT
+RETRY_DELAY
 ```
 
-Then restart n8n:
-```bash
-docker-compose restart
-```
-
-**Option B: npm/Node Deployment**
-
-1. Copy `.env.example` to `.env` in your n8n directory
-2. Fill in your actual values
-3. Restart n8n: `npm restart` or `pm2 restart n8n`
-
-**Option C: Cloud Deployment (n8n.cloud)**
-
-1. Go to: Settings → Environment Variables
-2. Add each variable manually
-3. Click **Save**
+**No restart needed!** Changes take effect immediately in n8n.cloud.
 
 ### Step 1.2: Verify Environment Variables
 
