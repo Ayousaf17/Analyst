@@ -30,11 +30,11 @@ function summarizeTicket(ticket) {
     excerpt: truncate(ticket.excerpt || ticket.summary || '', 200)
   };
 
-  // Keep first message body if available
+  // Keep first message body if available (FULL message, no truncation)
   if (ticket.messages && Array.isArray(ticket.messages) && ticket.messages.length > 0) {
     const firstMessage = ticket.messages[0];
     summary.first_message = {
-      body_text: truncate(firstMessage.body_text || firstMessage.stripped_text || '', 500),
+      body_text: firstMessage.body_text || firstMessage.stripped_text || '',
       from_agent: firstMessage.from_agent || false,
       created: firstMessage.created_datetime ? firstMessage.created_datetime.split('T')[0] : null
     };
