@@ -274,106 +274,478 @@ RETRY_DELAY
 
 ---
 
-### Step 1.2: Update OpenAI Structured Output Node
+### Step 1.2: Update Build OpenAI Request Node (Code Node)
 
-**Location:** Your main workflow → "OpenAI Structured Output" (HTTP Request node)
+**What this does:** Updates the code that builds the OpenAI API request to use environment variables instead of hardcoded values.
 
-**Current configuration:**
-```json
-{
-  "url": "https://api.openai.com/v1/chat/completions"
-}
+**Location:** Your main workflow → "Build OpenAI Request" (Code node, comes BEFORE "OpenAI Structured Output")
+
+#### Instructions:
+
+1. **Open your workflow** "Gorgias Intelligent v23"
+2. **Find the "Build OpenAI Request" node** (it's a Code node)
+3. **Click on the node** to open it
+4. **Select ALL the code** (Ctrl+A or Cmd+A)
+5. **Delete it**
+6. **Copy the ENTIRE code below** and paste it in:
+
+```javascript
+// ============================================================================
+// UPDATED CODE FOR: Build OpenAI Request Node (WITH ENVIRONMENT VARIABLES)
+// ============================================================================
+
+const userText = $json.user_text;
+
+const requestBody = {
+  model: $vars.OPENAI_MODEL,  // ✅ UPDATED: Now uses environment variable
+  messages: [
+    {
+      role: "user",
+      content: userText
+    }
+  ],
+  tools: [
+    {
+      type: "function",
+      function: {
+        name: "ask_clarification",
+        description: "Ask the user for clarification or missing information when you don't have enough details to complete their request. Use this when required parameters are missing or the request is ambiguous.",
+        parameters: {
+          type: "object",
+          properties: {
+            question: {
+              type: "string",
+              description: "The clarifying question to ask the user"
+            },
+            context: {
+              type: "string",
+              description: "What action the user was trying to perform"
+            },
+            missing_info: {
+              type: "string",
+              description: "What specific information is needed (e.g., 'tags', 'assignee_email', 'ticket_id')"
+            }
+          },
+          required: ["question"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_tickets",
+        description: "List tickets with optional filters like status or priority. Use when user wants to see multiple tickets or filter tickets.",
+        parameters: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              enum: ["open", "closed", "pending", "all"],
+              description: "Filter tickets by status"
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high", "urgent"],
+              description: "Filter tickets by priority"
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of tickets to return",
+              default: 50
+            }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_ticket",
+        description: "Retrieve details of a specific ticket by its ID. Use when user mentions a specific ticket number or ID.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID number"
+            }
+          },
+          required: ["ticket_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_tickets",
+        description: "Search for tickets using text search and/or filters like status, priority, assignee, customer, or tags. Use when user wants to find specific tickets matching criteria.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "Text to search for in ticket content, subject, or messages (e.g., 'billing', 'refund', 'shipping issue')"
+            },
+            status: {
+              type: "string",
+              enum: ["open", "closed", "pending"],
+              description: "Filter by ticket status. Use 'open' for active tickets, 'closed' for resolved, 'pending' for awaiting response"
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high", "urgent"],
+              description: "Filter by ticket priority level"
+            },
+            customer_email: {
+              type: "string",
+              description: "Filter by customer's email address to find all tickets from a specific customer"
+            },
+            assignee_email: {
+              type: "string",
+              description: "Filter by assignee's email address to find tickets assigned to a specific team member"
+            },
+            tags: {
+              type: "string",
+              description: "Filter by tag name (e.g., 'urgent', 'billing', 'ORDER-STATUS')"
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of results to return",
+              default: 30
+            }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_ticket",
+        description: "Create a new ticket. Use when user wants to open or create a new support ticket.",
+        parameters: {
+          type: "object",
+          properties: {
+            subject: {
+              type: "string",
+              description: "Ticket subject or title"
+            },
+            message: {
+              type: "string",
+              description: "Ticket message or description"
+            },
+            customer_email: {
+              type: "string",
+              description: "Customer email address"
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high", "urgent"],
+              description: "Ticket priority"
+            }
+          },
+          required: ["subject", "message"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "close_ticket",
+        description: "Close a ticket. Use when user wants to close, resolve, or mark a ticket as done.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID to close"
+            }
+          },
+          required: ["ticket_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "assign_ticket",
+        description: "Assign a ticket to an agent. Use when user wants to assign or reassign a ticket to someone.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID to assign"
+            },
+            assignee_email: {
+              type: "string",
+              description: "Email of the agent to assign the ticket to"
+            }
+          },
+          required: ["ticket_id", "assignee_email"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "set_priority",
+        description: "Set or change the priority of a ticket. Use when user wants to mark a ticket as urgent, high, normal, or low priority.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID"
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high", "urgent"],
+              description: "New priority level"
+            }
+          },
+          required: ["ticket_id", "priority"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "set_status",
+        description: "Change the status of a ticket. Use when user wants to change ticket status.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID"
+            },
+            status: {
+              type: "string",
+              enum: ["open", "closed", "pending"],
+              description: "New status"
+            }
+          },
+          required: ["ticket_id", "status"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "add_tags",
+        description: "Add tags to a ticket. Use when user wants to tag, label, or categorize a ticket.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID"
+            },
+            tags: {
+              type: "string",
+              description: "Comma-separated tags to add"
+            }
+          },
+          required: ["ticket_id", "tags"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "remove_tags",
+        description: "Remove tags from a ticket. Use when user wants to untag or remove labels from a ticket.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "The ticket ID"
+            },
+            tags: {
+              type: "string",
+              description: "Comma-separated tags to remove"
+            }
+          },
+          required: ["ticket_id", "tags"]
+        }
+      }
+    }
+  ],
+  tool_choice: "auto",
+  temperature: parseFloat($vars.OPENAI_TEMPERATURE_PLAN),  // ✅ UPDATED: Now uses environment variable
+  max_tokens: parseInt($vars.OPENAI_MAX_TOKENS)  // ✅ ADDED: Token limit from environment variable
+};
+
+return [{
+  json: requestBody
+}];
 ```
 
-**New configuration:**
-1. Click on the node
-2. Find the **URL** field
-3. Click the **=** icon (enable expression mode)
-4. Replace with: `{{ $vars.OPENAI_API_URL }}`
-5. Scroll to **Body** → **Parameters**
-6. Find `model` field → Enable expression → Replace with: `{{ $vars.OPENAI_MODEL }}`
-7. Find `max_tokens` field → Enable expression → Replace with: `{{ parseInt($vars.OPENAI_MAX_TOKENS) }}`
-8. Find `temperature` field → Enable expression → Replace with: `{{ parseFloat($vars.OPENAI_TEMPERATURE_PLAN) }}`
-9. Click **Save**
+7. **Click "Save"** (or Ctrl+S)
+8. **Click "Execute Node"** to test
+9. **Verify** the output shows the correct model and temperature values
 
-**Test:**
-- Execute the node manually
-- Verify it still works with environment variables
+#### What Changed:
+- Line 8: `model:` now uses `$vars.OPENAI_MODEL` instead of hardcoded `"gpt-4o-mini-2024-07-18"`
+- Line 283: `temperature:` now uses `parseFloat($vars.OPENAI_TEMPERATURE_PLAN)` instead of hardcoded `0.1`
+- Line 284: `max_tokens:` ADDED - now uses `parseInt($vars.OPENAI_MAX_TOKENS)` for `8000` token limit
 
-### Step 1.3: Update Conversational Response AI Node
+✅ **Step 1.2 Complete!**
 
-**Location:** Your main workflow → "Conversational Response AI" (HTTP Request node)
+---
 
-**Follow same process as Step 1.2, but:**
-- Use `{{ $vars.OPENAI_TEMPERATURE_CONVERSATION }}` instead of `{{ $vars.OPENAI_TEMPERATURE_PLAN }}`
+### Step 1.3: Update OpenAI Structured Output HTTP Request Node
 
-### Step 1.4: Update All 16 Gorgias API Nodes
+**What this does:** Updates the HTTP Request node that calls OpenAI API to use the environment variable for the URL.
 
-**Nodes to update:**
-1. list_tickets
-2. search_tickets (Search Text)
-3. get_ticket (Get Ticket Details)
-4. create_ticket
-5. assign_ticket (Assign Ticket)
-6. close_ticket (Close Ticket)
-7. set_priority (Set Priority)
-8. set_status (Set Status)
-9. add_tags (Add Tags)
-10. remove_tags (Remove Tags)
-11. reply_public (Reply Public)
-12. comment_internal (Add Internal Note)
-13. list_customers
-14. get_customer
-15. find_user
-16. list_metrics
+**Location:** Your main workflow → "OpenAI Structured Output" (HTTP Request node, comes AFTER "Build OpenAI Request")
 
-**For EACH node:**
+#### Instructions:
 
-1. Open the HTTP Request node
-2. Find the **URL** field
-3. Current value example: `https://ironsidecomputers.gorgias.com/api/tickets`
-4. Click **=** to enable expression mode
-5. Replace `https://ironsidecomputers.gorgias.com` with `{{ $vars.GORGIAS_BASE_URL }}`
-6. Keep the rest of the URL: `/api/tickets` or `/api/tickets/{{$json.ticket_id}}`, etc.
-7. Final example: `{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}`
-8. Click **Save**
+1. **Find the "OpenAI Structured Output" node** (it's an HTTP Request node)
+2. **Click on the node** to open it
+3. **Find the "URL" field** at the top
+4. **Click the "=" icon** next to the URL field (enables expression mode)
+5. **Replace** the current URL with:
+   ```
+   {{ $vars.OPENAI_API_URL }}
+   ```
+6. **Click "Save"**
 
-**Quick Find:**
-- Use Ctrl+F (Cmd+F on Mac) in the workflow canvas
-- Search for: `ironsidecomputers.gorgias.com`
-- Replace each occurrence one by one
+**The JSON Body should already have:**
+```
+{{ $json }}
+```
+(Leave this as-is - it receives the body from the Build OpenAI Request node you just updated)
 
-**Tracking Progress:**
-- [ ] list_tickets
-- [ ] search_tickets
-- [ ] get_ticket
-- [ ] create_ticket
-- [ ] assign_ticket
-- [ ] close_ticket
-- [ ] set_priority
-- [ ] set_status
-- [ ] add_tags
-- [ ] remove_tags
-- [ ] reply_public
-- [ ] comment_internal
-- [ ] list_customers
-- [ ] get_customer
-- [ ] find_user
-- [ ] list_metrics
+✅ **Step 1.3 Complete!**
 
-### Step 1.5: Update Supabase Nodes
+---
 
-**Nodes to update:**
+### Step 1.4: Update Conversational Response AI HTTP Request Node
+
+**What this does:** Similar to Step 1.3, but this is for the second OpenAI call that creates the conversational response.
+
+**Location:** Your main workflow → "Conversational Response AI" (HTTP Request node, near the end of the workflow)
+
+#### Instructions:
+
+1. **Find the "Conversational Response AI" node** (it's an HTTP Request node)
+2. **Click on the node** to open it
+3. **Find the "URL" field**
+4. **Click the "=" icon** next to the URL field
+5. **Replace** the current URL with:
+   ```
+   {{ $vars.OPENAI_API_URL }}
+   ```
+6. **Click "Save"**
+
+**Note:** This node also sends `{{ $json }}` in the body, which is built by a previous Code node. That Code node will be updated separately if needed (it likely uses the OPENAI_TEMPERATURE_CONVERSATION variable).
+
+✅ **Step 1.4 Complete!**
+
+---
+
+### Step 1.5: Update All 16 Gorgias API HTTP Request Nodes
+
+**What this does:** Updates all Gorgias API nodes to use the environment variable for the base URL instead of hardcoded `https://ironsidecomputers.gorgias.com`.
+
+**Nodes to update (16 total):**
+
+| # | Node Name | Typical URL Pattern |
+|---|-----------|-------------------|
+| 1 | list_tickets | `.../api/tickets?...` |
+| 2 | search_tickets (Search Text) | `.../api/tickets/search` |
+| 3 | get_ticket (Get Ticket Details) | `.../api/tickets/{{$json.ticket_id}}` |
+| 4 | create_ticket | `.../api/tickets` |
+| 5 | assign_ticket (Assign Ticket) | `.../api/tickets/{{$json.ticket_id}}` |
+| 6 | close_ticket (Close Ticket) | `.../api/tickets/{{$json.ticket_id}}` |
+| 7 | set_priority (Set Priority) | `.../api/tickets/{{$json.ticket_id}}` |
+| 8 | set_status (Set Status) | `.../api/tickets/{{$json.ticket_id}}` |
+| 9 | add_tags (Add Tags) | `.../api/tickets/{{$json.ticket_id}}/tags` |
+| 10 | remove_tags (Remove Tags) | `.../api/tickets/{{$json.ticket_id}}/tags` |
+| 11 | reply_public (Reply Public) | `.../api/tickets/{{$json.ticket_id}}/messages` |
+| 12 | comment_internal (Add Internal Note) | `.../api/tickets/{{$json.ticket_id}}/messages` |
+| 13 | list_customers | `.../api/customers?...` |
+| 14 | get_customer | `.../api/customers/{{$json.customer_id}}` |
+| 15 | find_user | `.../api/users?...` |
+| 16 | list_metrics | `.../api/stats/...` |
+
+#### Instructions for EACH of the 16 Nodes:
+
+**For each Gorgias HTTP Request node above:**
+
+1. **Click on the node** to open it
+2. **Find the "URL" field**
+3. **Look at the current URL** - it will have: `https://ironsidecomputers.gorgias.com/api/...`
+4. **Click the "=" icon** to enable expression mode
+5. **Change ONLY the first part** from `https://ironsidecomputers.gorgias.com` to `{{ $vars.GORGIAS_BASE_URL }}`
+6. **Keep everything after** (like `/api/tickets/{{$json.ticket_id}}`)
+7. **Click "Save"**
+
+#### Examples:
+
+**Before:**
+```
+https://ironsidecomputers.gorgias.com/api/tickets/{{$json.ticket_id}}
+```
+
+**After:**
+```
+{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}
+```
+
+**Before:**
+```
+https://ironsidecomputers.gorgias.com/api/tickets/search
+```
+
+**After:**
+```
+{{ $vars.GORGIAS_BASE_URL }}/api/tickets/search
+```
+
+#### Progress Checklist:
+
+- [ ] 1. list_tickets
+- [ ] 2. search_tickets (Search Text)
+- [ ] 3. get_ticket (Get Ticket Details)
+- [ ] 4. create_ticket
+- [ ] 5. assign_ticket (Assign Ticket)
+- [ ] 6. close_ticket (Close Ticket)
+- [ ] 7. set_priority (Set Priority)
+- [ ] 8. set_status (Set Status)
+- [ ] 9. add_tags (Add Tags)
+- [ ] 10. remove_tags (Remove Tags)
+- [ ] 11. reply_public (Reply Public)
+- [ ] 12. comment_internal (Add Internal Note)
+- [ ] 13. list_customers
+- [ ] 14. get_customer
+- [ ] 15. find_user
+- [ ] 16. list_metrics
+
+✅ **Step 1.5 Complete when all 16 nodes are updated!**
+
+---
+
+### Step 1.6: Update Supabase Nodes (Optional - Usually Already Using Credentials)
+
+**What this does:** Ensures Supabase nodes use the environment variable (though they likely already use credentials which is fine).
+
+**Nodes to check:**
 - Insert Session (Supabase node)
 - Insert api_logs (Supabase node)
 
-**For native Supabase nodes:**
-1. The URL is configured in the **credential**, not the node
-2. Open n8n → Credentials → Find your Supabase credential
-3. Update **Host** field to use: `{{ $vars.SUPABASE_URL }}`
-4. If using HTTP Request nodes for Supabase, update URL like Gorgias nodes
+**Note:** Supabase nodes typically use **Credentials** (not direct URLs), which is actually better than environment variables for this use case.
 
-### Step 1.6: Test Environment Variable Migration
+**Action:** ✅ **SKIP THIS STEP** - Your Supabase nodes are already configured correctly with credentials!
+
+✅ **Step 1.6 Complete!**
+
+---
+
+### Step 1.7: Test Environment Variable Migration
 
 **Test each action type:**
 
