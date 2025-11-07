@@ -1,3 +1,143 @@
+# Phase 5: Performance Metrics Implementation
+
+**Status:** ~90% Complete (Main path working, Analytics path needs API fix)
+**Date:** November 7, 2025
+**Impact:** Data-driven optimization and monitoring
+
+---
+
+## Overview
+
+Phase 5 adds comprehensive performance tracking to both execution paths (Main and Analytics) of the Gorgias Slack Terminal workflow. All execution metrics are logged to Supabase for analysis and optimization.
+
+---
+
+## Architecture
+
+### Dual-Path Support
+
+The performance metrics system is **path-aware** and adapts to two distinct execution paths:
+
+**MAIN PATH:**
+- Route by Action → Gorgias API operations → Universal Table Formatter → Conversational Response AI → Calculate Performance Metrics → Insert Performance Metrics → Final Slack Reply
+
+**ANALYTICS PATH:**
+- Route by Action → Fetch Tickets for Analytics → Ticket Analytics Agent (OpenRouter) → Universal Table Formatter → Conversational Response AI → Calculate Performance Metrics → Insert Performance Metrics → Final Slack Reply
+
+**Convergence Point:**
+- Both paths merge at "Conversational Response AI" and flow through the same metrics nodes
+
+---
+
+## Implementation Steps
+
+### Step 5.1: Create Supabase Table ✅
+
+**Table:** `performance_metrics`
+
+```sql
+CREATE TABLE IF NOT EXISTS public.performance_metrics (
+  id BIGSERIAL PRIMARY KEY,
+  correlation_id TEXT NOT NULL,
+  user_id TEXT,
+  channel TEXT,
+  thread_ts TEXT,
+
+  -- Timing metrics
+  execution_time_ms INTEGER NOT NULL,
+  execution_time_seconds NUMERIC(10, 2),
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+
+  -- Action metrics
+  primary_action TEXT,
+  actions_executed INTEGER DEFAULT 0,
+  api_calls_count INTEGER DEFAULT 0,
+  result_count INTEGER DEFAULT 0,
+
+  -- Resource usage
+  token_count_estimate INTEGER DEFAULT 0,
+
+  -- Success tracking
+  status TEXT DEFAULT 'success',
+  error_message TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for common queries
+CREATE INDEX idx_performance_correlation ON public.performance_metrics(correlation_id);
+CREATE INDEX idx_performance_user ON public.performance_metrics(user_id);
+CREATE INDEX idx_performance_timestamp ON public.performance_metrics(timestamp);
+CREATE INDEX idx_performance_action ON public.performance_metrics(primary_action);
+
+-- Enable Row Level Security
+ALTER TABLE public.performance_metrics ENABLE ROW LEVEL SECURITY;
+
+-- Create policy to allow inserts from service role
+CREATE POLICY "Allow service role full access" ON public.performance_metrics
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+```
+
+---
+
+### Step 5.2: Update Parse Slack Node ✅
+
+**Location:** Beginning of workflow
+**Purpose:** Capture workflow start timestamp for execution time calculation
+
+**Code Added:**
+
+```javascript
+// Capture start timestamp for performance tracking
+const start_timestamp = Date.now();
+
+// ... existing Parse Slack code ...
+
+return [{
+  json: {
+    user_text: cleaned || text || '',
+    channel,
+    thread_ts,
+    user_id,
+    correlation_id,
+    start_timestamp: start_timestamp  // ← ADDED
+  }
+}];
+```
+
+**Output Example:**
+```json
+{
+  "user_text": "list open tickets",
+  "channel": "C09BXTD0WR0",
+  "thread_ts": "1762474379338",
+  "user_id": "U09BSMA8U75",
+  "correlation_id": "corr_2025-11-07T00-12-59-338Z_U09BSMA8U75_66basd",
+  "start_timestamp": 1762474379338
+}
+```
+
+---
+
+### Step 5.3: Calculate Performance Metrics Node ✅
+
+**Node Type:** Code (JavaScript)
+**Position:** After "Conversational Response AI", before "Insert Performance Metrics"
+**Purpose:** Path-aware metrics calculation for both Main and Analytics paths
+
+**Key Features:**
+- ✅ Detects execution path (Main vs Analytics)
+- ✅ Extracts `primary_action` from Universal Table Formatter
+- ✅ Parses result count from output text
+- ✅ Calculates execution time from Parse Slack timestamp
+- ✅ Handles missing nodes gracefully (try/catch)
+- ✅ Comprehensive logging for debugging
+
+**Complete Code:**
+
+```javascript
 // ============================================================================
 // UNIVERSAL PERFORMANCE METRICS - Works for BOTH Main & Analytics Paths
 // ============================================================================
@@ -287,3 +427,251 @@ return [{
     performance_metrics: metrics
   }
 }];
+```
+
+---
+
+### Step 5.4: Insert Performance Metrics Node ✅
+
+**Node Type:** Supabase
+**Operation:** Insert
+**Table:** `performance_metrics`
+
+**Field Mappings:**
+
+| Field | Expression |
+|-------|------------|
+| `correlation_id` | `{{ $json.performance_metrics.correlation_id }}` |
+| `user_id` | `{{ $json.performance_metrics.user_id }}` |
+| `channel` | `{{ $json.performance_metrics.channel }}` |
+| `thread_ts` | `{{ $json.performance_metrics.thread_ts }}` |
+| `execution_time_ms` | `{{ $json.performance_metrics.execution_time_ms }}` |
+| `execution_time_seconds` | `{{ $json.performance_metrics.execution_time_seconds }}` |
+| `primary_action` | `{{ $json.performance_metrics.primary_action }}` |
+| `actions_executed` | `{{ $json.performance_metrics.actions_executed }}` |
+| `api_calls_count` | `{{ $json.performance_metrics.api_calls_count }}` |
+| `result_count` | `{{ $json.performance_metrics.result_count }}` |
+| `token_count_estimate` | `{{ $json.performance_metrics.token_count_estimate }}` |
+| `status` | `{{ $json.performance_metrics.status }}` |
+| `error_message` | `{{ $json.performance_metrics.error_message }}` |
+| `timestamp` | `{{ $json.performance_metrics.timestamp }}` |
+
+**Settings:**
+- ✅ Return Fields: All
+- ✅ Continue On Fail: Enabled (using error output)
+- ✅ Both outputs connect to Final Slack Reply
+
+---
+
+### Step 5.5: Node Connections ✅
+
+**Connection Flow:**
+
+```
+Conversational Response AI
+  ↓
+Calculate Performance Metrics
+  ↓
+Insert Performance Metrics
+  ├─ Success → Final Slack Reply
+  └─ Error → Final Slack Reply
+```
+
+Both paths (Main and Analytics) converge at Conversational Response AI and flow through these metrics nodes.
+
+---
+
+## Test Results
+
+### Test 1: Main Path ✅ FULLY WORKING
+
+**Command:** `@Gorgias Terminal list open tickets`
+
+**Metrics Captured:**
+```json
+{
+  "id": 3,
+  "correlation_id": "corr_2025-11-07T00-28-32-688Z_U09BSMA8U75_zsdpgn",
+  "user_id": "U09BSMA8U75",
+  "channel": "C09BXTD0WR0",
+  "thread_ts": "1762475308.822879",
+  "execution_time_ms": 15642,
+  "execution_time_seconds": 15.64,
+  "primary_action": "list_tickets",
+  "actions_executed": 1,
+  "api_calls_count": 1,
+  "result_count": 50,
+  "token_count_estimate": 858,
+  "status": "success",
+  "error_message": null,
+  "path_taken": "main",
+  "timestamp": "2025-11-07T00:28:48.332Z"
+}
+```
+
+**Results:**
+- ✅ Execution time: 15.64 seconds
+- ✅ Primary action correctly identified: "list_tickets"
+- ✅ Result count extracted from text: 50
+- ✅ Path detection: "main"
+- ✅ Successfully inserted to Supabase
+- ✅ Slack reply sent
+
+---
+
+### Test 2: Analytics Path 🔄 BLOCKED
+
+**Command:** `@Gorgias Terminal analyze insights from last 7 days`
+
+**Issue:** Fetch Tickets for Analytics node returning 400 Bad Request
+
+**Error:**
+```json
+{
+  "error": {
+    "msg": "We couldn't search tickets by given filters and search input because your request is invalid.",
+    "data": {
+      "filters": ["Not a valid string."],
+      "search": ["Missing data for required field."],
+      "limit": ["No such field."],
+      "order_by": ["No such field."]
+    }
+  }
+}
+```
+
+**Root Cause:**
+- Node using `/api/tickets/search` endpoint (text search only)
+- Sending invalid body format
+
+**Fix Required:**
+1. Change Method to **GET**
+2. Use list endpoint with query parameters:
+   ```
+   https://ironsidecomputers.gorgias.com/api/tickets?status=closed&created_datetime[from]={{$now.minus({ days: 30 }).toISO()}}&created_datetime[to]={{$now.toISO()}}&limit=100&order_by=-created_datetime
+   ```
+3. Remove body (GET requests use query params)
+
+**Expected Metrics After Fix:**
+- `path_taken`: "analytics"
+- `primary_action`: "analyze_insights"
+- `actions_executed`: 1
+- `api_calls_count`: 1
+- `result_count`: (number of tickets analyzed)
+
+---
+
+## Key Implementation Learnings
+
+### 1. Dual-Path Architecture
+- The workflow has TWO execution paths that diverge at "Route by Action"
+- Performance metrics must be path-aware and adapt accordingly
+- Analytics path uses OpenRouter Claude Sonnet 4.5 for deep analysis
+- Main path uses standard Gorgias API operations
+
+### 2. Data Extraction Strategy
+- `primary_action` comes from Universal Table Formatter's `original_action` field
+- Result count is parsed from output text using regex ("Found 50 ticket(s)")
+- API calls counted from Fetch Loop Results node (Main path only)
+- Graceful fallbacks for missing nodes using try/catch
+
+### 3. Timestamp Handling
+- Captured at Parse Slack (workflow start)
+- Calculated at Calculate Performance Metrics (workflow end)
+- Must handle null/missing timestamps defensively
+- Ensures NOT NULL constraint in Supabase is satisfied
+
+### 4. Error Handling
+- Insert Performance Metrics has "Continue On Fail" enabled
+- Both success and error outputs connect to Final Slack Reply
+- Ensures workflow always completes even if metrics logging fails
+- Errors are captured in `error_message` field for debugging
+
+---
+
+## Analytics Queries
+
+**Average execution time by action:**
+```sql
+SELECT
+  primary_action,
+  ROUND(AVG(execution_time_seconds), 2) as avg_time,
+  COUNT(*) as executions
+FROM performance_metrics
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY primary_action
+ORDER BY avg_time DESC;
+```
+
+**Success rate by path:**
+```sql
+SELECT
+  path_taken,
+  status,
+  COUNT(*) as count,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY path_taken), 2) as percentage
+FROM performance_metrics
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY path_taken, status
+ORDER BY path_taken, status;
+```
+
+**Token usage trends:**
+```sql
+SELECT
+  DATE(created_at) as date,
+  SUM(token_count_estimate) as total_tokens,
+  AVG(token_count_estimate) as avg_tokens_per_request
+FROM performance_metrics
+WHERE created_at > NOW() - INTERVAL '30 days'
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+```
+
+**Slowest executions:**
+```sql
+SELECT
+  correlation_id,
+  primary_action,
+  execution_time_seconds,
+  result_count,
+  created_at
+FROM performance_metrics
+WHERE created_at > NOW() - INTERVAL '7 days'
+ORDER BY execution_time_seconds DESC
+LIMIT 10;
+```
+
+---
+
+## Next Steps
+
+### Immediate (Step 5.6b)
+1. Fix "Fetch Tickets for Analytics" node:
+   - Change to GET method
+   - Use list endpoint with query parameters
+   - Remove body
+2. Test Analytics path: `@Gorgias Terminal analyze insights from last 7 days`
+3. Verify metrics captured correctly for Analytics path
+4. Confirm data in Supabase for both paths
+
+### Future Enhancements
+1. Create Supabase dashboard for real-time monitoring
+2. Add alerting for slow executions (>30 seconds)
+3. Track token costs (integrate with OpenRouter/OpenAI pricing)
+4. Add performance metrics to Slack replies (optional)
+
+---
+
+## Files Modified
+
+1. **Parse Slack node** - Added `start_timestamp` capture
+2. **Calculate Performance Metrics node** - New path-aware implementation
+3. **Insert Performance Metrics node** - Supabase integration with 14 fields
+4. **Supabase database** - New `performance_metrics` table with indexes
+
+---
+
+**Phase 5 Status:** ~90% Complete
+**Last Updated:** November 7, 2025
+**Next Task:** Fix Analytics API call and complete testing
