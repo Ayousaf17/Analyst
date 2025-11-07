@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1700, 2544],
+      "id": "trigger-node",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preprocess ticket data to reduce token usage\nconst inputData = $input.first().json;\nconst tickets = inputData.body?.data || [];\n\n// Extract only essential fields and truncate long content\nconst processedTickets = tickets.map(ticket => {\n  // Get first customer message (truncated)\n  const firstMessage = ticket.messages?.[0]?.body_text || 'No message';\n  const truncatedMessage = firstMessage.length > 300 \n    ? firstMessage.substring(0, 300) + '...'\n    : firstMessage;\n\n  // Calculate resolution time if closed\n  let resolutionMinutes = null;\n  if (ticket.closed_datetime && ticket.created_datetime) {\n    const created = new Date(ticket.created_datetime);\n    const closed = new Date(ticket.closed_datetime);\n    resolutionMinutes = Math.round((closed - created) / 60000);\n  }\n\n  return {\n    id: ticket.id,\n    subject: ticket.subject || 'No subject',\n    status: ticket.status,\n    channel: ticket.channel,\n    created_at: ticket.created_datetime,\n    closed_at: ticket.closed_datetime,\n    resolution_minutes: resolutionMinutes,\n    tags: ticket.tags || [],\n    assignee: ticket.assignee_user?.email || 'unassigned',\n    first_message: truncatedMessage,\n    message_count: ticket.messages?.length || 0\n  };\n});\n\n// Create summary stats for the prompt\nconst summary = {\n  total_tickets: processedTickets.length,\n  period: inputData.body?.meta?.filtered_by_date || 'unknown',\n  status_filter: inputData.body?.meta?.filtered_by_status || 'all',\n  cutoff_date: inputData.body?.meta?.cutoff_date || 'unknown'\n};\n\n// Return processed data\nreturn {\n  json: {\n    summary,\n    tickets: processedTickets,\n    // Calculate some basic stats to help the AI\n    stats: {\n      by_status: processedTickets.reduce((acc, t) => {\n        acc[t.status] = (acc[t.status] || 0) + 1;\n        return acc;\n      }, {}),\n      by_channel: processedTickets.reduce((acc, t) => {\n        acc[t.channel] = (acc[t.channel] || 0) + 1;\n        return acc;\n      }, {}),\n      avg_resolution_min: processedTickets\n        .filter(t => t.resolution_minutes !== null)\n        .reduce((sum, t, _, arr) => sum + t.resolution_minutes / arr.length, 0)\n    }\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1500, 2544],
+      "id": "preprocess-node",
+      "name": "Preprocess Tickets"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Parse Slack').first().json.thread_ts }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [-960, 2768],
+      "id": "fe8d4de0-b6e4-40f4-8f8b-cc5cc208f35f",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze these Gorgias support tickets from the {{ $json.summary.period }} period (status filter: {{ $json.summary.status_filter }}).\n\nFocus on tickets created on or after {{ $json.summary.cutoff_date }}.\n\nTotal Tickets: {{ $json.summary.total_tickets }}\n\nBasic Stats:\n- Status breakdown: {{ JSON.stringify($json.stats.by_status) }}\n- Channel breakdown: {{ JSON.stringify($json.stats.by_channel) }}\n- Average resolution time: {{ Math.round($json.stats.avg_resolution_min) }} minutes\n\nTicket Data (essential fields only):\n{{ JSON.stringify($json.tickets, null, 2) }}\n\nPlease provide a comprehensive analysis following the system prompt format.",
+        "options": {
+          "systemMessage": "You are a ticket analytics specialist. Analyze Gorgias ticket data to identify patterns, recurring issues, and operational improvements.\n\nINPUT DATA:\nYou will receive preprocessed ticket data with essential fields:\n- id, subject, status, channel\n- created_at, closed_at, resolution_minutes\n- tags, assignee, first_message (truncated to 300 chars)\n- message_count\n\nYOUR TASK:\n1. Identify recurring questions by clustering similar subjects/messages\n2. Analyze resolution time patterns and calculate percentiles\n3. Analyze tag distribution\n4. Analyze assignee performance\n5. Generate actionable operational recommendations\n\nOUTPUT FORMAT (JSON):\n{\n  \"summary\": {\n    \"total_analyzed\": 1284,\n    \"period\": \"last 30 days\",\n    \"avg_resolution_min\": 410,\n    \"resolution_p50\": 180,\n    \"resolution_p90\": 920,\n    \"resolution_p95\": 1240\n  },\n  \"recurring_questions\": [\n    {\n      \"question\": \"When will my PC ship?\",\n      \"count\": 142,\n      \"sample_ids\": [\"18201\", \"18244\", \"18290\", \"18335\", \"18401\"],\n      \"pattern\": \"Users asking about shipping timeline\",\n      \"sentiment\": \"neutral to negative\"\n    }\n  ],\n  \"top_tags\": [\n    {\"tag\": \"rma\", \"count\": 211},\n    {\"tag\": \"shipping\", \"count\": 189}\n  ],\n  \"top_assignees\": [\n    {\n      \"email\": \"alex@example.com\",\n      \"count\": 312,\n      \"avg_resolution_min\": 380,\n      \"success_rate\": 0.94\n    }\n  ],\n  \"unassigned_count\": 66,\n  \"recommendations\": [\n    {\n      \"title\": \"Update Shipping SLA Page\",\n      \"reason\": \"142 tickets asked 'When will my PC ship?'\",\n      \"action\": \"Add clear SLA timeline to /order-status page\",\n      \"potential_reduction\": \"~100 tickets/month\"\n    }\n  ]\n}\n\nCLUSTERING RULES:\n- Group tickets by semantic similarity (not exact match)\n- \"When will my order ship?\" ≈ \"Shipping timeline?\" ≈ \"Where is my PC?\"\n- Use AI to detect question intent, not just keywords\n- Minimum cluster size: 5 tickets\n\nRECOMMENDATION RULES:\n- Focus on high-impact opportunities (high ticket volume)\n- Suggest specific, actionable changes\n- Estimate potential ticket reduction\n- Prioritize by impact (volume × severity)\n\nBE SPECIFIC:\n- Don't say \"improve documentation\" → Say \"Create RMA step-by-step guide at /support/rma\"\n- Don't say \"better communication\" → Say \"Auto-email shipping updates when order ships\"\n- Always include ticket volume and potential reduction\n\nCALCULATE PERCENTILES:\n- Sort resolution times, find p50 (median), p90, p95 values\n- Report in minutes for clarity"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [-1296, 2544],
+      "id": "c524951b-2794-411f-ac4d-2bc317a61e89",
+      "name": "Ticket Analytics Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4.5",
+        "options": {
+          "maxTokens": 4000,
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [-1296, 2768],
+      "id": "e4177003-142e-4884-a8f5-23fdf84d401c",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "dkHyqaKDXnOTT5i0",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Preprocess Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preprocess Tickets": {
+      "main": [
+        [
+          {
+            "node": "Ticket Analytics Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Ticket Analytics Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket Analytics Agent": {
+      "main": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Ticket Analytics Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "89aa7945180226003eaabc2f707966f9cb80855e1b923a9f8aa13c508486d4ce"
+  }
+}
