@@ -1,9 +1,9 @@
 {
   "workflow_name": "Gorgias Terminal",
   "version": "2.0",
-  "last_updated": "2025-11-06",
+  "last_updated": "2025-11-07",
   "workflow_file": "workflow.json",
-  "total_nodes": 54,
+  "total_nodes": 55,
   
   "node_categories": {
     "critical_nodes": [
@@ -25,6 +25,7 @@
       "calculate_metrics",
       "deduplicate_results",
       "summarize_results",
+      "preprocess_tickets",
       "universal_formatter",
       "collect_results",
       "format_log",
@@ -480,7 +481,34 @@
       "position": [-1632, 3088],
       "note": "Saves ~5000-10000 tokens per query by summarizing before AI"
     },
-    
+
+    "preprocess_tickets": {
+      "id": "preprocess-node",
+      "name": "Preprocess Tickets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/preprocess-tickets.js",
+      "description": "Reduces token usage by 90% for analytics queries",
+      "position": [-1500, 2544],
+      "inputs": {
+        "body.data": "array of full Gorgias ticket objects"
+      },
+      "outputs": {
+        "summary": "object with metadata (total_tickets, period, status_filter, cutoff_date)",
+        "tickets": "array of lightweight ticket objects",
+        "stats": "object with pre-calculated aggregations (by_status, by_channel, avg_resolution_min)"
+      },
+      "token_savings": {
+        "before": "1000 tickets × 2500 tokens = 2,500,000 tokens",
+        "after": "1000 tickets × 250 tokens = 250,000 tokens",
+        "savings_percent": 90,
+        "cost_savings": "$20 per analytics query"
+      },
+      "note": "Critical for preventing OpenRouter token limit errors with Claude Sonnet 4.5",
+      "safe_to_modify": ["truncation length", "field selection", "stat calculations"],
+      "dangerous_to_modify": ["output structure (breaks analytics agent)"]
+    },
+
     "calculate_metrics": {
       "id": "3b25ce38-0911-4961-932c-05b605694cd1",
       "name": "Calculate Standard Metrics",
@@ -686,6 +714,7 @@
     "analytics_path": [
       "route_by_action",
       "fetch_tickets_for_analytics",
+      "preprocess_tickets",
       "ticket_analytics_agent",
       "universal_formatter",
       "conversational_response_ai",
