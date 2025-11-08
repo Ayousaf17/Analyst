@@ -26,9 +26,12 @@ The node extracts only essential fields needed for analytics:
 - Ticket ID, subject, status, channel
 - Created/closed timestamps
 - Calculated resolution time (in minutes)
+- **First Response Time (FRT)** - time to first agent response
 - Tags and assignee email
 - First customer message (truncated to 300 chars)
 - Message count
+- **Spam flag** - whether ticket is marked as spam
+- **Unassigned age** - hours since creation for unassigned tickets
 
 **Result**: 200-300 tokens per ticket (~90% reduction)
 
@@ -97,10 +100,13 @@ Benefit: Stays within OpenRouter limits
         created_at: "2025-11-01T10:00:00Z",
         closed_at: "2025-11-01T12:30:00Z",
         resolution_minutes: 150,
+        first_response_minutes: 45,
         tags: ["shipping", "usa"],
         assignee: "agent@company.com",
         first_message: "Very long customer message... (truncated to 300 chars)",
-        message_count: 8
+        message_count: 8,
+        spam: false,
+        unassigned_age_hours: null
       }
       // ... 999 more lightweight tickets
     ],
@@ -114,7 +120,22 @@ Benefit: Stays within OpenRouter limits
         "chat": 300,
         "facebook": 100
       },
-      avg_resolution_min: 410
+      avg_resolution_min: 410,
+      spam: {
+        count: 12,
+        percentage: 1
+      },
+      unassigned: {
+        count: 8,
+        avg_age_hours: 36,
+        oldest_hours: 72
+      },
+      first_response_time: {
+        avg_minutes: 45,
+        median_minutes: 32,
+        count_measured: 950,
+        count_no_response: 5
+      }
     }
   }
 }
@@ -129,11 +150,14 @@ Benefit: Stays within OpenRouter limits
 - **channel**: Communication medium
 - **created_at**: Timestamp for date analysis
 - **closed_at**: Timestamp for resolution time
-- **resolution_minutes**: Pre-calculated metric
+- **resolution_minutes**: Pre-calculated metric (time from creation to closure)
+- **first_response_minutes**: Pre-calculated FRT metric (time to first agent response)
 - **tags**: Categorization data
 - **assignee**: Agent email (simplified)
 - **first_message**: Truncated customer message (context)
 - **message_count**: Conversation length indicator
+- **spam**: Boolean flag indicating if ticket is marked as spam
+- **unassigned_age_hours**: Hours since creation for unassigned tickets (null if assigned)
 
 ### Removed Fields
 - Full message history (except first message, truncated)
@@ -146,7 +170,7 @@ Benefit: Stays within OpenRouter limits
 
 ## Pre-Calculated Statistics
 
-The node generates basic aggregations to help the AI:
+The node generates aggregations to help the AI analyze trends:
 
 1. **Status Breakdown**
    - Count by status (open, closed, spam, etc.)
@@ -159,6 +183,24 @@ The node generates basic aggregations to help the AI:
 3. **Average Resolution Time**
    - Mean resolution time in minutes
    - Baseline for performance analysis
+
+4. **Spam Metrics**
+   - Count of spam tickets
+   - Percentage of total tickets marked as spam
+   - Helps identify spam patterns and filter quality
+
+5. **Unassigned Ticket Metrics**
+   - Count of currently unassigned tickets
+   - Average age in hours for unassigned tickets
+   - Oldest unassigned ticket age
+   - Highlights tickets needing assignment
+
+6. **First Response Time (FRT) Metrics**
+   - Average FRT in minutes
+   - Median FRT in minutes
+   - Count of tickets with measured FRT
+   - Count of tickets with no agent response yet
+   - Key customer service performance indicator
 
 ## Usage in Analytics Workflow
 
@@ -244,6 +286,11 @@ When modifying this node, verify:
 - **summarize_results**: Similar purpose but for main workflow
 
 ## Version History
+- **2025-11-08**: Added missing metrics (spam, unassigned age, FRT)
+  - Added spam detection tracking (count & percentage)
+  - Added unassigned ticket age calculation (hours)
+  - Added First Response Time (FRT) metrics (avg, median, counts)
+  - Updated documentation with new field specifications
 - **2025-11-07**: Initial creation, extracted from Fixed_Analytics_Workflow
-- Reduces token usage by 90%
-- Prevents OpenRouter token limit errors
+  - Reduces token usage by 90%
+  - Prevents OpenRouter token limit errors

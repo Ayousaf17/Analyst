@@ -12,6 +12,13 @@
  * Input: HTTP Response from Gorgias API
  * Output: Lightweight ticket objects + summary stats
  *
+ * Metrics Calculated:
+ * - Resolution time (time from creation to closure)
+ * - First Response Time (FRT) - time to first agent response
+ * - Spam detection and percentage
+ * - Unassigned ticket tracking with age calculation
+ * - Status and channel breakdowns
+ *
  * Token Savings Example:
  * - Before: 1000 tickets × 2500 tokens = 2,500,000 tokens
  * - After:  1000 tickets × 250 tokens  = 250,000 tokens
@@ -38,6 +45,27 @@ const processedTickets = tickets.map(ticket => {
     resolutionMinutes = Math.round((closed - created) / 60000);
   }
 
+  // Calculate First Response Time (FRT) - time to first agent response
+  let firstResponseMinutes = null;
+  if (ticket.messages && Array.isArray(ticket.messages) && ticket.messages.length > 0) {
+    // Find first message from an agent
+    const firstAgentMessage = ticket.messages.find(msg => msg.from_agent === true);
+    if (firstAgentMessage && firstAgentMessage.created_datetime && ticket.created_datetime) {
+      const created = new Date(ticket.created_datetime);
+      const responded = new Date(firstAgentMessage.created_datetime);
+      firstResponseMinutes = Math.round((responded - created) / 60000);
+    }
+  }
+
+  // Calculate unassigned age for currently unassigned tickets
+  const isUnassigned = !ticket.assignee_user || !ticket.assignee_user.email;
+  let unassignedAgeHours = null;
+  if (isUnassigned && ticket.created_datetime) {
+    const created = new Date(ticket.created_datetime);
+    const now = new Date();
+    unassignedAgeHours = Math.round((now - created) / 3600000); // Convert to hours
+  }
+
   // Return only essential fields (reduces from ~2500 to ~250 tokens per ticket)
   return {
     id: ticket.id,
@@ -47,10 +75,13 @@ const processedTickets = tickets.map(ticket => {
     created_at: ticket.created_datetime,
     closed_at: ticket.closed_datetime,
     resolution_minutes: resolutionMinutes,
+    first_response_minutes: firstResponseMinutes,
     tags: ticket.tags || [],
     assignee: ticket.assignee_user?.email || 'unassigned',
     first_message: truncatedMessage,
-    message_count: ticket.messages?.length || 0
+    message_count: ticket.messages?.length || 0,
+    spam: ticket.spam || false,
+    unassigned_age_hours: unassignedAgeHours
   };
 });
 
@@ -81,7 +112,55 @@ const stats = {
     .filter(t => t.resolution_minutes !== null)
     .reduce((sum, t, _, arr) => {
       return arr.length > 0 ? sum + t.resolution_minutes / arr.length : 0;
-    }, 0)
+    }, 0),
+
+  // SPAM METRICS
+  spam: {
+    count: processedTickets.filter(t => t.spam === true).length,
+    percentage: processedTickets.length > 0
+      ? Math.round((processedTickets.filter(t => t.spam === true).length / processedTickets.length) * 100)
+      : 0
+  },
+
+  // UNASSIGNED METRICS
+  unassigned: {
+    count: processedTickets.filter(t => t.assignee === 'unassigned').length,
+    avg_age_hours: (() => {
+      const unassignedTickets = processedTickets.filter(t => t.unassigned_age_hours !== null);
+      if (unassignedTickets.length === 0) return 0;
+      const totalHours = unassignedTickets.reduce((sum, t) => sum + t.unassigned_age_hours, 0);
+      return Math.round(totalHours / unassignedTickets.length);
+    })(),
+    oldest_hours: (() => {
+      const ages = processedTickets
+        .filter(t => t.unassigned_age_hours !== null)
+        .map(t => t.unassigned_age_hours);
+      return ages.length > 0 ? Math.max(...ages) : 0;
+    })()
+  },
+
+  // FIRST RESPONSE TIME (FRT) METRICS
+  first_response_time: {
+    avg_minutes: (() => {
+      const withFRT = processedTickets.filter(t => t.first_response_minutes !== null);
+      if (withFRT.length === 0) return 0;
+      const total = withFRT.reduce((sum, t) => sum + t.first_response_minutes, 0);
+      return Math.round(total / withFRT.length);
+    })(),
+    median_minutes: (() => {
+      const times = processedTickets
+        .filter(t => t.first_response_minutes !== null)
+        .map(t => t.first_response_minutes)
+        .sort((a, b) => a - b);
+      if (times.length === 0) return 0;
+      const mid = Math.floor(times.length / 2);
+      return times.length % 2 === 0 ? Math.round((times[mid - 1] + times[mid]) / 2) : times[mid];
+    })(),
+    count_measured: processedTickets.filter(t => t.first_response_minutes !== null).length,
+    count_no_response: processedTickets.filter(t =>
+      t.first_response_minutes === null && t.message_count > 0
+    ).length
+  }
 };
 
 // Return preprocessed data (ready for AI consumption)
