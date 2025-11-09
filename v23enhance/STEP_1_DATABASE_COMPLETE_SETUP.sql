@@ -262,17 +262,14 @@ INSERT INTO gorgias_users (
   (412219254, 'robert@ironside.gg', 'Robert Apice', 'Robert', 'Apice', 'account_owner', 'U8NQJMH0D', 'Bobby', true, false),
 
   -- Admin Users (Active Team)
-  (843460870, 'ay17yousaf@gmail.com', 'Ayub', 'Ayub', NULL, 'admin', NULL, NULL, true, false),
+  (843460870, 'ay17yousaf@gmail.com', 'Ayub', 'Ayub', NULL, 'admin', 'U09BSMA8U75', 'Ayub', true, false),
   (427601949, 'collin@ironside.gg', 'Collin Bailey', 'Collin', 'Bailey', 'admin', 'U8NC9D5AM', 'Collin', true, false),
   (453011007, 'domenic@ironsidecomputers.com', 'Domenic Apice', 'Domenic', 'Apice', 'admin', 'U8N13TMEC', 'Domenic', true, false),
-  (425921651, 'mackenzie@ironsidecomputers.com', 'Mackenzie Zerkel', 'Mackenzie', 'Zerkel', 'admin', NULL, NULL, true, false),
-  (489867320, 'ram@digitlhaus.com', 'RAM', 'RAM', NULL, 'admin', NULL, NULL, true, false),
-  (427551852, 'robert@ironsidecomputers.com', 'Robert', 'Robert', NULL, 'admin', NULL, NULL, true, false),
-  (425949203, 'spencer@ironsidecomputers.com', 'Spencer James', 'Spencer', 'James', 'admin', NULL, NULL, true, false),
+  (425921651, 'mackenzie@ironsidecomputers.com', 'Mackenzie Zerkel', 'Mackenzie', 'Zerkel', 'admin', 'U067B04SKRP', 'Mackenzie', true, false),
+  (425949203, 'spencer@ironsidecomputers.com', 'Spencer James', 'Spencer', 'James', 'admin', 'U068AHB0Z8X', 'Spencer', true, false),
 
   -- Lead Users (Active Team)
   (449790477, 'gabriel@ironside.gg', 'Gabe Apice', 'Gabe', 'Apice', 'lead', 'U8NT9KABC', 'Gabe', true, false),
-  (427574942, 'rma.ironside@gmail.com', 'RMA Department', 'RMA', 'Department', 'lead', NULL, NULL, true, false),
 
   -- Contractors (Inactive - not shown in bot suggestions)
   (740849636, 'tineabraham973@gmail.com', 'Tine Abraham', 'Tine', 'Abraham', 'contractor', NULL, NULL, false, false),

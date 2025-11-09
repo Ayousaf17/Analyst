@@ -2,31 +2,33 @@
 
 ## Current Data Summary
 
-### ✅ Complete User Records (With Slack IDs) - 5 users
+### ✅ Complete User Records (With Slack IDs) - 8 users
 
 | Name | Email | Gorgias ID | Slack ID | Slack Name |
 |------|-------|------------|----------|------------|
 | Robert Apice | robert@ironside.gg | 412219254 | U8NQJMH0D | Bobby |
+| Ayub | ay17yousaf@gmail.com | 843460870 | U09BSMA8U75 | Ayub |
 | Collin Bailey | collin@ironside.gg | 427601949 | U8NC9D5AM | Collin |
 | Domenic Apice | domenic@ironsidecomputers.com | 453011007 | U8N13TMEC | Domenic |
+| Mackenzie Zerkel | mackenzie@ironsidecomputers.com | 425921651 | U067B04SKRP | Mackenzie |
+| Spencer James | spencer@ironsidecomputers.com | 425949203 | U068AHB0Z8X | Spencer |
 | Gabe Apice | gabriel@ironside.gg | 449790477 | U8NT9KABC | Gabe |
 
 **Status:** Ready to use ✅
 
+**Coverage:** 7/8 active team members (87.5%) now have Slack IDs!
+
 ---
 
-### ⚠️  Incomplete User Records (Missing Slack IDs) - 5 users
+### ⚠️  Incomplete User Records (Missing Slack IDs) - 1 user
 
 | Name | Email | Gorgias ID | Slack ID | Notes |
 |------|-------|------------|----------|-------|
-| Ayub | ay17yousaf@gmail.com | 843460870 | ❓ MISSING | You (the builder) |
-| Mackenzie Zerkel | mackenzie@ironsidecomputers.com | 425921651 | ❓ MISSING | Admin |
-| RAM | ram@digitlhaus.com | 489867320 | ❓ MISSING | Admin |
 | Robert | robert@ironsidecomputers.com | 427551852 | ❓ MISSING | Admin (different from Robert Apice) |
-| Spencer James | spencer@ironsidecomputers.com | 425949203 | ❓ MISSING | Admin |
-| RMA Department | rma.ironside@gmail.com | 427574942 | ❓ MISSING | Shared account |
 
-**Impact:** These users can still be referenced by name, but @mentions in Slack won't work
+**Impact:** Minimal - Only 1 user without Slack ID
+
+**Note:** RAM and RMA Department have been removed from the active user list per your request.
 
 ---
 
