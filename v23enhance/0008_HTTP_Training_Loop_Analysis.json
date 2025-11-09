@@ -1,0 +1,306 @@
+{
+  "name": "0008 - Training Loop Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtDay": 0,
+              "triggerAtHour": 3,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        400
+      ],
+      "id": "schedule-trigger-training",
+      "name": "Schedule Weekly Sunday 3AM"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Fetch last 7 days of confidence scores\nSELECT \n  user_message,\n  detected_action,\n  confidence_score,\n  user_feedback,\n  actual_action,\n  created_at\nFROM ai_confidence_scores\nWHERE created_at > NOW() - INTERVAL '7 days'\nORDER BY created_at DESC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        400
+      ],
+      "id": "fetch-confidence-scores",
+      "name": "Fetch Last 7 Days Scores",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate metrics from last week's data\nconst scores = $input.all().map(i => i.json);\n\nconst totalCommands = scores.length;\nconst lowConfidenceCount = scores.filter(s => s.confidence_score < 0.7).length;\nconst incorrectCount = scores.filter(s => s.user_feedback === 'incorrect').length;\nconst correctCount = scores.filter(s => s.user_feedback === 'correct').length;\nconst avgConfidence = scores.reduce((sum, s) => sum + (s.confidence_score || 0), 0) / totalCommands;\n\nconst totalFeedback = correctCount + incorrectCount;\nconst accuracyRate = totalFeedback > 0 ? (correctCount / totalFeedback) * 100 : 0;\n\n// Identify confusion patterns\nconst confusionPatterns = [];\nconst patternMap = {};\n\n// Group by message pattern (first 50 chars) + detected action\nfor (const score of scores) {\n  if (score.confidence_score < 0.7 || score.user_feedback === 'incorrect') {\n    const pattern = score.user_message.substring(0, 50);\n    const key = `${pattern}|${score.detected_action}`;\n    \n    if (!patternMap[key]) {\n      patternMap[key] = {\n        pattern: pattern,\n        detected_action: score.detected_action,\n        occurrences: 0,\n        avg_confidence: 0,\n        incorrect_count: 0,\n        should_have_been: []\n      };\n    }\n    \n    patternMap[key].occurrences++;\n    patternMap[key].avg_confidence += score.confidence_score || 0;\n    \n    if (score.user_feedback === 'incorrect') {\n      patternMap[key].incorrect_count++;\n      if (score.actual_action && !patternMap[key].should_have_been.includes(score.actual_action)) {\n        patternMap[key].should_have_been.push(score.actual_action);\n      }\n    }\n  }\n}\n\n// Convert to array and calculate averages\nfor (const key in patternMap) {\n  const p = patternMap[key];\n  p.avg_confidence = p.avg_confidence / p.occurrences;\n  if (p.occurrences > 1) {  // Only patterns that occurred multiple times\n    confusionPatterns.push(p);\n  }\n}\n\n// Sort by incorrect_count DESC, then occurrences DESC\nconfusionPatterns.sort((a, b) => {\n  if (b.incorrect_count !== a.incorrect_count) {\n    return b.incorrect_count - a.incorrect_count;\n  }\n  return b.occurrences - a.occurrences;\n});\n\n// Take top 10\nconst topPatterns = confusionPatterns.slice(0, 10);\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('📊 Training Analysis - Last 7 Days');\nconsole.log('═══════════════════════════════════════');\nconsole.log(`Total commands: ${totalCommands}`);\nconsole.log(`Low confidence (<0.7): ${lowConfidenceCount}`);\nconsole.log(`Incorrect feedback: ${incorrectCount}`);\nconsole.log(`Correct feedback: ${correctCount}`);\nconsole.log(`Avg confidence: ${(avgConfidence * 100).toFixed(1)}%`);\nconsole.log(`Accuracy rate: ${accuracyRate.toFixed(1)}%`);\nconsole.log(`Confusion patterns found: ${topPatterns.length}`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{\n  json: {\n    total_commands: totalCommands,\n    low_confidence_count: lowConfidenceCount,\n    incorrect_action_count: incorrectCount,\n    correct_action_count: correctCount,\n    avg_confidence: parseFloat(avgConfidence.toFixed(3)),\n    accuracy_rate: parseFloat(accuracyRate.toFixed(2)),\n    confusion_patterns: topPatterns,\n    analysis_date: new Date().toISOString().split('T')[0],\n    analysis_period: `${new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0]} to ${new Date().toISOString().split('T')[0]}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ],
+      "id": "calculate-metrics",
+      "name": "Calculate Metrics & Patterns"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Fetch current prompt (version 1 or highest active version)\nSELECT system_prompt, version\nFROM prompt_versions\nWHERE is_active = true\nORDER BY version DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        400
+      ],
+      "id": "fetch-current-prompt",
+      "name": "Fetch Current Prompt",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  const metrics = $('Calculate Metrics & Patterns').first().json;\n  const currentPrompt = $json.system_prompt || 'No prompt found';\n  \n  return JSON.stringify({\n    model: 'anthropic/claude-3.5-sonnet',\n    messages: [{\n      role: 'user',\n      content: `You are an AI prompt engineer analyzing errors in a Gorgias ticket management bot.\n\nCURRENT SYSTEM PROMPT:\n${currentPrompt}\n\nLAST 7 DAYS METRICS:\n- Total commands: ${metrics.total_commands}\n- Low confidence (<0.7): ${metrics.low_confidence_count}\n- Incorrect interpretations: ${metrics.incorrect_action_count}\n- Average confidence: ${(metrics.avg_confidence * 100).toFixed(1)}%\n- Accuracy rate: ${metrics.accuracy_rate}%\n\nTOP CONFUSION PATTERNS:\n${metrics.confusion_patterns.map((p, i) => \n  `${i+1}. Pattern: \"${p.pattern}\"\n   - Detected as: ${p.detected_action}\n   - Occurrences: ${p.occurrences}\n   - Avg confidence: ${(p.avg_confidence * 100).toFixed(0)}%\n   - Incorrect: ${p.incorrect_count} times\n   - Should have been: ${p.should_have_been.join(', ') || 'N/A'}`\n).join('\\n\\n')}\n\nANALYSIS TASK:\n1. Identify why these patterns are confusing the AI\n2. Suggest SPECIFIC prompt improvements (exact phrases to add)\n3. Provide example user queries and expected responses\n4. Focus on the top 3-5 most impactful changes\n\nFormat your response as:\n\n## Analysis\n[Your analysis of why these errors occur]\n\n## Suggested Prompt Changes\n[Specific text to add to the prompt, formatted clearly]\n\n## Examples to Add\n[Example user queries with correct interpretations]\n\nBe specific and actionable. Focus on changes that will have the biggest impact.`\n    }],\n    max_tokens: 2000,\n    temperature: 0.3\n  }, null, 2);\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        400
+      ],
+      "id": "analyze-with-claude",
+      "name": "Analyze with Claude",
+      "credentials": {
+        "openRouterApi": {
+          "id": "YOUR_OPENROUTER_CRED_ID",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Claude's suggestions\nconst response = $json.choices?.[0]?.message?.content || '';\nconst metrics = $('Calculate Metrics & Patterns').first().json;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('🧠 Claude Analysis Complete');\nconsole.log(`Response length: ${response.length} characters`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{\n  json: {\n    ...metrics,\n    suggested_prompt_changes: response,\n    needs_new_version: metrics.incorrect_action_count > 5 || metrics.accuracy_rate < 90\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        400
+      ],
+      "id": "parse-suggestions",
+      "name": "Parse Suggestions"
+    },
+    {
+      "parameters": {
+        "tableId": "prompt_training_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "analysis_date",
+              "fieldValue": "={{ $json.analysis_date }}"
+            },
+            {
+              "fieldId": "analysis_period",
+              "fieldValue": "={{ $json.analysis_period }}"
+            },
+            {
+              "fieldId": "total_commands",
+              "fieldValue": "={{ $json.total_commands }}"
+            },
+            {
+              "fieldId": "low_confidence_count",
+              "fieldValue": "={{ $json.low_confidence_count }}"
+            },
+            {
+              "fieldId": "incorrect_action_count",
+              "fieldValue": "={{ $json.incorrect_action_count }}"
+            },
+            {
+              "fieldId": "avg_confidence",
+              "fieldValue": "={{ $json.avg_confidence }}"
+            },
+            {
+              "fieldId": "accuracy_rate",
+              "fieldValue": "={{ $json.accuracy_rate }}"
+            },
+            {
+              "fieldId": "top_confusion_patterns",
+              "fieldValue": "={{ JSON.stringify($json.confusion_patterns) }}"
+            },
+            {
+              "fieldId": "suggested_prompt_changes",
+              "fieldValue": "={{ $json.suggested_prompt_changes }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        400
+      ],
+      "id": "log-training-analysis",
+      "name": "Log Training Analysis",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C07MTCN9BAJ",
+          "mode": "id"
+        },
+        "text": "=🧠 *Weekly Training Analysis Complete*\n\n📊 *Last 7 Days Metrics:*\n• Total commands: {{ $json.total_commands }}\n• Low confidence: {{ $json.low_confidence_count }}\n• Incorrect: {{ $json.incorrect_action_count }}\n• Avg confidence: {{ ($json.avg_confidence * 100).toFixed(1) }}%\n• Accuracy: {{ $json.accuracy_rate }}%\n\n🔍 *Top Confusion Patterns:*\n{{ $json.confusion_patterns.slice(0, 3).map((p, i) => `${i+1}. \"${p.pattern}\" (${p.incorrect_count} errors)`).join('\\n') }}\n\n💡 *AI Suggestions:*\n{{ $json.suggested_prompt_changes.substring(0, 500) }}...\n\n{{ $json.needs_new_version ? '⚠️ *Recommendation:* Create new prompt version (accuracy < 90% or 5+ errors)' : '✅ *Status:* System performing well, no immediate action needed' }}\n\n_Full analysis logged to database. Next analysis: Next Sunday at 3:00 AM_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        400
+      ],
+      "id": "send-slack-report",
+      "name": "Send Slack Report",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Weekly Sunday 3AM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Last 7 Days Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Last 7 Days Scores": {
+      "main": [
+        [
+          {
+            "node": "Calculate Metrics & Patterns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Metrics & Patterns": {
+      "main": [
+        [
+          {
+            "node": "Fetch Current Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Current Prompt": {
+      "main": [
+        [
+          {
+            "node": "Analyze with Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze with Claude": {
+      "main": [
+        [
+          {
+            "node": "Parse Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Suggestions": {
+      "main": [
+        [
+          {
+            "node": "Log Training Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Training Analysis": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 2400
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "training-analysis-workflow"
+}

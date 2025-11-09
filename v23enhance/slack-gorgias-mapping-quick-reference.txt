@@ -1,0 +1,160 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  SLACK ↔ GORGIAS USER MAPPING - QUICK REFERENCE              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ✅ CONFIRMED MATCHES - Ready to Populate (9 users)                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┬─────────────────────────────────┬──────────────┬──────────────┐
+│ SLACK ID    │ GORGIAS EMAIL                   │ DISPLAY NAME │ REAL NAME    │
+├─────────────┼─────────────────────────────────┼──────────────┼──────────────┤
+│ U8N13TMEC   │ domenic@ironsidecomputers.com   │ Domenic      │ Domenic A.   │
+│ U8NC9D5AM   │ collin@ironside.gg              │ Collin       │ Collin B.    │
+│ U8NT9KABC   │ gabriel@ironside.gg             │ Gabe         │ Gabriel A.   │
+│ U8NQJMH0D   │ robert@ironside.gg              │ Bobby        │ Robert A.    │
+│ U8QGQ61DL   │ zruland94@gmail.com             │ Zach         │ Zach R.      │
+│ U8N6W777B   │ alexandra@ironsidecomputers.com │ Didi         │ Alexandra A. │
+│ U8NM51LLA   │ shawn@ironsidecomputers.com     │ Shawn        │ Shawn H.     │
+│ U01246F9STX │ riley@ironsidecomputers.com     │ Riley        │ Riley H.     │
+│ U01HCGDJVA5 │ michael@ironsidecomputers.com   │ Mike         │ Michael K.   │
+└─────────────┴─────────────────────────────────┴──────────────┴──────────────┘
+
+Coverage: 9/13 active users (69%) ✅
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚠️  PENDING VERIFICATION (1 user)                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┬─────────────────────────────────┬──────────────┬──────────────┐
+│ SLACK ID    │ GORGIAS EMAIL (suspected)       │ DISPLAY NAME │ STATUS       │
+├─────────────┼─────────────────────────────────┼──────────────┼──────────────┤
+│ UPP5QAQBY   │ bret@ironsidecomputers.com      │ Bret         │ Need email   │
+│             │                                 │              │ verification │
+└─────────────┴─────────────────────────────────┴──────────────┴──────────────┘
+
+Action: Use Slack API users.info to confirm email
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ❌ GORGIAS USERS WITHOUT SLACK ACCOUNTS (4+ users)                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────┬──────────────────────────────────────┐
+│ GORGIAS EMAIL                       │ REASON / NOTES                       │
+├─────────────────────────────────────┼──────────────────────────────────────┤
+│ mackenzie@ironsidecomputers.com     │ No active Slack account found        │
+│ spencer@ironsidecomputers.com       │ No active Slack account found        │
+│ ay17yousaf@gmail.com (Ayub)         │ No active Slack account found        │
+│ tineabraham@gmail.com               │ No active Slack account found        │
+│ zkellogg@digitlhaus.com             │ No active Slack account found        │
+│ ram@digitlhaus.com                  │ No active Slack account found        │
+│ robert@ironsidecomputers.com        │ Duplicate? Primary is @ironside.gg   │
+└─────────────────────────────────────┴──────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 EXAMPLE USAGE AFTER POPULATION                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+1️⃣  Slack @mention Resolution:
+   Input: "assign to <@U8NC9D5AM>"
+   Resolved: "assign to collin@ironside.gg"
+   ✅ Function call executes with exact email
+
+2️⃣  Name Resolution (still works without Slack ID):
+   Input: "show me bailey's tickets"
+   Lookup: nickname "bailey" → collin@ironside.gg
+   ✅ Works even without Slack ID
+
+3️⃣  Hybrid Resolution:
+   Input: "spencer's urgent stuff"
+   - No Slack ID for Spencer
+   - Falls back to name lookup: "spencer" → spencer@ironsidecomputers.com
+   ✅ Still resolves correctly
+
+4️⃣  Tag User in Slack Response:
+   System finds ticket assigned to: collin@ironside.gg
+   Lookup: collin@ironside.gg → U8NC9D5AM
+   Reply: "Ticket assigned to <@U8NC9D5AM>"
+   Slack renders: "Ticket assigned to @Collin" (clickable)
+   ✅ Creates proper Slack mention
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 IMPLEMENTATION CHECKLIST                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Phase 1: Immediate (5 minutes)
+  [ ] Run populate-slack-ids-confirmed.sql
+  [ ] Verify 9 users updated successfully
+  [ ] Test @mention resolution in n8n
+
+Phase 2: Verification (10 minutes)
+  [ ] Check Bret's email using Slack API
+  [ ] Update Bret's Slack ID if confirmed
+  [ ] Investigate robert@ironsidecomputers.com duplicate
+
+Phase 3: Ongoing (weekly)
+  [ ] Set up automated Slack sync workflow
+  [ ] Monitor for new team members
+  [ ] Handle user deactivations
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔧 TROUBLESHOOTING                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Q: Why don't Mackenzie/Spencer have Slack IDs?
+A: They don't have active Slack accounts. Name resolution will still work.
+
+Q: Which Robert is which?
+A: robert@ironside.gg (U8NQJMH0D) is the primary owner "Bobby". The 
+   @ironsidecomputers.com entry might be old/duplicate.
+
+Q: How do I find a user's Slack ID?
+A: Right-click user in Slack → Copy → Copy member ID
+
+Q: Can I add users manually?
+A: Yes, use this SQL:
+   UPDATE gorgias_users SET slack_user_id = 'U...', 
+   slack_display_name = '...' WHERE email = '...';
+
+Q: What if someone doesn't have Slack?
+A: Name resolution still works! Slack IDs are just for @mention support.
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 STATISTICS & COVERAGE                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Total Gorgias Users:        14 (13 human + 1 bot)
+Active Slack Users:         10 (excluding bots)
+
+After Population:
+  ✅ Confirmed Mapped:       9 (69%)
+  ⚠️  Pending Verification:  1 (8%)
+  ❌ No Slack Account:       4 (31%)
+  ──────────────────────────────
+  Total Coverage:           10/13 potential (77% with Bret)
+
+Expected Final State:
+  - 100% of Slack users → mapped to Gorgias ✅
+  - ~70% of Gorgias users → have Slack IDs ✅
+  - All users → resolvable by name regardless ✅
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🚀 NEXT STEPS                                                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+1. Run SQL:        populate-slack-ids-confirmed.sql
+2. Test:           Try "@collin" mention in Slack → should resolve
+3. Verify Bret:    Check email and add if confirmed
+4. Set up sync:    Weekly Slack → Gorgias sync workflow
+5. Monitor:        Check logs for unresolved mentions
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Ready to execute? Run populate-slack-ids-confirmed.sql in Supabase! 🎯

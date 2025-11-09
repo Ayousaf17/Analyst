@@ -1,0 +1,288 @@
+{
+  "name": "0005 - Sync Gorgias Tags",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ],
+      "id": "schedule-trigger-tags",
+      "name": "Schedule Daily 2AM"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.GORGIAS_BASE_URL }}/api/tags",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "enabled": true,
+            "paginationMode": "off"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "fetch-tags-gorgias",
+      "name": "Fetch Tags from Gorgias",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "YOUR_GORGIAS_CRED_ID",
+          "name": "Gorgias Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Gorgias tags and prepare for Supabase\nconst tags = $input.all();\nconst parsed = [];\n\nfor (const item of tags) {\n  const tagData = item.json.data || item.json;\n  \n  // Handle both single tag and array of tags\n  const tagsArray = Array.isArray(tagData) ? tagData : [tagData];\n  \n  for (const tag of tagsArray) {\n    // Infer category from tag name\n    let category = 'other';\n    const name = (tag.name || '').toLowerCase();\n    \n    if (name.includes('billing') || name.includes('payment') || name.includes('invoice')) {\n      category = 'billing';\n    } else if (name.includes('ship') || name.includes('delivery') || name.includes('tracking')) {\n      category = 'shipping';\n    } else if (name.includes('tech') || name.includes('bug') || name.includes('error')) {\n      category = 'technical';\n    } else if (name.includes('refund') || name.includes('return') || name.includes('rma')) {\n      category = 'refund';\n    } else if (name.includes('order') || name.includes('purchase')) {\n      category = 'order';\n    } else if (name.includes('support') || name.includes('help') || name.includes('question')) {\n      category = 'support';\n    } else if (name.includes('urgent') || name.includes('priority') || name.includes('escalat')) {\n      category = 'priority';\n    } else if (name.includes('spam') || name.includes('fraud')) {\n      category = 'spam';\n    }\n    \n    parsed.push({\n      json: {\n        tag_id: tag.id,\n        tag_name: tag.name,\n        tag_description: tag.description || null,\n        category: category,\n        usage_count: tag.ticket_count || 0,\n        is_active: true,\n        updated_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nconsole.log(`✅ Parsed ${parsed.length} tags`);\nreturn parsed;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "id": "parse-tags-data",
+      "name": "Parse Tags Data"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "gorgias_tags",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "tag_id",
+              "fieldValue": "={{ $json.tag_id }}"
+            },
+            {
+              "fieldId": "tag_name",
+              "fieldValue": "={{ $json.tag_name }}"
+            },
+            {
+              "fieldId": "tag_description",
+              "fieldValue": "={{ $json.tag_description }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "usage_count",
+              "fieldValue": "={{ $json.usage_count }}"
+            },
+            {
+              "fieldId": "is_active",
+              "fieldValue": "={{ $json.is_active }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $json.updated_at }}"
+            }
+          ]
+        },
+        "options": {
+          "onConflict": "tag_id"
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "id": "upsert-tags-supabase",
+      "name": "Upsert to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate sync statistics\nconst items = $input.all();\n\nconst stats = {\n  total_processed: items.length,\n  sync_timestamp: new Date().toISOString(),\n  workflow: 'gorgias_tags_sync',\n  status: 'success'\n};\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('✅ Tags Sync Complete');\nconsole.log(`   Total tags synced: ${stats.total_processed}`);\nconsole.log(`   Timestamp: ${stats.sync_timestamp}`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{ json: stats }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "calculate-sync-stats",
+      "name": "Calculate Sync Stats"
+    },
+    {
+      "parameters": {
+        "tableId": "sync_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_name",
+              "fieldValue": "={{ $json.workflow }}"
+            },
+            {
+              "fieldId": "records_processed",
+              "fieldValue": "={{ $json.total_processed }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "sync_timestamp",
+              "fieldValue": "={{ $json.sync_timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "id": "log-sync-results",
+      "name": "Log Sync Results",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C07MTCN9BAJ",
+          "mode": "id"
+        },
+        "text": "=✅ *Gorgias Tags Sync Complete*\n\n📊 *Stats:*\n• Tags synced: {{ $json.total_processed }}\n• Timestamp: {{ $json.sync_timestamp }}\n• Status: {{ $json.status }}\n\n_Next sync: Tomorrow at 2:00 AM_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        300
+      ],
+      "id": "notify-slack-tags",
+      "name": "Notify Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Daily 2AM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tags from Gorgias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tags from Gorgias": {
+      "main": [
+        [
+          {
+            "node": "Parse Tags Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tags Data": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Calculate Sync Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Sync Stats": {
+      "main": [
+        [
+          {
+            "node": "Log Sync Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Sync Results": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 1800
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "tags-sync-workflow"
+}

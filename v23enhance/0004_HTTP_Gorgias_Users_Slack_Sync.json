@@ -1,0 +1,360 @@
+{
+  "name": "0004 - Sync Gorgias Users with Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        400
+      ],
+      "id": "schedule-trigger-users",
+      "name": "Schedule Daily 2:30AM"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.GORGIAS_BASE_URL }}/api/users",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        400
+      ],
+      "id": "fetch-gorgias-users",
+      "name": "Fetch Gorgias Users",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "YOUR_GORGIAS_CRED_ID",
+          "name": "Gorgias Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://slack.com/api/users.list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.slackApi.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        580
+      ],
+      "id": "fetch-slack-users",
+      "name": "Fetch Slack Users",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match Gorgias users with Slack users by email\nconst gorgiasUsers = $('Fetch Gorgias Users').all();\nconst slackUsers = $('Fetch Slack Users').first().json.members || [];\n\nconst matched = [];\nconst unmatched = [];\n\nfor (const gorgiasItem of gorgiasUsers) {\n  const gorgiasUser = gorgiasItem.json.data || gorgiasItem.json;\n  const usersArray = Array.isArray(gorgiasUser) ? gorgiasUser : [gorgiasUser];\n  \n  for (const user of usersArray) {\n    // Skip if not an agent/admin\n    if (!user.email || user.deleted) continue;\n    \n    // Try to match with Slack user by email\n    const slackUser = slackUsers.find(su => \n      su.profile?.email?.toLowerCase() === user.email.toLowerCase()\n    );\n    \n    const userData = {\n      gorgias_user_id: user.id,\n      gorgias_email: user.email,\n      gorgias_name: user.name || `${user.firstname || ''} ${user.lastname || ''}`.trim(),\n      gorgias_firstname: user.firstname || null,\n      gorgias_lastname: user.lastname || null,\n      gorgias_role: user.role || 'agent',\n      is_active: user.active !== false,\n      is_bot: user.is_bot || false,\n      slack_user_id: slackUser?.id || null,\n      slack_name: slackUser?.real_name || null,\n      slack_display_name: slackUser?.profile?.display_name || null,\n      last_synced_at: new Date().toISOString(),\n      matched: !!slackUser\n    };\n    \n    if (slackUser) {\n      matched.push({ json: userData });\n    } else {\n      unmatched.push({ json: userData });\n    }\n  }\n}\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('👥 User Matching Complete');\nconsole.log(`   Matched: ${matched.length}`);\nconsole.log(`   Unmatched: ${unmatched.length}`);\nconsole.log('═══════════════════════════════════════');\n\nif (unmatched.length > 0) {\n  console.log('⚠️  Unmatched Gorgias users:');\n  unmatched.forEach(u => {\n    console.log(`   - ${u.json.gorgias_email} (${u.json.gorgias_name})`);\n  });\n}\n\n// Return all (matched + unmatched)\nreturn [...matched, ...unmatched];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ],
+      "id": "match-users",
+      "name": "Match Gorgias with Slack"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "gorgias_users",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "gorgias_user_id",
+              "fieldValue": "={{ $json.gorgias_user_id }}"
+            },
+            {
+              "fieldId": "gorgias_email",
+              "fieldValue": "={{ $json.gorgias_email }}"
+            },
+            {
+              "fieldId": "gorgias_name",
+              "fieldValue": "={{ $json.gorgias_name }}"
+            },
+            {
+              "fieldId": "gorgias_firstname",
+              "fieldValue": "={{ $json.gorgias_firstname }}"
+            },
+            {
+              "fieldId": "gorgias_lastname",
+              "fieldValue": "={{ $json.gorgias_lastname }}"
+            },
+            {
+              "fieldId": "gorgias_role",
+              "fieldValue": "={{ $json.gorgias_role }}"
+            },
+            {
+              "fieldId": "slack_user_id",
+              "fieldValue": "={{ $json.slack_user_id }}"
+            },
+            {
+              "fieldId": "slack_name",
+              "fieldValue": "={{ $json.slack_name }}"
+            },
+            {
+              "fieldId": "slack_display_name",
+              "fieldValue": "={{ $json.slack_display_name }}"
+            },
+            {
+              "fieldId": "is_active",
+              "fieldValue": "={{ $json.is_active }}"
+            },
+            {
+              "fieldId": "is_bot",
+              "fieldValue": "={{ $json.is_bot }}"
+            },
+            {
+              "fieldId": "last_synced_at",
+              "fieldValue": "={{ $json.last_synced_at }}"
+            }
+          ]
+        },
+        "options": {
+          "onConflict": "gorgias_user_id"
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        400
+      ],
+      "id": "upsert-users",
+      "name": "Upsert to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate sync statistics\nconst items = $input.all();\n\nconst matched = items.filter(i => i.json.matched).length;\nconst unmatched = items.filter(i => !i.json.matched).length;\n\nconst stats = {\n  total_processed: items.length,\n  matched_users: matched,\n  unmatched_users: unmatched,\n  sync_timestamp: new Date().toISOString(),\n  workflow: 'gorgias_users_sync',\n  status: 'success'\n};\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('✅ Users Sync Complete');\nconsole.log(`   Total users: ${stats.total_processed}`);\nconsole.log(`   Matched: ${stats.matched_users}`);\nconsole.log(`   Unmatched: ${stats.unmatched_users}`);\nconsole.log(`   Timestamp: ${stats.sync_timestamp}`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{ json: stats }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ],
+      "id": "calculate-user-stats",
+      "name": "Calculate Sync Stats"
+    },
+    {
+      "parameters": {
+        "tableId": "sync_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_name",
+              "fieldValue": "={{ $json.workflow }}"
+            },
+            {
+              "fieldId": "records_processed",
+              "fieldValue": "={{ $json.total_processed }}"
+            },
+            {
+              "fieldId": "records_added",
+              "fieldValue": "={{ $json.matched_users }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "sync_timestamp",
+              "fieldValue": "={{ $json.sync_timestamp }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.unmatched_users > 0 ? $json.unmatched_users + ' users without Slack match' : null }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        400
+      ],
+      "id": "log-user-sync",
+      "name": "Log Sync Results",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C07MTCN9BAJ",
+          "mode": "id"
+        },
+        "text": "=✅ *Gorgias Users Sync Complete*\n\n📊 *Stats:*\n• Total users: {{ $json.total_processed }}\n• Matched with Slack: {{ $json.matched_users }} ✅\n• Unmatched: {{ $json.unmatched_users }} ⚠️\n• Timestamp: {{ $json.sync_timestamp }}\n\n_Next sync: Tomorrow at 2:30 AM_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        400
+      ],
+      "id": "notify-slack-users",
+      "name": "Notify Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Daily 2:30AM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Gorgias Users",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Slack Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Gorgias Users": {
+      "main": [
+        [
+          {
+            "node": "Match Gorgias with Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Slack Users": {
+      "main": [
+        [
+          {
+            "node": "Match Gorgias with Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Gorgias with Slack": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Calculate Sync Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Sync Stats": {
+      "main": [
+        [
+          {
+            "node": "Log Sync Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Sync Results": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 1800
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "users-sync-workflow"
+}

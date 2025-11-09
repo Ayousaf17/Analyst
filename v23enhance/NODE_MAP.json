@@ -1,0 +1,722 @@
+{
+  "workflow_name": "Gorgias Terminal",
+  "version": "2.0",
+  "last_updated": "2025-11-06",
+  "workflow_file": "workflow.json",
+  "total_nodes": 54,
+  
+  "node_categories": {
+    "critical_nodes": [
+      "parse_slack",
+      "build_openai_request",
+      "openai_structured_output",
+      "handle_plan_response",
+      "route_by_action",
+      "calculate_metrics"
+    ],
+    "code_nodes": [
+      "parse_slack",
+      "build_openai_request",
+      "handle_plan_response",
+      "format_session",
+      "expand_plan",
+      "normalize_step",
+      "client_side_filter",
+      "calculate_metrics",
+      "deduplicate_results",
+      "summarize_results",
+      "universal_formatter",
+      "collect_results",
+      "format_log",
+      "error_handler",
+      "format_clarification",
+      "get_action_emoji"
+    ],
+    "http_nodes": [
+      "list_tickets",
+      "get_ticket",
+      "search_text",
+      "create_ticket",
+      "assign_ticket",
+      "set_priority",
+      "set_status",
+      "update_tags",
+      "reply_public",
+      "comment_internal",
+      "find_user",
+      "list_customers",
+      "get_customer",
+      "fetch_tickets_for_analytics"
+    ],
+    "database_nodes": [
+      "insert_session",
+      "insert_api_logs",
+      "fetch_loop_results"
+    ]
+  },
+  
+  "nodes": {
+    "parse_slack": {
+      "id": "856221f1-944b-484e-ad42-8429ef857570",
+      "name": "Parse Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/parse-slack.js",
+      "description": "Cleans Slack formatting, generates correlation_id",
+      "position": [-4416, 1232],
+      "inputs": {
+        "event": "Slack webhook event JSON"
+      },
+      "outputs": {
+        "user_text": "string (cleaned)",
+        "user_id": "string",
+        "channel": "string",
+        "thread_ts": "string",
+        "correlation_id": "string (format: corr_TIMESTAMP_USER_RANDOM)"
+      },
+      "critical": true,
+      "safe_to_modify": ["regex patterns", "formatting rules"],
+      "dangerous_to_modify": ["output structure", "correlation_id generation"]
+    },
+    
+    "build_openai_request": {
+      "id": "37e74536-b86c-41df-a263-c8d705671f23",
+      "name": "Build OpenAI Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/build-openai-request.js",
+      "description": "Defines 20+ OpenAI functions for function calling",
+      "position": [-4192, 1232],
+      "inputs": {
+        "user_text": "string from Parse Slack"
+      },
+      "outputs": {
+        "model": "string (gpt-4.1-mini)",
+        "messages": "array",
+        "tools": "array (20+ function definitions)",
+        "tool_choice": "string (auto)",
+        "temperature": "float",
+        "max_tokens": "integer"
+      },
+      "functions_defined": 20,
+      "critical": true,
+      "safe_to_modify": ["function descriptions", "add new functions", "parameter descriptions"],
+      "dangerous_to_modify": ["function names (breaks routing)"]
+    },
+    
+    "openai_structured_output": {
+      "id": "a218f303-914b-4c6d-b7f6-fb01689a09db",
+      "name": "OpenAI Structured Output",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "description": "Calls OpenAI API with function calling",
+      "position": [-3968, 1232],
+      "method": "POST",
+      "url": "https://api.openai.com/v1/chat/completions",
+      "authentication": "openAiApi",
+      "critical": true
+    },
+    
+    "handle_plan_response": {
+      "id": "37fc7cd6-03a7-41a9-9bde-5c4301536520",
+      "name": "Handle Plan Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/handle-plan-response.js",
+      "description": "Parses OpenAI function call into executable plan",
+      "position": [-3744, 2976],
+      "inputs": {
+        "choices[0].message": "OpenAI response with tool_calls"
+      },
+      "outputs": {
+        "plan": "array [{step, action, ...params}]",
+        "user_text": "string",
+        "channel": "string",
+        "thread_ts": "string",
+        "correlation_id": "string"
+      },
+      "critical": true,
+      "safe_to_modify": ["error handling", "fallback logic"],
+      "dangerous_to_modify": ["output format"]
+    },
+    
+    "format_session": {
+      "id": "ab9865bf-bd28-4e2a-8c24-42b3cc25af35",
+      "name": "Format Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/format-session.js",
+      "description": "Formats session data for database insertion",
+      "position": [-3520, 2976],
+      "inputs": {
+        "plan": "array from Handle Plan Response"
+      },
+      "outputs": {
+        "user_id": "string",
+        "channel_id": "string",
+        "command": "string",
+        "intent": "string",
+        "correlation_id": "string",
+        "agent_mode": "string",
+        "plan": "array"
+      }
+    },
+    
+    "insert_session": {
+      "id": "851f7a67-434f-4f90-a0f6-e152878054ea",
+      "name": "Insert Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "description": "Inserts session to agent_sessions table",
+      "position": [-3296, 2976],
+      "table": "agent_sessions",
+      "credentials": "supabaseApi"
+    },
+    
+    "expand_plan": {
+      "id": "ecbff07c-90b2-416d-8805-51657199df91",
+      "name": "Expand Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/expand-plan.js",
+      "description": "Expands plan array into individual execution items",
+      "position": [-3072, 2976],
+      "inputs": {
+        "plan": "array from Format Session"
+      },
+      "outputs": {
+        "items": "array (one per step)"
+      }
+    },
+    
+    "split_steps": {
+      "id": "b8f54b84-79a7-4866-b6c3-fc967c686f15",
+      "name": "Split Steps",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "description": "Iterator for executing each step sequentially",
+      "position": [-2848, 2976]
+    },
+    
+    "normalize_step": {
+      "id": "a4fab92d-91fb-417f-a257-6fbd7d5c6342",
+      "name": "Normalize Step",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/normalize-step.js",
+      "description": "Normalizes step data for routing",
+      "position": [-3088, 1120],
+      "inputs": {
+        "step": "object from Split Steps"
+      },
+      "outputs": {
+        "action": "string",
+        "ticket_id": "string",
+        "status": "string",
+        "priority": "string",
+        "assignee_email": "string",
+        "customer_email": "string",
+        "correlation_id": "string"
+      }
+    },
+    
+    "route_by_action": {
+      "id": "a03da006-4c4f-4075-b78a-7bb611d84590",
+      "name": "Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "description": "21-way router to correct action node",
+      "position": [-2864, 816],
+      "visual_only": true,
+      "cases": 21,
+      "critical": true,
+      "modification_instructions": "Add cases via n8n UI, not code"
+    },
+    
+    "list_tickets": {
+      "id": "94a8329e-2688-4d5f-b227-d0627011b38f",
+      "name": "list_tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "GET /api/tickets with filters",
+      "position": [-1440, -320],
+      "method": "GET",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets",
+      "authentication": "httpBasicAuth",
+      "parameters": ["limit", "order_by", "cursor"]
+    },
+    
+    "get_ticket": {
+      "id": "72ea14d4-da85-4ee5-9056-da5b2df2ea40",
+      "name": "get_ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "GET /api/tickets/{id}",
+      "position": [-1440, 224],
+      "method": "GET",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{ $json.ticket_id }}"
+    },
+    
+    "create_ticket": {
+      "id": "de208551-982c-4c87-a4be-93e74a511330",
+      "name": "create_ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "POST /api/tickets",
+      "position": [-1440, 416],
+      "method": "POST",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets"
+    },
+    
+    "assign_ticket": {
+      "id": "82f08eb9-2ee1-4e52-b4e9-89d16e063823",
+      "name": "assign_ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "PUT /api/tickets/{id} - assign to user",
+      "position": [-1440, 608],
+      "method": "PUT",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}"
+    },
+    
+    "set_priority": {
+      "id": "d92845d2-2ddd-4dcd-8866-6e2e6a450dbe",
+      "name": "set_priority",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "PUT /api/tickets/{id} - change priority",
+      "position": [-1440, 800],
+      "method": "PUT",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}"
+    },
+    
+    "set_status": {
+      "id": "7f2bc3f3-f646-4c27-a9d5-73f2fec5b964",
+      "name": "set_status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "PUT /api/tickets/{id} - change status",
+      "position": [-1440, 992],
+      "method": "PUT",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}"
+    },
+    
+    "update_tags": {
+      "id": "974b4430-3239-4032-8ad0-67fa987d209c",
+      "name": "update_tags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "PUT /api/tickets/{id} - update tags",
+      "position": [-1440, 1184],
+      "method": "PUT",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}"
+    },
+    
+    "reply_public": {
+      "id": "33afcb42-2731-4d2e-9468-02bd735c835d",
+      "name": "reply_public",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "POST /api/tickets/{id}/messages - public reply",
+      "position": [-1440, 1568],
+      "method": "POST",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}/messages"
+    },
+    
+    "comment_internal": {
+      "id": "c42dfe34-8ed7-45aa-933b-b49a6c08fb36",
+      "name": "comment_internal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "POST /api/tickets/{id}/messages - internal note",
+      "position": [-1440, 1760],
+      "method": "POST",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{$json.ticket_id}}/messages"
+    },
+    
+    "find_user": {
+      "id": "73ea8a87-39a6-4b49-a121-86e89dc6ca14",
+      "name": "find_user",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "GET /api/users - find by email",
+      "position": [-1440, 1376],
+      "method": "GET",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/users"
+    },
+    
+    "list_customers": {
+      "id": "c36c3df4-39a8-4db2-b9e5-dc487a8aba72",
+      "name": "list_customers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "GET /api/customers",
+      "position": [-1440, 2048],
+      "method": "GET",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/customers"
+    },
+    
+    "get_customer": {
+      "id": "658a672e-b8cf-43de-976f-87f7b8263d4f",
+      "name": "get_customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "GET /api/customers/{id}",
+      "position": [-1440, 2240],
+      "method": "GET",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/customers/{{$json.customer_id}}"
+    },
+    
+    "build_search_request": {
+      "id": "7a8c10bf-18ce-47d7-af2f-e9b245dc8991",
+      "name": "Build Search Request with Filters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/build-search-request.js",
+      "description": "Builds search request and stores client-side filters",
+      "position": [-2176, 32],
+      "note": "Gorgias API has limited filter support, so we store filters for client-side processing"
+    },
+    
+    "search_text": {
+      "id": "55a1ede6-4217-414b-b94b-0501675c1986",
+      "name": "Search Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "POST /api/tickets/search - text search only",
+      "position": [-1952, 32],
+      "method": "POST",
+      "url": "{{ $vars.GORGIAS_BASE_URL }}/api/tickets/search"
+    },
+    
+    "combine_filter_info": {
+      "id": "73034a82-b032-4e72-8641-3d7ffc1204d3",
+      "name": "Combine Filter Info",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "description": "Merges filter request + API response for client-side filtering",
+      "position": [-1728, -128]
+    },
+    
+    "client_side_filter": {
+      "id": "27459d00-cc21-4aaa-aa9a-5cb15ca0b6ed",
+      "name": "Filter Results (Client-Side)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/client-side-filter.js",
+      "description": "Applies complex filters Gorgias API doesn't support",
+      "position": [-1440, -128],
+      "filters_applied": [
+        "status",
+        "priority",
+        "assignee_email",
+        "customer_email",
+        "tags",
+        "date_range"
+      ],
+      "note": "This is necessary because Gorgias search API has limited filter capabilities"
+    },
+    
+    "format_log": {
+      "id": "def7c504-6c44-43f5-addf-5c6be5807d6b",
+      "name": "Format Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/format-log.js",
+      "description": "Formats API call data for logging",
+      "position": [-288, 784]
+    },
+    
+    "insert_api_logs": {
+      "id": "f00dbdda-9fd9-4628-bc78-b2d720eb4e15",
+      "name": "Insert api_logs",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "description": "Inserts to api_logs table for observability",
+      "position": [0, 784],
+      "table": "api_logs",
+      "credentials": "supabaseApi"
+    },
+    
+    "fetch_loop_results": {
+      "id": "5cb382f4-6d58-4603-a8a6-e147be00b599",
+      "name": "Fetch Loop Results",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "description": "Fetches all api_logs for current correlation_id",
+      "position": [-2528, 2976],
+      "table": "api_logs",
+      "operation": "getAll",
+      "filter_by": "run_id (correlation_id)"
+    },
+    
+    "collect_results": {
+      "id": "48bdd7c1-83ac-417e-adc6-12dfcd8baaa5",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/collect-results.js",
+      "description": "Collects all api_logs results into structured format",
+      "position": [-2176, 2960]
+    },
+    
+    "deduplicate_results": {
+      "id": "7cd776ba-de69-4edb-82e7-eb485f477559",
+      "name": "Deduplicate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/deduplicate-results.js",
+      "description": "Removes duplicate tickets from multi-step operations",
+      "position": [-1904, 2960]
+    },
+    
+    "summarize_results": {
+      "id": "558e5baa-e157-4638-8a51-c01f957ac6b7",
+      "name": "Summarize Results for AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/summarize-results.js",
+      "description": "Reduces tickets to essential fields for AI processing",
+      "position": [-1632, 3088],
+      "note": "Saves ~5000-10000 tokens per query by summarizing before AI"
+    },
+    
+    "calculate_metrics": {
+      "id": "3b25ce38-0911-4961-932c-05b605694cd1",
+      "name": "Calculate Standard Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/calculate-metrics.js",
+      "description": "Pre-calculates 100+ metrics in pure JavaScript (0 tokens)",
+      "position": [-1264, 3232],
+      "metrics_categories": [
+        "team_performance",
+        "operational_efficiency",
+        "customer_experience",
+        "quality_patterns"
+      ],
+      "note": "Calculating in JS vs AI saves ~$0.05-0.10 per query"
+    },
+    
+    "get_action_emoji": {
+      "id": "585957fb-97a6-4a52-9298-ba5fe4bfbc2e",
+      "name": "Get Action Emoji",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/get-action-emoji.js",
+      "description": "Maps action to emoji indicator",
+      "position": [-1072, 3216]
+    },
+    
+    "universal_formatter": {
+      "id": "d8ac080f-2a36-4cac-abe1-2ccf80a0dc17",
+      "name": "Universal Table Formatter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/universal-formatter.js",
+      "description": "Pre-formats tables to reduce AI token usage",
+      "position": [-928, 2640],
+      "note": "Pre-formatting saves ~200-400 tokens per response"
+    },
+    
+    "conversational_response_ai": {
+      "id": "3e178797-4f88-4778-8d8a-551ccb542584",
+      "name": "Conversational Response AI",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "description": "Generates natural language response with thread memory",
+      "position": [-720, 2656],
+      "model": "OpenAI Chat Model (gpt-4.1-mini)",
+      "memory": "Simple Memory (10 message window)"
+    },
+    
+    "openai_chat_model": {
+      "id": "309c8705-5012-44de-a1ba-a62b597d6373",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "description": "GPT-4.1-mini model for conversational responses",
+      "position": [-656, 2880],
+      "model": "gpt-4.1-mini"
+    },
+    
+    "simple_memory": {
+      "id": "fe8d4de0-b6e4-40f4-8f8b-cc5cc208f35f",
+      "name": "Simple Memory1",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "description": "Thread-based conversation memory (10 messages)",
+      "position": [-1168, 2768],
+      "session_key": "{{ $('Parse Slack').first().json.thread_ts }}",
+      "context_window": 10
+    },
+    
+    "final_slack_reply": {
+      "id": "d9152ccc-8afb-49fc-bfb5-a79769e4a0b0",
+      "name": "Final Slack Reply",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "description": "Posts final response to Slack thread",
+      "position": [-368, 2928]
+    },
+    
+    "format_clarification": {
+      "id": "c658c643-758a-48b1-b574-70d4b5e4c475",
+      "name": "Format Clarification Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/format-clarification.js",
+      "description": "Formats clarification question for Slack",
+      "position": [-2176, 1904]
+    },
+    
+    "final_slack_reply_clarification": {
+      "id": "b25d67c2-49a5-48c7-882b-61e9a3b017cb",
+      "name": "Final Slack Reply1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "description": "Posts clarification question to Slack",
+      "position": [-1952, 1904]
+    },
+    
+    "fetch_tickets_for_analytics": {
+      "id": "40bd445a-6cb4-44fb-af94-c3f835606476",
+      "name": "Fetch Tickets for Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "description": "POST /api/tickets/search - fetch 1000 closed tickets",
+      "position": [-1728, 2624],
+      "method": "POST",
+      "url": "https://ironsidecomputers.gorgias.com/api/tickets/search",
+      "filters": {
+        "status": "closed",
+        "created_datetime": "last 30 days"
+      },
+      "limit": 1000
+    },
+    
+    "ticket_analytics_agent": {
+      "id": "c524951b-2794-411f-ac4d-2bc317a61e89",
+      "name": "Ticket Analytics Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "description": "Deep analytics with Claude Sonnet 4.5",
+      "position": [-1504, 2544],
+      "model": "OpenRouter Chat Model (claude-sonnet-4.5)",
+      "note": "Only used for analyze_insights action - expensive but powerful"
+    },
+    
+    "openrouter_chat_model": {
+      "id": "e4177003-142e-4884-a8f5-23fdf84d401c",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "description": "Claude Sonnet 4.5 via OpenRouter",
+      "position": [-1504, 2768],
+      "model": "anthropic/claude-sonnet-4.5"
+    },
+    
+    "error_handler": {
+      "id": "19e0c05d-fa83-4c8d-af5e-706e856c8dcc",
+      "name": "Error Handler - Gorgias Terminal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/error-handler.js",
+      "description": "Central error capture and formatting",
+      "position": [-368, 1232]
+    },
+    
+    "format_error_for_slack": {
+      "id": "441f054a-8352-4d43-8856-60c1e92c2118",
+      "name": "Format Error for Slack Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "file": "nodes/format-error.js",
+      "description": "Creates user-friendly error messages",
+      "position": [-144, 1232]
+    },
+    
+    "send_error_to_slack": {
+      "id": "de6ed32f-44ae-4f0b-b933-c39bf6953b86",
+      "name": "Send Error to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "description": "Posts error message to Slack thread",
+      "position": [80, 1232]
+    },
+    
+    "slack_trigger": {
+      "id": "486acc22-b2ad-4bc3-9dd6-edcfa7bac53f",
+      "name": "Slack Trigger",
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "description": "Webhook listener for Slack @mentions",
+      "position": [-4640, 1232],
+      "trigger_type": "app_mention",
+      "channel": "C09BXTD0WR0 (#test_gorgias)"
+    }
+  },
+  
+  "data_flow": {
+    "main_path": [
+      "slack_trigger",
+      "parse_slack",
+      "build_openai_request",
+      "openai_structured_output",
+      "handle_plan_response",
+      "format_session",
+      "insert_session",
+      "expand_plan",
+      "split_steps",
+      "normalize_step",
+      "route_by_action",
+      "format_log",
+      "insert_api_logs",
+      "fetch_loop_results",
+      "collect_results",
+      "deduplicate_results",
+      "summarize_results",
+      "calculate_metrics",
+      "get_action_emoji",
+      "universal_formatter",
+      "conversational_response_ai",
+      "final_slack_reply"
+    ],
+    
+    "analytics_path": [
+      "route_by_action",
+      "fetch_tickets_for_analytics",
+      "ticket_analytics_agent",
+      "universal_formatter",
+      "conversational_response_ai",
+      "final_slack_reply"
+    ],
+    
+    "error_path": [
+      "error_handler",
+      "format_error_for_slack",
+      "send_error_to_slack"
+    ],
+    
+    "clarification_path": [
+      "route_by_action",
+      "format_clarification",
+      "final_slack_reply_clarification"
+    ]
+  },
+  
+  "environment_variables": {
+    "OPENAI_MODEL": "gpt-4.1-mini",
+    "OPENAI_TEMPERATURE_PLAN": "0.1",
+    "OPENAI_MAX_TOKENS": "4000",
+    "GORGIAS_BASE_URL": "https://ironsidecomputers.gorgias.com"
+  },
+  
+  "credentials": {
+    "openAiApi": "OpenAI API key",
+    "httpBasicAuth": "Gorgias API credentials",
+    "supabaseApi": "Supabase connection",
+    "slackOAuth2Api": "Slack OAuth token",
+    "openRouterApi": "OpenRouter API key"
+  }
+}
