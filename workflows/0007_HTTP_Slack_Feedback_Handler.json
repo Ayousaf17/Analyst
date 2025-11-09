@@ -1,0 +1,237 @@
+{
+  "name": "0007 - Slack Feedback Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "events": ["action"],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "slack-interaction-trigger",
+      "name": "Slack Interaction Trigger",
+      "webhookId": "feedback-handler",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Slack interaction payload\nconst payload = $input.first().json;\n\n// Extract action details\nconst actions = payload.actions || [];\nconst action = actions[0] || {};\n\nconst feedbackType = action.action_id; // feedback_correct or feedback_wrong\nconst correlationId = action.value;\nconst userId = payload.user?.id;\nconst triggerId = payload.trigger_id;\nconst responseUrl = payload.response_url;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('📥 Feedback Received');\nconsole.log(`   Type: ${feedbackType}`);\nconsole.log(`   Correlation ID: ${correlationId}`);\nconsole.log(`   User: ${userId}`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{\n  json: {\n    feedback_type: feedbackType,\n    correlation_id: correlationId,\n    user_id: userId,\n    trigger_id: triggerId,\n    response_url: responseUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "parse-feedback",
+      "name": "Parse Feedback"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_confidence_scores",
+        "filterType": "manual",
+        "matchConditions": {
+          "conditions": [
+            {
+              "column": "correlation_id",
+              "operator": "eq",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_feedback",
+              "fieldValue": "={{ $json.feedback_type === 'feedback_correct' ? 'correct' : 'incorrect' }}"
+            },
+            {
+              "fieldId": "feedback_at",
+              "fieldValue": "={{ $json.timestamp }}"
+            },
+            {
+              "fieldId": "feedback_user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "id": "update-confidence-score",
+      "name": "Update Confidence Score",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.feedback_type }}",
+              "rightValue": "feedback_wrong",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        300
+      ],
+      "id": "check-if-wrong",
+      "name": "Check if Wrong"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/views.open",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger_id\": \"{{ $json.trigger_id }}\",\n  \"view\": {\n    \"type\": \"modal\",\n    \"callback_id\": \"feedback_correction\",\n    \"title\": {\n      \"type\": \"plain_text\",\n      \"text\": \"Correct the Action\"\n    },\n    \"submit\": {\n      \"type\": \"plain_text\",\n      \"text\": \"Submit\"\n    },\n    \"close\": {\n      \"type\": \"plain_text\",\n      \"text\": \"Cancel\"\n    },\n    \"blocks\": [\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"Thanks for the feedback! What should the action have been?\"\n        }\n      },\n      {\n        \"type\": \"input\",\n        \"block_id\": \"correct_action\",\n        \"element\": {\n          \"type\": \"static_select\",\n          \"action_id\": \"action_select\",\n          \"placeholder\": {\n            \"type\": \"plain_text\",\n            \"text\": \"Select correct action\"\n          },\n          \"options\": [\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"list_tickets\"}, \"value\": \"list_tickets\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"get_ticket\"}, \"value\": \"get_ticket\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"search_tickets\"}, \"value\": \"search_tickets\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"create_ticket\"}, \"value\": \"create_ticket\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"assign_ticket\"}, \"value\": \"assign_ticket\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"close_ticket\"}, \"value\": \"close_ticket\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"set_priority\"}, \"value\": \"set_priority\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"set_status\"}, \"value\": \"set_status\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"update_tags\"}, \"value\": \"update_tags\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"reply_public\"}, \"value\": \"reply_public\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"comment_internal\"}, \"value\": \"comment_internal\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"list_customers\"}, \"value\": \"list_customers\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"get_customer\"}, \"value\": \"get_customer\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"find_user\"}, \"value\": \"find_user\"},\n            {\"text\": {\"type\": \"plain_text\", \"text\": \"analyze_insights\"}, \"value\": \"analyze_insights\"}\n          ]\n        },\n        \"label\": {\n          \"type\": \"plain_text\",\n          \"text\": \"Correct Action\"\n        }\n      },\n      {\n        \"type\": \"input\",\n        \"block_id\": \"correction_notes\",\n        \"element\": {\n          \"type\": \"plain_text_input\",\n          \"action_id\": \"notes_input\",\n          \"multiline\": true,\n          \"placeholder\": {\n            \"type\": \"plain_text\",\n            \"text\": \"Optional: Any additional notes?\"\n          }\n        },\n        \"label\": {\n          \"type\": \"plain_text\",\n          \"text\": \"Notes (Optional)\"\n        },\n        \"optional\": true\n      }\n    ],\n    \"private_metadata\": \"{{ $json.correlation_id }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        200
+      ],
+      "id": "open-correction-modal",
+      "name": "Open Correction Modal",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.response_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replace_original\": false,\n  \"text\": \"✅ Thanks for the feedback! This helps me improve.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        400
+      ],
+      "id": "send-thank-you",
+      "name": "Send Thank You",
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "Slack Interaction Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Feedback": {
+      "main": [
+        [
+          {
+            "node": "Update Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Confidence Score": {
+      "main": [
+        [
+          {
+            "node": "Check if Wrong",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Wrong": {
+      "main": [
+        [
+          {
+            "node": "Open Correction Modal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Thank You",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 1800
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "feedback-handler-workflow"
+}
