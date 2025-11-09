@@ -10,11 +10,52 @@
     },
     {
       "parameters": {
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets?limit=1000&order_by=created_datetime:desc",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1500, 2544],
+      "id": "40bd445a-6cb4-44fb-af94-c3f835606476",
+      "name": "Fetch Tickets for Analytics",
+      "retryOnFail": true,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
         "jsCode": "// Preprocess ticket data to reduce token usage\nconst inputData = $input.first().json;\nconst tickets = inputData.body?.data || [];\n\n// Extract only essential fields and truncate long content\nconst processedTickets = tickets.map(ticket => {\n  // Get first customer message (truncated)\n  const firstMessage = ticket.messages?.[0]?.body_text || 'No message';\n  const truncatedMessage = firstMessage.length > 300 \n    ? firstMessage.substring(0, 300) + '...'\n    : firstMessage;\n\n  // Calculate resolution time if closed\n  let resolutionMinutes = null;\n  if (ticket.closed_datetime && ticket.created_datetime) {\n    const created = new Date(ticket.created_datetime);\n    const closed = new Date(ticket.closed_datetime);\n    resolutionMinutes = Math.round((closed - created) / 60000);\n  }\n\n  return {\n    id: ticket.id,\n    subject: ticket.subject || 'No subject',\n    status: ticket.status,\n    channel: ticket.channel,\n    created_at: ticket.created_datetime,\n    closed_at: ticket.closed_datetime,\n    resolution_minutes: resolutionMinutes,\n    tags: ticket.tags || [],\n    assignee: ticket.assignee_user?.email || 'unassigned',\n    first_message: truncatedMessage,\n    message_count: ticket.messages?.length || 0\n  };\n});\n\n// Create summary stats for the prompt\nconst summary = {\n  total_tickets: processedTickets.length,\n  period: inputData.body?.meta?.filtered_by_date || 'unknown',\n  status_filter: inputData.body?.meta?.filtered_by_status || 'all',\n  cutoff_date: inputData.body?.meta?.cutoff_date || 'unknown'\n};\n\n// Return processed data\nreturn {\n  json: {\n    summary,\n    tickets: processedTickets,\n    // Calculate some basic stats to help the AI\n    stats: {\n      by_status: processedTickets.reduce((acc, t) => {\n        acc[t.status] = (acc[t.status] || 0) + 1;\n        return acc;\n      }, {}),\n      by_channel: processedTickets.reduce((acc, t) => {\n        acc[t.channel] = (acc[t.channel] || 0) + 1;\n        return acc;\n      }, {}),\n      avg_resolution_min: processedTickets\n        .filter(t => t.resolution_minutes !== null)\n        .reduce((sum, t, _, arr) => sum + t.resolution_minutes / arr.length, 0)\n    }\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1500, 2544],
+      "position": [-1300, 2544],
       "id": "preprocess-node",
       "name": "Preprocess Tickets"
     },
@@ -67,6 +108,17 @@
   ],
   "connections": {
     "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tickets for Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tickets for Analytics": {
       "main": [
         [
           {
