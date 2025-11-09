@@ -1,0 +1,315 @@
+{
+  "service": "gorgias",
+  "version": "v1",
+  "base_url": "https://ironsidecomputers.gorgias.com",
+  "auth": {
+    "type": "basic",
+    "credential_id": "00RVVUesFbtpYkL5"
+  },
+  "endpoints": [
+    {
+      "id": "list_tickets",
+      "path": "/api/tickets",
+      "method": "GET",
+      "description": "List tickets with optional filters like status or priority. Use when user wants to see multiple tickets.",
+      "parameters": {
+        "query": [
+          {
+            "name": "status",
+            "type": "string",
+            "enum": ["open", "closed", "pending", "all"],
+            "required": false,
+            "description": "Filter tickets by status"
+          },
+          {
+            "name": "priority",
+            "type": "string",
+            "enum": ["low", "normal", "high", "urgent"],
+            "required": false,
+            "description": "Filter tickets by priority"
+          },
+          {
+            "name": "limit",
+            "type": "number",
+            "default": 50,
+            "required": false,
+            "description": "Maximum number of tickets to return"
+          },
+          {
+            "name": "order_by",
+            "type": "string",
+            "default": "created_datetime:desc",
+            "required": false,
+            "description": "Sort order for results"
+          }
+        ]
+      },
+      "response": {
+        "type": "list",
+        "path": "body.data",
+        "item_schema": {
+          "id": "number",
+          "subject": "string",
+          "status": "string",
+          "priority": "string",
+          "created_datetime": "datetime",
+          "assignee": "object"
+        }
+      },
+      "examples": [
+        {
+          "user_intent": "show me open tickets",
+          "params": {"status": "open", "limit": 50}
+        },
+        {
+          "user_intent": "list urgent tickets",
+          "params": {"priority": "urgent", "limit": 30}
+        }
+      ]
+    },
+    {
+      "id": "get_ticket",
+      "path": "/api/tickets/{ticket_id}",
+      "method": "GET",
+      "description": "Retrieve details of a specific ticket by its ID. Use when user mentions a specific ticket number.",
+      "parameters": {
+        "path": [
+          {
+            "name": "ticket_id",
+            "type": "string",
+            "required": true,
+            "description": "The ticket ID number"
+          }
+        ]
+      },
+      "response": {
+        "type": "object",
+        "path": "body",
+        "schema": {
+          "id": "number",
+          "subject": "string",
+          "status": "string",
+          "messages": "array",
+          "customer": "object"
+        }
+      },
+      "examples": [
+        {
+          "user_intent": "get ticket 12345",
+          "params": {"ticket_id": "12345"}
+        }
+      ]
+    },
+    {
+      "id": "search_tickets",
+      "path": "/api/tickets/search",
+      "method": "POST",
+      "description": "Search for tickets using text query. Use when user wants to find specific tickets by content.",
+      "parameters": {
+        "body": {
+          "search": {
+            "type": "string",
+            "required": true,
+            "description": "Text to search for in tickets"
+          },
+          "filters": {
+            "type": "string",
+            "required": false,
+            "default": "",
+            "description": "Additional filters (advanced)"
+          }
+        }
+      },
+      "response": {
+        "type": "list",
+        "path": "body.data",
+        "item_schema": {
+          "id": "number",
+          "subject": "string",
+          "status": "string"
+        }
+      }
+    },
+    {
+      "id": "create_ticket",
+      "path": "/api/tickets",
+      "method": "POST",
+      "description": "Create a new support ticket. Use when user wants to create or open a new ticket.",
+      "parameters": {
+        "body": {
+          "subject": {
+            "type": "string",
+            "required": true,
+            "description": "Ticket subject or title"
+          },
+          "message": {
+            "type": "string",
+            "required": true,
+            "description": "Ticket message or description"
+          },
+          "customer_email": {
+            "type": "string",
+            "required": true,
+            "description": "Customer email address"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "normal", "high", "urgent"],
+            "default": "normal",
+            "required": false,
+            "description": "Ticket priority level"
+          },
+          "tags": {
+            "type": "string",
+            "required": false,
+            "description": "Comma-separated tags to add"
+          }
+        }
+      },
+      "response": {
+        "type": "object",
+        "path": "body",
+        "schema": {
+          "id": "number",
+          "subject": "string",
+          "status": "string"
+        }
+      }
+    },
+    {
+      "id": "assign_ticket",
+      "path": "/api/tickets/{ticket_id}",
+      "method": "PUT",
+      "description": "Assign a ticket to an agent. Use when user wants to assign or reassign a ticket.",
+      "parameters": {
+        "path": [
+          {
+            "name": "ticket_id",
+            "type": "string",
+            "required": true,
+            "description": "The ticket ID to assign"
+          }
+        ],
+        "body": {
+          "assignee_email": {
+            "type": "string",
+            "required": true,
+            "description": "Email of the agent to assign the ticket to"
+          }
+        }
+      },
+      "response": {
+        "type": "object",
+        "path": "body",
+        "schema": {
+          "id": "number",
+          "assignee_user": "object"
+        }
+      }
+    },
+    {
+      "id": "close_ticket",
+      "path": "/api/tickets/{ticket_id}",
+      "method": "PUT",
+      "description": "Close a ticket. Use when user wants to close, resolve, or mark a ticket as done.",
+      "parameters": {
+        "path": [
+          {
+            "name": "ticket_id",
+            "type": "string",
+            "required": true,
+            "description": "The ticket ID to close"
+          }
+        ],
+        "body": {
+          "status": {
+            "type": "string",
+            "default": "closed",
+            "required": false,
+            "description": "New status (defaults to closed)"
+          }
+        }
+      },
+      "response": {
+        "type": "object",
+        "path": "body",
+        "schema": {
+          "id": "number",
+          "status": "string"
+        }
+      }
+    },
+    {
+      "id": "set_priority",
+      "path": "/api/tickets/{ticket_id}",
+      "method": "PUT",
+      "description": "Set or change the priority of a ticket.",
+      "parameters": {
+        "path": [
+          {
+            "name": "ticket_id",
+            "type": "string",
+            "required": true,
+            "description": "The ticket ID"
+          }
+        ],
+        "body": {
+          "priority": {
+            "type": "string",
+            "enum": ["low", "normal", "high", "urgent"],
+            "required": true,
+            "description": "New priority level"
+          }
+        }
+      },
+      "response": {
+        "type": "object",
+        "path": "body",
+        "schema": {
+          "id": "number",
+          "priority": "string"
+        }
+      }
+    },
+    {
+      "id": "analyze_insights",
+      "path": "/api/tickets",
+      "method": "GET",
+      "description": "Analyze closed tickets from a specific time period to identify recurring issues and patterns. Use when user asks for insights, trends, or analytics.",
+      "parameters": {
+        "query": [
+          {
+            "name": "limit",
+            "type": "number",
+            "default": 100,
+            "description": "Number of tickets to analyze"
+          },
+          {
+            "name": "order_by",
+            "type": "string",
+            "default": "created_datetime:desc",
+            "description": "Sort order"
+          }
+        ]
+      },
+      "response": {
+        "type": "list",
+        "path": "body.data",
+        "item_schema": {
+          "id": "number",
+          "subject": "string",
+          "messages": "array",
+          "tags": "array",
+          "status": "string"
+        }
+      },
+      "post_process": "analytics_pipeline"
+    }
+  ],
+  "post_processors": {
+    "analytics_pipeline": {
+      "description": "Send ticket data through AI analytics pipeline instead of direct formatting",
+      "route_to": "Ticket Analytics Agent"
+    }
+  }
+}
