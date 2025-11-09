@@ -1,0 +1,129 @@
+{
+  "name": "Gorgias Terminal - Conversational v2",
+  "nodes": [
+    {
+      "parameters": {
+        "trigger": ["app_mention"],
+        "channelId": {
+          "__rl": true,
+          "value": "C09BXTD0WR0",
+          "mode": "list",
+          "cachedResultName": "test_gorgias"
+        }
+      },
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [-1100, -8800],
+      "id": "slack-trigger",
+      "name": "Slack Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Light Parse - Just clean formatting, let AI do the extraction\nconst slackMessage = $input.first().json;\nconst text = (slackMessage.text || '').trim();\n\n// Remove @mentions but keep everything else natural\nconst cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();\n\n// Generate correlation ID for tracking\nconst correlationId = `corr_${Date.now()}_${slackMessage.user}_${Math.random().toString(36).substring(2, 8)}`;\n\nreturn {\n  json: {\n    // User's natural language input\n    user_message: cleanText,\n    \n    // Slack context\n    user_id: slackMessage.user,\n    channel: slackMessage.channel,\n    thread_ts: slackMessage.thread_ts || slackMessage.ts,\n    \n    // Tracking\n    correlation_id: correlationId,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-880, -8800],
+      "id": "light-parse",
+      "name": "Light Parse"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.user_message }}",
+        "options": {
+          "systemMessage": "You are a friendly, helpful support assistant for Gorgias ticket management.\n\n## YOUR PERSONALITY\n- Warm and conversational, not robotic\n- Use natural language, contractions, and casual tone\n- Add personality with emojis (but don't overdo it)\n- Acknowledge requests before executing them\n- Provide context and explain what you're doing\n- Offer proactive suggestions when helpful\n\n## HOW TO RESPOND\n1. **Understand intent naturally** - Don't just pattern match, understand what the user wants\n2. **Use tools when needed** - Call tools to get data, but present results conversationally\n3. **Be contextual** - Reference previous messages in the thread\n4. **Be helpful** - If user asks something unclear, clarify instead of failing\n5. **Summarize smartly** - Don't dump raw data, tell a story with the data\n\n## EXAMPLES OF GOOD RESPONSES\n\nUser: \"show me urgent tickets\"\nBad: \"Here are 5 urgent tickets: [data dump]\"\nGood: \"Let me grab those urgent tickets for you! 🔥 I found 5 tickets that need immediate attention. The oldest one is from yesterday (ticket #123 - billing issue). Want me to show you the full list?\"\n\nUser: \"how many tickets does spencer have?\"\nBad: \"User has 12 tickets\"\nGood: \"Spencer's got 12 tickets right now 📊 - 8 are open, 3 are pending customer response, and 1 is about to breach SLA (been open 47 hours). Want me to show you which one needs attention first?\"\n\nUser: \"close ticket 123\"\nBad: \"Ticket closed\"\nGood: \"Done! ✅ Ticket #123 is now closed. It was a shipping question from john@example.com that took 2 days to resolve. Need anything else?\"\n\n## AVAILABLE TOOLS (Use these to get data)\nYou have 25+ tools for Gorgias operations. Use them naturally when needed:\n- **Search/Discovery**: gorgias_get_ticket, search_http, get_tickets, list_metrics_http\n- **Ticket Actions**: close_ticket_http, set_status_http, gorgias_assign_ticket, set_priority_http\n- **Communication**: reply_public_http, comment_internal_http\n- **Tags**: set_tags_http, list_tags_http, remove_tags_http\n- **Customers**: get_customer_http, list_customers_http\n- **Analytics**: list_metrics_http (use this for ANY counting/stats questions)\n- **System**: list_views_http, list_macros_http, list_integrations_http\n\n## WHEN TO USE TOOLS\n- \"show me X\" → Use appropriate search/list tool\n- \"how many X\" → Use list_metrics_http to count\n- \"close/assign/tag X\" → Use appropriate action tool\n- \"who is X\" or \"find X\" → Use search tools\n\n## ANALYTICS INTELLIGENCE\nWhen users ask analytical questions, use list_metrics_http and then ANALYZE the results:\n- \"how many tickets\" → Count them, break down by status/priority\n- \"who has the most tickets\" → Rank agents by workload\n- \"what are the oldest tickets\" → Sort by age, highlight SLA risks\n- \"show me trends\" → Compare time periods, identify patterns\n\nDon't just return raw numbers - provide insights!\n\n## CONTEXT AWARENESS\nYou have thread memory. Use it!\n- \"show me his tickets\" → Remember who \"he\" refers to from previous message\n- \"close it\" → Remember which ticket was just discussed\n- \"what about yesterday?\" → Remember we were discussing ticket volume\n\n## ERROR HANDLING\nIf something fails:\n- Explain what went wrong in human terms\n- Suggest what the user should try instead\n- Offer to help differently\n\nExample: \"Hmm, I couldn't find a ticket with that ID 🤔 Want me to search for it by customer email or subject instead?\"\n\n## RESPONSE FORMAT\nStructure your responses naturally:\n1. Acknowledge the request (\"Let me check that for you!\")\n2. Show relevant data (formatted nicely with emojis)\n3. Provide insights (\"Looks like most are from yesterday's outage\")\n4. Suggest next actions (\"Want me to bulk-close the duplicates?\")\n\nRemember: You're having a conversation, not just executing commands. Be helpful, friendly, and proactive!"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [1100, -9200],
+      "id": "conversational-agent",
+      "name": "Conversational AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Light Parse').item.json.thread_ts }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [-300, -8576],
+      "id": "thread-memory",
+      "name": "Thread Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-430, -8576],
+      "id": "openai-model",
+      "name": "OpenAI Chat Model",
+      "notes": "Temperature 0.7 for more natural, varied responses"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Smart Response Formatter - Makes AI output even more natural\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json.text || '';\nconst parseData = $('Light Parse').first().json;\n\n// If AI already formatted nicely, just pass through\nif (typeof aiOutput === 'string' && aiOutput.includes('✅')) {\n  return {\n    json: {\n      text: aiOutput,\n      channel: parseData.channel,\n      thread_ts: parseData.thread_ts\n    }\n  };\n}\n\n// Otherwise, add some polish\nlet message = aiOutput;\n\n// Add emoji reactions for different actions\nif (message.includes('closed')) message = '✅ ' + message;\nelse if (message.includes('assigned')) message = '🎯 ' + message;\nelse if (message.includes('urgent') || message.includes('critical')) message = '🔥 ' + message;\nelse if (message.includes('found')) message = '🔍 ' + message;\n\nreturn {\n  json: {\n    text: message,\n    channel: parseData.channel,\n    thread_ts: parseData.thread_ts\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2980, -8800],
+      "id": "format-response",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $json.channel }}",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $json.thread_ts }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [3200, -8800],
+      "id": "slack-reply",
+      "name": "Send to Slack"
+    }
+  ],
+  "connections": {
+    "Slack Trigger": {
+      "main": [[{ "node": "Light Parse", "type": "main", "index": 0 }]]
+    },
+    "Light Parse": {
+      "main": [[{ "node": "Conversational AI Agent", "type": "main", "index": 0 }]]
+    },
+    "Conversational AI Agent": {
+      "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]]
+    },
+    "Format Response": {
+      "main": [[{ "node": "Send to Slack", "type": "main", "index": 0 }]]
+    },
+    "Thread Memory": {
+      "ai_memory": [[{ "node": "Conversational AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "Conversational AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    }
+  }
+}

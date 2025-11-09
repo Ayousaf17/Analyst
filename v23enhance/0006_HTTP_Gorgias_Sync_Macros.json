@@ -1,0 +1,288 @@
+{
+  "name": "0006 - Sync Gorgias Macros",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ],
+      "id": "schedule-trigger-macros",
+      "name": "Schedule Daily 2:15AM"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.GORGIAS_BASE_URL }}/api/macros",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "fetch-macros-gorgias",
+      "name": "Fetch Macros from Gorgias",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "YOUR_GORGIAS_CRED_ID",
+          "name": "Gorgias Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Gorgias macros and prepare for Supabase\nconst macros = $input.all();\nconst parsed = [];\n\nfor (const item of macros) {\n  const macroData = item.json.data || item.json;\n  \n  // Handle both single macro and array of macros\n  const macrosArray = Array.isArray(macroData) ? macroData : [macroData];\n  \n  for (const macro of macrosArray) {\n    // Infer category from macro name and content\n    let category = 'general';\n    const name = (macro.name || '').toLowerCase();\n    const subject = (macro.subject || '').toLowerCase();\n    const body = (macro.body_text || macro.body_html || '').toLowerCase();\n    const combined = `${name} ${subject} ${body}`.substring(0, 500);\n    \n    if (combined.includes('refund') || combined.includes('money back')) {\n      category = 'refund';\n    } else if (combined.includes('ship') || combined.includes('delivery') || combined.includes('tracking')) {\n      category = 'shipping';\n    } else if (combined.includes('technical') || combined.includes('troubleshoot') || combined.includes('fix')) {\n      category = 'technical';\n    } else if (combined.includes('billing') || combined.includes('payment') || combined.includes('invoice')) {\n      category = 'billing';\n    } else if (combined.includes('order') || combined.includes('purchase')) {\n      category = 'order';\n    } else if (combined.includes('return') || combined.includes('rma')) {\n      category = 'returns';\n    } else if (combined.includes('warranty') || combined.includes('guarantee')) {\n      category = 'warranty';\n    } else if (combined.includes('apology') || combined.includes('sorry')) {\n      category = 'apology';\n    } else if (combined.includes('thank') || combined.includes('appreciate')) {\n      category = 'gratitude';\n    }\n    \n    // Extract body text (prefer plain text over HTML)\n    let bodyContent = macro.body_text || '';\n    if (!bodyContent && macro.body_html) {\n      // Simple HTML to text conversion\n      bodyContent = macro.body_html\n        .replace(/<[^>]*>/g, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim();\n    }\n    \n    parsed.push({\n      json: {\n        macro_id: macro.id,\n        macro_name: macro.name,\n        macro_description: macro.subject || macro.name,\n        macro_content: bodyContent.substring(0, 5000), // Limit to 5000 chars\n        category: category,\n        usage_count: 0, // Will be updated from ticket data later\n        is_active: macro.active !== false,\n        updated_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nconsole.log(`✅ Parsed ${parsed.length} macros`);\nreturn parsed;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "id": "parse-macros-data",
+      "name": "Parse Macros Data"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "gorgias_macros",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "macro_id",
+              "fieldValue": "={{ $json.macro_id }}"
+            },
+            {
+              "fieldId": "macro_name",
+              "fieldValue": "={{ $json.macro_name }}"
+            },
+            {
+              "fieldId": "macro_description",
+              "fieldValue": "={{ $json.macro_description }}"
+            },
+            {
+              "fieldId": "macro_content",
+              "fieldValue": "={{ $json.macro_content }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "usage_count",
+              "fieldValue": "={{ $json.usage_count }}"
+            },
+            {
+              "fieldId": "is_active",
+              "fieldValue": "={{ $json.is_active }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $json.updated_at }}"
+            }
+          ]
+        },
+        "options": {
+          "onConflict": "macro_id"
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "id": "upsert-macros-supabase",
+      "name": "Upsert to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate sync statistics\nconst items = $input.all();\n\nconst stats = {\n  total_processed: items.length,\n  sync_timestamp: new Date().toISOString(),\n  workflow: 'gorgias_macros_sync',\n  status: 'success'\n};\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('✅ Macros Sync Complete');\nconsole.log(`   Total macros synced: ${stats.total_processed}`);\nconsole.log(`   Timestamp: ${stats.sync_timestamp}`);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{ json: stats }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "calculate-macro-stats",
+      "name": "Calculate Sync Stats"
+    },
+    {
+      "parameters": {
+        "tableId": "sync_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_name",
+              "fieldValue": "={{ $json.workflow }}"
+            },
+            {
+              "fieldId": "records_processed",
+              "fieldValue": "={{ $json.total_processed }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "sync_timestamp",
+              "fieldValue": "={{ $json.sync_timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "id": "log-macro-results",
+      "name": "Log Sync Results",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C07MTCN9BAJ",
+          "mode": "id"
+        },
+        "text": "=✅ *Gorgias Macros Sync Complete*\n\n📊 *Stats:*\n• Macros synced: {{ $json.total_processed }}\n• Timestamp: {{ $json.sync_timestamp }}\n• Status: {{ $json.status }}\n\n_Next sync: Tomorrow at 2:15 AM_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        300
+      ],
+      "id": "notify-slack-macros",
+      "name": "Notify Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Daily 2:15AM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Macros from Gorgias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Macros from Gorgias": {
+      "main": [
+        [
+          {
+            "node": "Parse Macros Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Macros Data": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Calculate Sync Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Sync Stats": {
+      "main": [
+        [
+          {
+            "node": "Log Sync Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Sync Results": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 1800
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "macros-sync-workflow"
+}

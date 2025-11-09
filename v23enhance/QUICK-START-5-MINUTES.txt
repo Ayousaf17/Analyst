@@ -1,0 +1,180 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                         ⚡ 5-MINUTE QUICK START ⚡                          ║
+║                    Get 100% Coverage Up and Running                          ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 GOAL                                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Get from zero to fully functional Slack ↔ Gorgias mention resolution in 5 minutes!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚡ STEP 1: POPULATE DATABASE (2 minutes)                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+1. Open Supabase: https://supabase.com/dashboard
+2. Go to: SQL Editor
+3. Copy & paste: EXECUTE-NOW-populate-slack-ids.sql (entire file)
+4. Click: ▶️ RUN
+5. Verify: Should see "13 rows updated"
+
+✅ Done! All users now have Slack IDs
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚡ STEP 2: TEST IN SUPABASE (1 minute)                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Run these quick tests in SQL Editor:
+
+-- Test 1: Verify 100% coverage
+SELECT 
+  COUNT(*) FILTER (WHERE slack_user_id IS NOT NULL) as mapped,
+  COUNT(*) as total
+FROM gorgias_users 
+WHERE is_bot = false;
+-- Expected: mapped=13, total=13
+
+-- Test 2: Lookup Collin by Slack ID
+SELECT email, full_name 
+FROM gorgias_users 
+WHERE slack_user_id = 'U8NC9D5AM';
+-- Expected: collin@ironside.gg
+
+-- Test 3: Reverse lookup (email → Slack ID)
+SELECT slack_user_id, slack_display_name
+FROM gorgias_users
+WHERE email = 'spencer@ironsidecomputers.com';
+-- Expected: U068AHB0Z8X, Spencer
+
+✅ All working? Perfect! Database is ready.
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚡ STEP 3: ADD TO N8N (2 minutes)                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+OPTION A: Simple Supabase Lookup
+────────────────────────────────────
+Add a Supabase node after your Slack trigger:
+
+  Node: Supabase
+  Operation: Select Rows
+  Table: gorgias_users
+  Filter: slack_user_id = {{$json.mentions[0]}}
+  Return: email, full_name, slack_display_name
+
+That's it! Now you have the email.
+
+OPTION B: Embedded Lookup (Even Faster!)
+─────────────────────────────────────────
+Add a Code node with this:
+
+const LOOKUP = {
+  "U8NC9D5AM": "collin@ironside.gg",
+  "U8NT9KABC": "gabriel@ironside.gg",
+  "U068AHB0Z8X": "spencer@ironsidecomputers.com",
+  "U09BSMA8U75": "ay17yousaf@gmail.com",
+  "U067B04SKRP": "mackenzie@ironsidecomputers.com",
+  "U08DCHSCS1X": "tineabraham@gmail.com"
+  // ... add rest from the SQL file
+};
+
+const slackId = $input.item.json.slackUserId;
+const email = LOOKUP[slackId];
+
+return [{ json: { email, found: !!email } }];
+
+✅ Zero latency, instant lookup!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚡ VERIFY IT WORKS                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Test in Slack:
+
+1. Type: "assign to <@U8NC9D5AM>"
+2. Your workflow should extract: "U8NC9D5AM"
+3. Lookup should return: collin@ironside.gg
+4. Success! ✅
+
+Test all 13 users:
+  <@U8N13TMEC>   → domenic@ironsidecomputers.com   ✅
+  <@U8NC9D5AM>   → collin@ironside.gg              ✅
+  <@U8NT9KABC>   → gabriel@ironside.gg             ✅
+  <@U8NQJMH0D>   → robert@ironside.gg              ✅
+  <@U8QGQ61DL>   → zruland94@gmail.com             ✅
+  <@U8N6W777B>   → alexandra@ironsidecomputers.com ✅
+  <@U8NM51LLA>   → shawn@ironsidecomputers.com     ✅
+  <@U01246F9STX> → riley@ironsidecomputers.com     ✅
+  <@U01HCGDJVA5> → michael@ironsidecomputers.com   ✅
+  <@U068AHB0Z8X> → spencer@ironsidecomputers.com   ✅
+  <@U09BSMA8U75> → ay17yousaf@gmail.com            ✅
+  <@U067B04SKRP> → mackenzie@ironsidecomputers.com ✅
+  <@U08DCHSCS1X> → tineabraham@gmail.com           ✅
+
+All 13 should work perfectly!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎉 YOU'RE DONE!                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+In 5 minutes you've achieved:
+  ✅ 100% Slack ID coverage in database
+  ✅ Working mention resolution in n8n
+  ✅ Tested with real Slack IDs
+  ✅ Production ready!
+
+Want more advanced features?
+  → Check n8n-mention-resolution-implementation-guide.md
+  → Use snippets from n8n-code-snippets-ready-to-use.txt
+  → Read PROJECT-COMPLETE-EXECUTIVE-SUMMARY.txt
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔧 TROUBLESHOOTING                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE: SQL script fails
+FIX: Make sure you're connected to the right Supabase project
+     Check that gorgias_users table exists
+
+ISSUE: Lookup returns null
+FIX: Verify Slack ID is in database:
+     SELECT * FROM gorgias_users WHERE slack_user_id = 'U8NC9D5AM';
+
+ISSUE: Wrong email returned
+FIX: Check for typos in Slack ID
+     Verify mapping in database matches your Slack data
+
+ISSUE: Can't extract Slack ID from message
+FIX: Check regex pattern: /<@([A-Z0-9]+)>/g
+     Test with: "<@U8NC9D5AM>".match(/<@([A-Z0-9]+)>/g)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📞 NEED MORE HELP?                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Full guides available:
+  📋 n8n-mention-resolution-implementation-guide.md
+  💻 n8n-code-snippets-ready-to-use.txt
+  📊 PROJECT-COMPLETE-EXECUTIVE-SUMMARY.txt
+  🎉 100-PERCENT-COVERAGE-CELEBRATION.txt
+
+All include examples, best practices, and detailed explanations!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+                    ⚡ 5 MINUTES → 100% COVERAGE ⚡
+
+                         Now go ship it! 🚀
+
+═══════════════════════════════════════════════════════════════════════════════
