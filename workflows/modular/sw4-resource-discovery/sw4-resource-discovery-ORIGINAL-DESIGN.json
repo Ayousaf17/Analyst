@@ -1,5 +1,5 @@
 {
-  "name": "Ironside Computers — SW4 - Resource Discovery (Users & Views)",
+  "name": "Ironside Computers — SW4 - Resource Discovery",
   "nodes": [
     {
       "parameters": {
@@ -17,9 +17,9 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- User ID: {{ $json.user_id || 'none' }}\n- View ID: {{ $json.view_id || 'none' }}\n- Ticket ID: {{ $json.ticket_id || 'none' }}\n- Customer Email: {{ $json.customer_email || 'none' }}\n\nExecute the appropriate resource discovery operation using the available tools.",
+        "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- User ID: {{ $json.user_id || 'none' }}\n- User Name: {{ $json.user_name || 'none' }}\n- Search Term: {{ $json.search_term || 'none' }}\n- Resource Type: {{ $json.resource_type || 'none' }}\n\nExecute the appropriate resource discovery operation using the available tools.",
         "options": {
-          "systemMessage": "=You are a Resource Discovery Specialist for Gorgias.\nHelp users explore agents (users) and saved views.\nDecide which operation to perform and call the correct tool once per query.\nAlways return structured JSON responses.\n\nAVAILABLE TOOLS (4 total):\n\n**gorgias_list_users**\n- List all active users/agents with name, email, role, status\n- Endpoint: GET /api/users\n- Use for: \"list all users\", \"show agents\", \"who's on the team\"\n- Returns: Array of users with id, name, email, role, active flag\n\n**gorgias_get_user**\n- Get details for a specific user by ID\n- Endpoint: GET /api/users/{id}\n- Use for: \"get user 123\", \"show details for Sarah\"\n- Action: Extract user ID from query → call gorgias_get_user\n- Returns: Single user object (id, name, email, role, active)\n\n**gorgias_list_views**\n- List all saved ticket views (filters)\n- Endpoint: GET /api/views\n- Use for: \"list all views\", \"show saved filters\", \"what views do we have\"\n- Returns: Array of views with id, name, description\n\n**gorgias_get_view**\n- Get details or ticket list for a specific view by ID\n- Endpoint: GET /api/views/{id} or /api/views/{id}/tickets\n- Use for: \"get view 123\", \"show tickets in escalations view\"\n- Action: Extract view ID → call gorgias_get_view\n- Returns: Full view info or associated ticket list\n\n---\n\nEXECUTION STRATEGY:\n\n1. **List Users**\n   - Trigger: \"list all users\", \"show agents\", \"who's on the team\"\n   - Tool: gorgias_list_users\n\n2. **Get User Details**\n   - Trigger: \"get user 123\", \"show details for Sarah\"\n   - Extract: user_id using pattern `/user(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: gorgias_get_user\n\n3. **List Views**\n   - Trigger: \"list all views\", \"show saved filters\", \"what views do we have\"\n   - Tool: gorgias_list_views\n\n4. **Get View Details**\n   - Trigger: \"get view 123\", \"show tickets in escalations view\"\n   - Extract: view_id using pattern `/view(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: gorgias_get_view\n\n---\n\nRESPONSE SCHEMA:\n\n{\n  \"workflow\": \"SW4\",\n  \"operation\": \"list_users\" | \"get_user\" | \"list_views\" | \"get_view\",\n  \"success\": true,\n  \"data\": { /* structured API data */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": null\n}\n\n---\n\nIMPORTANT:\n- Call each tool ONLY ONCE per query\n- Extract IDs from queries using regex pattern matching\n- Infer operation from query keywords\n- Never chain multiple tools\n- Focus on users and views domains only"
+          "systemMessage": "=You are a Resource Discovery Specialist for Gorgias. Help users discover and search system resources: users, views, integrations, and custom fields.\n\nAVAILABLE OPERATIONS (6 tools):\n\n**gorgias_list_users**\n- List all team members/agents\n- Returns user IDs, names, emails, roles, active status\n- Use for: \"list users\", \"show team\", \"who's available\"\n\n**gorgias_get_user**\n- Get specific user details by ID\n- Requires user_id parameter\n- Returns full user profile including permissions\n- Use for: \"get user 123\", \"show agent details for ID 456\"\n\n**gorgias_search_users**\n- Find users by name or email (uses query parameter)\n- Use for: \"find user named Sarah\", \"search for john\"\n- More flexible than exact name matching\n\n**gorgias_list_views**\n- List all ticket views/filters\n- Returns view IDs, names, descriptions, filter criteria\n- Use for: \"list views\", \"show available views\", \"what views exist\"\n\n**gorgias_list_integrations**\n- List all active integrations\n- Returns integration names, types, connection status\n- Use for: \"list integrations\", \"what's connected\", \"show integrations\"\n\n**gorgias_list_custom_fields**\n- List available custom fields for tickets\n- Returns field IDs, names, types, options\n- Use for: \"list custom fields\", \"what fields can I use\", \"show ticket fields\"\n\n---\n\nEXECUTION STRATEGY:\n\n1. **List Users**\n   - Trigger: \"list users\", \"show team\", \"who are the agents\"\n   - Tool: `gorgias_list_users`\n\n2. **Get User Details**\n   - Trigger: \"get user 123\", \"show user #456\"\n   - Extract: `user_id` using pattern `/user(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: `gorgias_get_user` with user_id parameter\n\n3. **Search Users**\n   - Trigger: \"find user named X\", \"search for email@example.com\"\n   - Tool: `gorgias_search_users` with search query\n\n4. **List Views**\n   - Trigger: \"list views\", \"show views\", \"available views\"\n   - Tool: `gorgias_list_views`\n\n5. **List Integrations**\n   - Trigger: \"list integrations\", \"what's connected\"\n   - Tool: `gorgias_list_integrations`\n\n6. **List Custom Fields**\n   - Trigger: \"list custom fields\", \"show ticket fields\"\n   - Tool: `gorgias_list_custom_fields`\n\n7. **Validate Resources**\n   - Trigger: \"does user X exist?\", \"is view Y available?\"\n   - Calls appropriate list tool and validates name\n\n---\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n\n{\n  \"workflow\": \"SW4\",\n  \"operation\": \"list_users\" | \"get_user\" | \"search_users\" | \"list_views\" | \"list_integrations\" | \"list_custom_fields\" | \"validate\",\n  \"success\": true | false,\n  \"data\": { /* users, views, integrations, or fields */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\n---\n\nIMPORTANT:\n- YOU extract IDs from queries using regex\n- YOU perform fuzzy matching for search operations\n- YOU validate resource existence when asked\n- Focus on accurate discovery — Router handles presentation"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -60,7 +60,7 @@
     },
     {
       "parameters": {
-        "toolDescription": "List all active users/agents with name, email, role, status. Returns array of users.",
+        "toolDescription": "List all team members and agents in Gorgias. Returns user IDs, names, emails, roles, and active status. Use when user wants to see who's on the team.",
         "url": "={{ $vars.GORGIAS_BASE_URL }}/api/users",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
@@ -103,7 +103,7 @@
     },
     {
       "parameters": {
-        "toolDescription": "Get details for a specific user by ID. Returns single user object.",
+        "toolDescription": "Get specific user details by ID. Use ONLY when you have the user_id from a previous list_users call or extracted from the query. Returns full user profile.",
         "url": "={{ $vars.GORGIAS_BASE_URL }}/api/users/{{ $json.user_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
@@ -146,10 +146,19 @@
     },
     {
       "parameters": {
-        "toolDescription": "List all saved ticket views (filters). Returns array of views with id, name, description.",
-        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/views",
+        "toolDescription": "Search for users by name or email. Use this for fuzzy matching when user provides a name or partial email. More flexible than exact lookups.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/users",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.search_query }}"
+            }
+          ]
+        },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -178,8 +187,8 @@
         1104,
         48
       ],
-      "id": "f4d8f1e6-7f9e-4c5f-9b3d-6e7f8a9b1c2d",
-      "name": "gorgias_list_views",
+      "id": "e3c7f9e5-6f8d-4b4e-9a2c-5d6e7f8a9b1c",
+      "name": "gorgias_search_users",
       "credentials": {
         "httpBasicAuth": {
           "id": "00RVVUesFbtpYkL5",
@@ -189,8 +198,8 @@
     },
     {
       "parameters": {
-        "toolDescription": "Get details or ticket list for a specific view by ID. Returns view info or associated tickets.",
-        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/views/{{ $json.view_id }}",
+        "toolDescription": "List all ticket views/filters configured in Gorgias. Returns view IDs, names, descriptions, and filter criteria. Use when user wants to see available views.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/views",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendHeaders": true,
@@ -221,8 +230,8 @@
         1232,
         48
       ],
-      "id": "a5e9f2e7-8f1f-4d6g-9c4e-7f8a9b1c2d3e",
-      "name": "gorgias_get_view",
+      "id": "f4d8f1e6-7f9e-4c5f-9b3d-6e7f8a9b1c2d",
+      "name": "gorgias_list_views",
       "credentials": {
         "httpBasicAuth": {
           "id": "00RVVUesFbtpYkL5",
@@ -232,12 +241,98 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format SW4 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// If AI returned structured response, use it\nif (aiOutput.workflow === 'SW4') {\n  return [{\n    json: aiOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW4',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Try to parse AI output\nif (typeof aiOutput === 'string') {\n  try {\n    const parsed = JSON.parse(aiOutput);\n    response = { ...response, ...parsed };\n  } catch (e) {\n    response.summary = aiOutput;\n  }\n} else if (typeof aiOutput === 'object') {\n  response = { ...response, ...aiOutput };\n}\n\n// Infer operation type from query if not set\nconst query = (inputData.query || '').toLowerCase();\nif (!response.operation || response.operation === 'unknown') {\n  if (query.includes('list users') || query.includes('show agents') || query.includes('team')) {\n    response.operation = 'list_users';\n  } else if (query.includes('get user') || inputData.user_id) {\n    response.operation = 'get_user';\n  } else if (query.includes('list views') || query.includes('show views') || query.includes('saved filters')) {\n    response.operation = 'list_views';\n  } else if (query.includes('get view') || inputData.view_id) {\n    response.operation = 'get_view';\n  }\n}\n\nreturn [{\n  json: response\n}];"
+        "toolDescription": "List all active integrations in Gorgias. Returns integration names, types, and connection status. Use when user wants to see what's connected.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/integrations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        48
+      ],
+      "id": "a5e9f2e7-8f1f-4d6g-9c4e-7f8a9b1c2d3e",
+      "name": "gorgias_list_integrations",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "List all available custom fields for tickets in Gorgias. Returns field IDs, names, types, and options. Use when user wants to see what custom fields can be used.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/custom-fields",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1488,
+        48
+      ],
+      "id": "b6f1f3e8-9f2g-4e7h-9d5f-8a9b1c2d3e4f",
+      "name": "gorgias_list_custom_fields",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format SW4 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// If AI returned structured response, use it\nif (aiOutput.workflow === 'SW4') {\n  return [{\n    json: aiOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW4',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Try to parse AI output\nif (typeof aiOutput === 'string') {\n  try {\n    const parsed = JSON.parse(aiOutput);\n    response = { ...response, ...parsed };\n  } catch (e) {\n    response.summary = aiOutput;\n  }\n} else if (typeof aiOutput === 'object') {\n  response = { ...response, ...aiOutput };\n}\n\n// Infer operation type from query if not set\nconst query = (inputData.query || '').toLowerCase();\nif (!response.operation || response.operation === 'unknown') {\n  if (query.includes('list users') || query.includes('show team')) {\n    response.operation = 'list_users';\n  } else if (query.includes('get user') || inputData.user_id) {\n    response.operation = 'get_user';\n  } else if (query.includes('find user') || query.includes('search')) {\n    response.operation = 'search_users';\n  } else if (query.includes('list views') || query.includes('show views')) {\n    response.operation = 'list_views';\n  } else if (query.includes('integrations')) {\n    response.operation = 'list_integrations';\n  } else if (query.includes('custom field') || query.includes('fields')) {\n    response.operation = 'list_custom_fields';\n  } else if (query.includes('exist') || query.includes('valid')) {\n    response.operation = 'validate';\n  }\n}\n\nreturn [{\n  json: response\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
+        1616,
         -176
       ],
       "id": "c7g2f4e9-1f3h-4f8i-9e6g-9b1c2d3e4f5a",
@@ -245,12 +340,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare Log Entry for Supabase\nconst items = $input.all();\nconst inputData = $('When Executed by Another Workflow').first().json;\nconst response = items[0].json;\n\n// Build dynamic endpoint URL based on operation\nlet endpoint = 'users';\nif (response.operation?.includes('view')) {\n  endpoint = 'views';\n}\n\nconst logEntry = {\n  workflow_id: 'SW4',\n  run_id: $execution.id,\n  node_name: 'SW4_AI_Agent',\n  direction: 'response',\n  method: response.operation || 'resource_discovery',\n  url: `${$vars.GORGIAS_BASE_URL}/api/${endpoint}`,\n  status_code: response.success ? 200 : 500,\n  request_body: JSON.stringify(inputData),\n  response_body: JSON.stringify(response.data || response.summary),\n  error_message: response.error || null,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: inputData.ticket_id || null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    operation: response.operation,\n    success: response.success\n  })\n};\n\nreturn [{\n  json: logEntry\n}];"
+        "jsCode": "// Log API call to Supabase\nconst items = $input.all();\nconst inputData = $('When Executed by Another Workflow').first().json;\nconst response = items[0].json;\n\nconst logEntry = {\n  workflow_id: 'SW4',\n  run_id: $execution.id,\n  node_name: 'SW4_AI_Agent',\n  direction: 'response',\n  method: response.operation || 'resource_discovery',\n  url: `${$vars.GORGIAS_BASE_URL}/api/${response.operation?.includes('user') ? 'users' : response.operation?.includes('view') ? 'views' : response.operation?.includes('integration') ? 'integrations' : 'custom-fields'}`,\n  status_code: response.success ? 200 : 500,\n  request_body: JSON.stringify(inputData),\n  response_body: JSON.stringify(response.data || response.summary),\n  error_message: response.error || null,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    operation: response.operation\n  })\n};\n\nreturn [{\n  json: logEntry\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1664,
+        1840,
         -176
       ],
       "id": "d8h3f5e1-2f4i-4g9j-9f7h-1c2d3e4f5a6b",
@@ -335,7 +430,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1888,
+        2064,
         -176
       ],
       "id": "e9i4f6e2-3f5j-4h1k-9g8i-2d3e4f5a6b7c",
@@ -365,7 +460,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2112,
+        2288,
         -176
       ],
       "id": "f1j5f7e3-4f6k-4i2l-9h9j-3e4f5a6b7c8d",
@@ -428,6 +523,17 @@
         ]
       ]
     },
+    "gorgias_search_users": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW4 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "gorgias_list_views": {
       "ai_tool": [
         [
@@ -439,7 +545,18 @@
         ]
       ]
     },
-    "gorgias_get_view": {
+    "gorgias_list_integrations": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW4 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_list_custom_fields": {
       "ai_tool": [
         [
           {
@@ -487,7 +604,7 @@
   "pinData": {
     "When Executed by Another Workflow": [
       {
-        "query": "list all views"
+        "query": "list all users"
       }
     ]
   },
