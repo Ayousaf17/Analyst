@@ -19,7 +19,7 @@
         "promptType": "define",
         "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- Customer Email: {{ $json.customer_email || 'none' }}\n- Customer ID: {{ $json.customer_id || 'none' }}\n- Ticket ID: {{ $json.ticket_id || 'none' }}\n\nExecute the appropriate customer operation using the available tools.",
         "options": {
-          "systemMessage": "=You are a Customer Operations Specialist for Gorgias. Help users discover customer information and manage customer data.\n\nAVAILABLE OPERATIONS (4 tools):\n\n**gorgias_list_customers**\n- List all customers in Gorgias\n- Returns customer IDs, emails, names, created dates\n- Use for: \"list customers\", \"show all customers\", \"how many customers\"\n\n**gorgias_get_customer**\n- Get specific customer details by ID\n- Requires customer_id parameter\n- Returns full customer profile including tickets count, tags, metadata\n- Use for: \"get customer 123\", \"show customer #456\"\n\n**gorgias_search_customers**\n- Search customers by email or name\n- Use for: \"find customer email@example.com\", \"search for John\"\n- Returns matching customers with fuzzy matching\n\n**gorgias_get_customer_tickets**\n- Get all tickets for a specific customer\n- Requires customer_id or customer_email\n- Returns ticket list with status, priority, assignee\n- Use for: \"show tickets for customer\", \"customer ticket history\"\n\n---\n\nEXECUTION STRATEGY:\n\n1. **List Customers**\n   - Trigger: \"list customers\", \"show all customers\", \"how many customers\"\n   - Tool: `gorgias_list_customers`\n\n2. **Get Customer Details**\n   - Trigger: \"get customer 123\", \"show customer #456\"\n   - Extract: `customer_id` using pattern `/customer(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: `gorgias_get_customer` with customer_id parameter\n\n3. **Search Customers**\n   - Trigger: \"find customer email@example.com\", \"search for John\"\n   - Tool: `gorgias_search_customers` with email or name\n\n4. **Get Customer Tickets**\n   - Trigger: \"show tickets for customer\", \"customer ticket history for email@example.com\"\n   - If customer_id provided: use it directly\n   - If customer_email provided: first search customer, then get tickets\n   - Tool: `gorgias_get_customer_tickets`\n\n5. **Customer Analytics**\n   - Trigger: \"how many tickets does customer X have?\", \"customer stats\"\n   - First get customer, then analyze ticket data\n   - Return: Ticket count, average response time, satisfaction score (if available)\n\n---\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n\n{\n  \"workflow\": \"SW5\",\n  \"operation\": \"list_customers\" | \"get_customer\" | \"search_customers\" | \"get_customer_tickets\" | \"customer_analytics\",\n  \"success\": true | false,\n  \"data\": { /* customer data, tickets, analytics */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\n---\n\nCUSTOMER ID EXTRACTION:\nWhen user mentions a specific customer:\n- \"get customer 123\" → extract \"123\"\n- \"show customer #456\" → extract \"456\"\n- \"customer id 789\" → extract \"789\"\n- \"email@example.com\" → use search, then extract customer_id\n\n---\n\nIMPORTANT:\n- YOU extract customer IDs from queries using regex\n- YOU perform fuzzy matching for search operations\n- YOU validate customer existence when needed\n- For email-based queries, search first to get customer_id\n- Focus on accurate data retrieval — Router handles presentation"
+          "systemMessage": "=You are a Customer Operations Specialist for Gorgias. Help users discover customer information and manage customer data.\n\nAVAILABLE OPERATIONS (3 tools):\n\n**gorgias_get_customer_by_email** - Get customer by email (PRIMARY USE CASE)\n- Get customer details by email address\n- Most common customer lookup method\n- Use when: user provides email (\"customer info for john@example.com\")\n- Returns: Full customer object with ID, name, email, ticket count, custom fields\n- Example: \"find customer email@test.com\", \"customer info for john@example.com\"\n\n**gorgias_get_customer_by_id** - Get customer by ID\n- Get specific customer details by ID\n- Use when: user provides customer ID (\"get customer 123\")\n- Requires: customer_id parameter\n- Returns: Full customer profile with tickets count, tags, metadata\n- Example: \"get customer 123\", \"show customer #456\"\n\n**gorgias_list_recent_customers** - List recent customers (AI-powered filtering)\n- List last 100 customers (ordered by created_datetime desc)\n- Use when: user wants to browse/search customers by name\n- YOU filter results in-memory by name/email/company\n- Returns: Customer list (ID, email, name, created date)\n- Example: \"list recent customers\", \"find customer named John Smith\"\n\n---\n\nEXECUTION STRATEGY:\n\n1. **Get Customer by Email** (PRIMARY)\n   - Trigger: \"customer info for email@example.com\", \"find customer john@test.com\"\n   - Tool: `gorgias_get_customer_by_email` with customer_email parameter\n   - Direct lookup - fastest method\n\n2. **Get Customer by ID**\n   - Trigger: \"get customer 123\", \"show customer #456\"\n   - Extract: `customer_id` using pattern `/customer(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: `gorgias_get_customer_by_id` with customer_id parameter\n\n3. **List Recent + AI Filter**\n   - Trigger: \"find customer John Smith\", \"search for VIP customers\", \"list recent customers\"\n   - Tool: `gorgias_list_recent_customers`\n   - YOU filter results by name/email/company using AI intelligence\n   - Returns: Matching customers from last 100\n\n---\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n\n{\n  \"workflow\": \"SW5\",\n  \"operation\": \"get_customer_by_email\" | \"get_customer_by_id\" | \"list_recent_customers\",\n  \"success\": true | false,\n  \"data\": { /* customer data */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\n---\n\nIMPORTANT NOTES:\n\n1. **Customer Ticket History → SW1**\n   - DO NOT handle customer ticket queries in SW5\n   - Redirect to SW1 for: \"show tickets for customer\", \"customer ticket history\"\n   - SW5 focuses on customer discovery, SW1 handles ticket operations\n\n2. **AI-Powered Filtering**\n   - Gorgias customer search API is unreliable\n   - Use list_recent_customers + YOUR filtering intelligence\n   - YOU match by name, email, company, or other attributes\n   - Fuzzy matching is your strength\n\n3. **Email Extraction**\n   - Extract email from queries: \"customer info for john@example.com\" → customer_email: \"john@example.com\"\n   - Prioritize get_by_email over list+filter for email queries\n\n4. **Customer ID Extraction**\n   - Extract ID from queries: \"get customer 123\" → customer_id: \"123\"\n   - \"show customer #456\" → customer_id: \"456\"\n\n---\n\nFocus on accurate data retrieval — Router handles presentation"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -106,7 +106,7 @@
         48
       ],
       "id": "a2b9f56e-8h3d-4i6e-9f2g-5g7a8b9c1d2e",
-      "name": "gorgias_list_customers",
+      "name": "gorgias_list_recent_customers",
       "credentials": {
         "httpBasicAuth": {
           "id": "00RVVUesFbtpYkL5",
@@ -149,7 +149,7 @@
         48
       ],
       "id": "b3c1f67f-9i4e-4j7f-9g3h-6h8a9b1c2d3f",
-      "name": "gorgias_get_customer",
+      "name": "gorgias_get_customer_by_id",
       "credentials": {
         "httpBasicAuth": {
           "id": "00RVVUesFbtpYkL5",
@@ -159,7 +159,7 @@
     },
     {
       "parameters": {
-        "toolDescription": "Search customers by email or name. Use for fuzzy matching when user provides email or customer name. Returns matching customers.",
+        "toolDescription": "Get customer details by email address. Most common customer lookup method. Returns full customer object including ID, name, email, ticket count, and custom fields (VIP status, lifetime value, etc.).",
         "url": "={{ $vars.GORGIAS_BASE_URL }}/api/customers",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
@@ -168,7 +168,7 @@
           "parameters": [
             {
               "name": "email",
-              "value": "={{ $json.search_query }}"
+              "value": "={{ $json.customer_email }}"
             }
           ]
         },
@@ -201,67 +201,7 @@
         48
       ],
       "id": "c4d2f78g-1j5f-4k8g-9h4i-7i9a1b2c3d4g",
-      "name": "gorgias_search_customers",
-      "credentials": {
-        "httpBasicAuth": {
-          "id": "00RVVUesFbtpYkL5",
-          "name": "Gorgias"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "toolDescription": "Get all tickets for a specific customer. Requires customer_id or customer_email. Returns ticket list with status, priority, assignee, and messages.",
-        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBasicAuth",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "customer_id",
-              "value": "={{ $json.customer_id }}"
-            },
-            {
-              "name": "limit",
-              "value": "100"
-            },
-            {
-              "name": "order_by",
-              "value": "created_datetime:desc"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Accept",
-              "value": "application/json"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "responseFormat": "json"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.httpRequestTool",
-      "typeVersion": 4.2,
-      "position": [
-        1232,
-        48
-      ],
-      "id": "d5e3f89h-2k6g-4l9h-9i5j-8j1a2b3c4d5h",
-      "name": "gorgias_get_customer_tickets",
+      "name": "gorgias_get_customer_by_email",
       "credentials": {
         "httpBasicAuth": {
           "id": "00RVVUesFbtpYkL5",
@@ -445,7 +385,7 @@
         ]
       ]
     },
-    "gorgias_list_customers": {
+    "gorgias_list_recent_customers": {
       "ai_tool": [
         [
           {
@@ -456,7 +396,7 @@
         ]
       ]
     },
-    "gorgias_get_customer": {
+    "gorgias_get_customer_by_id": {
       "ai_tool": [
         [
           {
@@ -467,18 +407,7 @@
         ]
       ]
     },
-    "gorgias_search_customers": {
-      "ai_tool": [
-        [
-          {
-            "node": "SW5 AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "gorgias_get_customer_tickets": {
+    "gorgias_get_customer_by_email": {
       "ai_tool": [
         [
           {
