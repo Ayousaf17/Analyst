@@ -29,7 +29,8 @@
         0
       ],
       "id": "45c75e9b-e9f4-4788-8bcf-0d0d0691ba84",
-      "name": "SW1 AI Agent"
+      "name": "SW1 AI Agent",
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -344,6 +345,134 @@
       ],
       "id": "1fd8c977-7cc7-42c8-adab-aa54f23dde59",
       "name": "Prepare Final Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SW1 Error Handler - Catch and format errors\nconst error = $input.first().json.error || $input.first().json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\nlet errorMessage = 'An error occurred while reading ticket data.';\nlet errorDetails = '';\nlet statusCode = 500;\n\n// Extract useful error info\nif (error.message) {\n  errorDetails = error.message;\n} else if (typeof error === 'string') {\n  errorDetails = error;\n} else if (error.response?.data?.message) {\n  errorDetails = error.response.data.message;\n} else if (error.httpCode) {\n  statusCode = error.httpCode;\n  errorDetails = error.message || 'HTTP error occurred';\n}\n\n// Determine user-friendly message based on error type\nif (errorDetails.includes('404') || errorDetails.includes('not found')) {\n  errorMessage = '❌ Ticket not found. Please check the ticket number and try again.';\n  statusCode = 404;\n} else if (errorDetails.includes('401') || errorDetails.includes('unauthorized')) {\n  errorMessage = '🔒 Authentication failed. Please contact your administrator.';\n  statusCode = 401;\n} else if (errorDetails.includes('403') || errorDetails.includes('forbidden')) {\n  errorMessage = '⛔ Access denied. You may not have permission for this operation.';\n  statusCode = 403;\n} else if (errorDetails.includes('429') || errorDetails.includes('rate limit')) {\n  errorMessage = '⏱️ Too many requests. Please wait a moment and try again.';\n  statusCode = 429;\n} else if (errorDetails.includes('500') || errorDetails.includes('internal server')) {\n  errorMessage = '🔥 Gorgias server error. Please try again in a few minutes.';\n  statusCode = 500;\n} else if (errorDetails.includes('timeout')) {\n  errorMessage = '⏰ Request timed out. Please try again.';\n  statusCode = 408;\n} else if (errorDetails.includes('ECONNREFUSED') || errorDetails.includes('network')) {\n  errorMessage = '🌐 Network error. Please check your connection and try again.';\n  statusCode = 503;\n}\n\n// Build error response for Router\nconst errorResponse = {\n  workflow: 'SW1',\n  operation: 'error',\n  success: false,\n  data: null,\n  summary: errorMessage,\n  error: errorDetails\n};\n\n// Build Supabase log entry\nconst logEntry = {\n  workflow_id: 'SW1',\n  run_id: $execution.id,\n  node_name: 'SW1_Error_Handler',\n  direction: 'error',\n  method: 'read_error',\n  url: inputData.ticket_id \n    ? `https://ironsidecomputers.gorgias.com/api/tickets/${inputData.ticket_id}`\n    : 'https://ironsidecomputers.gorgias.com/api/tickets',\n  status_code: statusCode,\n  request_body: JSON.stringify({\n    ticket_id: inputData.ticket_id,\n    filters: inputData.filters,\n    query: inputData.query\n  }),\n  response_body: null,\n  error_message: errorDetails,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: inputData.ticket_id || null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    error_type: error.name || 'UnknownError',\n    error_code: statusCode,\n    original_error: JSON.stringify(error).substring(0, 500)\n  })\n};\n\nreturn [{\n  json: {\n    errorResponse: errorResponse,\n    logEntry: logEntry\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        320
+      ],
+      "id": "error-handler-sw1-001",
+      "name": "Handle Error"
+    },
+    {
+      "parameters": {
+        "tableId": "api_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_id",
+              "fieldValue": "={{ $json.logEntry.workflow_id }}"
+            },
+            {
+              "fieldId": "node_name",
+              "fieldValue": "={{ $json.logEntry.node_name }}"
+            },
+            {
+              "fieldId": "duration_ms",
+              "fieldValue": "={{ $json.logEntry.duration_ms }}"
+            },
+            {
+              "fieldId": "run_id",
+              "fieldValue": "={{ $json.logEntry.run_id }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "={{ $json.logEntry.direction }}"
+            },
+            {
+              "fieldId": "method",
+              "fieldValue": "={{ $json.logEntry.method }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.logEntry.url }}"
+            },
+            {
+              "fieldId": "status_code",
+              "fieldValue": "={{ $json.logEntry.status_code }}"
+            },
+            {
+              "fieldId": "request_body",
+              "fieldValue": "={{ $json.logEntry.request_body }}"
+            },
+            {
+              "fieldId": "response_body",
+              "fieldValue": "={{ $json.logEntry.response_body }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.logEntry.error_message }}"
+            },
+            {
+              "fieldId": "actor_user",
+              "fieldValue": "={{ $json.logEntry.actor_user }}"
+            },
+            {
+              "fieldId": "channel",
+              "fieldValue": "={{ $json.logEntry.channel }}"
+            },
+            {
+              "fieldId": "thread_ts",
+              "fieldValue": "={{ $json.logEntry.thread_ts }}"
+            },
+            {
+              "fieldId": "ticket_id",
+              "fieldValue": "={{ $json.logEntry.ticket_id }}"
+            },
+            {
+              "fieldId": "tags",
+              "fieldValue": "={{ $json.logEntry.tags }}"
+            },
+            {
+              "fieldId": "extra",
+              "fieldValue": "={{ $json.logEntry.extra }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        864,
+        320
+      ],
+      "id": "error-logger-sw1-001",
+      "name": "Log Error to Supabase",
+      "continueOnFail": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "xapu3wcO3s3Vehps",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error-response",
+              "name": "response",
+              "value": "={{ $('Handle Error').first().json.errorResponse }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        320
+      ],
+      "id": "error-return-sw1-001",
+      "name": "Return Error Response"
     }
   ],
   "connections": {
@@ -352,6 +481,35 @@
         [
           {
             "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Return Error Response",
             "type": "main",
             "index": 0
           }
