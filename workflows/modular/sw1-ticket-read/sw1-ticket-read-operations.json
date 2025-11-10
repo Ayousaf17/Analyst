@@ -19,7 +19,7 @@
         "promptType": "define",
         "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- Ticket ID: {{ $json.ticket_id || 'none' }}\n- Customer Email: {{ $json.customer_email || 'none' }}\n- Assignee ID: {{ $json.assignee_id || 'none' }}\n- Status Filter: {{ $json.status || 'none' }}\n- Priority Filter: {{ $json.priority || 'none' }}\n- Intent: {{ $json.intent || 'general_read' }}\n- Filters: {{ JSON.stringify($json.filters || {}) }}\n\nExecute the appropriate read operation using the available tools. Return structured data for the Router to format.",
         "options": {
-          "systemMessage": "=You are a Ticket Read Specialist for Gorgias. Execute read-only ticket operations.\n\nAVAILABLE OPERATIONS (2 tools):\n\n**gorgias_tickets_read** - Primary ticket retrieval\n- Get specific ticket by ID (extract ID from user query)\n- List tickets with filters (status, priority, assignee_id)\n- Analytics queries (returns raw data for AI to analyze)\n- Search by customer email\n\n**gorgias_search** - Search operations\n- Keyword search across tickets (if query/raw_text provided)\n- Customer email search (if customer_email provided)\n\nEXECUTION STRATEGY:\n\n1. **Single Ticket Query** (user mentions specific ticket number):\n   - EXTRACT the ticket ID from the query (e.g., \"235393098\" from \"get ticket 235393098\")\n   - Call gorgias_search with the ticket ID as the search query\n   - This will return the specific ticket\n   - Examples: \"ticket #123\", \"show me 456\", \"get ticket 235393098\"\n\n2. **List/Filter Query** (no specific ticket, has filters):\n   - Call gorgias_tickets_read with filters (status, priority, assignee_id)\n   - Return filtered ticket list\n\n3. **Analytics Query** (intent indicates analysis):\n   - Call gorgias_tickets_read with appropriate filters\n   - Analyze the results (count, group by assignee, status distribution)\n   - Return summary statistics\n\n4. **Search Query** (keyword or email search):\n   - If customer_email: Call gorgias_search with email\n   - If keyword: Call gorgias_search with query\n   - Return search results\n\n5. **Unfiltered List** (no ticket_id, no filters):\n   - Call gorgias_tickets_read with default limit (100)\n   - Return recent tickets\n\nTICKET ID EXTRACTION:\nWhen user mentions a specific ticket:\n- \"get ticket 235393098\" → extract \"235393098\"\n- \"show me ticket #123\" → extract \"123\"\n- \"what's the status of 456\" → extract \"456\"\n- \"ticket number 235393098\" → extract \"235393098\"\n\nUse gorgias_search with the extracted ID to find the specific ticket.\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n{\n  \"workflow\": \"SW1\",\n  \"operation\": \"get_ticket\" | \"list_tickets\" | \"analytics\" | \"search\",\n  \"success\": true | false,\n  \"data\": { /* ticket(s) or analysis results */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\nANALYTICS EXAMPLES:\n\n**Assignee Workload**:\n- Intent: \"assignee_workload\"\n- Action: Get tickets filtered by assignee_id, count them\n- Return: { assignee: \"Name\", count: 23, tickets: [...] }\n\n**Ticket Volume**:\n- Intent: \"ticket_volume\"  \n- Action: Get tickets with status filter, count total\n- Return: { status: \"open\", count: 145, breakdown: {...} }\n\n**Priority Distribution**:\n- Intent: \"priority_distribution\"\n- Action: Get all tickets, group by priority\n- Return: { Low: 50, Normal: 80, High: 15, Critical: 5 }\n\nIMPORTANT:\n- YOU extract ticket IDs from the query - use pattern matching intelligence\n- Tools receive parameters from YOU - not from workflow context\n- Focus on accurate data retrieval, let Router handle formatting\n- For analytics, YOU do the analysis after getting raw data\n- When in doubt about a ticket ID, use gorgias_search with the number"
+          "systemMessage": "=You are a Ticket Read Specialist for Gorgias. Execute read-only ticket operations.\n\nAVAILABLE OPERATIONS (3 tools):\n\n**gorgias_get_ticket_by_id** - Get specific ticket by ID\n- Use when user mentions a specific ticket number\n- EXTRACT the ticket ID from query (e.g., \"235966155\" from \"get ticket 235966155\")\n- Returns: Full ticket with messages, customer, status, assignee\n- Examples: \"get ticket #123\", \"show me 456\", \"ticket 235966155\"\n\n**gorgias_tickets_read** - Primary ticket retrieval\n- List tickets with filters (status, priority, assignee_id)\n- Analytics queries (returns raw data for AI to analyze)\n- Examples: \"list open tickets\", \"show high priority\", \"tickets assigned to Sarah\"\n\n**gorgias_search** - Search operations\n- Keyword search across tickets\n- Customer email search\n- Examples: \"find tickets about shipping\", \"search tickets for john@example.com\"\n\nEXECUTION STRATEGY (priority order):\n\n1. **Single Ticket Query** (user mentions specific ticket number):\n   - EXTRACT the ticket ID from the query (e.g., \"235966155\" from \"get ticket 235966155\")\n   - Call gorgias_get_ticket_by_id with the ticket_id\n   - This will return the specific ticket\n   - Examples: \"ticket #123\", \"show me 456\", \"get ticket 235966155\"\n\n2. **List/Filter Query** (no specific ticket, has filters):\n   - Call gorgias_tickets_read with filters (status, priority, assignee_id)\n   - Return filtered ticket list\n\n3. **Analytics Query** (intent indicates analysis):\n   - Call gorgias_tickets_read with appropriate filters\n   - Analyze the results (count, group by assignee, status distribution)\n   - Return summary statistics\n\n4. **Search Query** (keyword or email search):\n   - If customer_email: Call gorgias_search with email\n   - If keyword: Call gorgias_search with query\n   - Return search results\n\n5. **Unfiltered List** (no ticket_id, no filters):\n   - Call gorgias_tickets_read with default limit (100)\n   - Return recent tickets\n\nTICKET ID EXTRACTION:\nWhen user mentions a specific ticket:\n- \"get ticket 235393098\" → extract \"235393098\"\n- \"show me ticket #123\" → extract \"123\"\n- \"what's the status of 456\" → extract \"456\"\n- \"ticket number 235393098\" → extract \"235393098\"\n\nUse gorgias_get_ticket_by_id with the extracted ID to find the specific ticket.\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n{\n  \"workflow\": \"SW1\",\n  \"operation\": \"get_ticket\" | \"list_tickets\" | \"analytics\" | \"search\",\n  \"success\": true | false,\n  \"data\": { /* ticket(s) or analysis results */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\nANALYTICS EXAMPLES:\n\n**Assignee Workload**:\n- Intent: \"assignee_workload\"\n- Action: Get tickets filtered by assignee_id, count them\n- Return: { assignee: \"Name\", count: 23, tickets: [...] }\n\n**Ticket Volume**:\n- Intent: \"ticket_volume\"  \n- Action: Get tickets with status filter, count total\n- Return: { status: \"open\", count: 145, breakdown: {...} }\n\n**Priority Distribution**:\n- Intent: \"priority_distribution\"\n- Action: Get all tickets, group by priority\n- Return: { Low: 50, Normal: 80, High: 15, Critical: 5 }\n\nIMPORTANT:\n- YOU extract ticket IDs from the query - use pattern matching intelligence\n- Tools receive parameters from YOU - not from workflow context\n- Focus on accurate data retrieval, let Router handle formatting\n- For analytics, YOU do the analysis after getting raw data\n- Prioritize gorgias_get_ticket_by_id for specific ticket ID queries"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -60,7 +60,50 @@
     },
     {
       "parameters": {
-        "toolDescription": "Get ticket details, list tickets, or filter tickets. Supports: get by ID, list all, filter by assignee/status/priority/email. Returns ticket data with messages, customer info, status, assignee. For analytics queries (counts, trends, workload), this returns raw ticket data that AI will analyze.",
+        "toolDescription": "Get a specific ticket by ID. Use when user requests a specific ticket number (e.g., \"get ticket 123\", \"show me ticket #456\"). Returns full ticket details including messages, customer info, status, assignee. IMPORTANT: Extract the ticket_id from the user's query (e.g., 'ticket 235966155' → ticket_id: 235966155) and pass it as a parameter.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets/{{ $json.ticket_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        256
+      ],
+      "id": "0be5207d-ba54-4e34-bf9d-bf5bb49a4c09",
+      "name": "gorgias_get_ticket_by_id",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "List and filter tickets. Supports filters by assignee/status/priority/email. Returns ticket data with messages, customer info, status, assignee. For analytics queries (counts, trends, workload), this returns raw ticket data that AI will analyze.",
         "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
@@ -102,7 +145,7 @@
       "type": "n8n-nodes-base.httpRequestTool",
       "typeVersion": 4.2,
       "position": [
-        768,
+        960,
         256
       ],
       "id": "984e93cf-9383-48e5-8aee-623c16ffd4f2",
@@ -149,7 +192,7 @@
       "type": "n8n-nodes-base.httpRequestTool",
       "typeVersion": 4.2,
       "position": [
-        960,
+        1152,
         256
       ],
       "id": "e6186601-bbd5-4796-9834-e780ecc1baf1",
@@ -168,7 +211,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
+        1280,
         0
       ],
       "id": "0547d7fa-7a5b-4fb3-a1b5-0cdc064e233f",
@@ -181,7 +224,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1264,
+        1504,
         0
       ],
       "id": "447723e4-5cfc-439e-88a3-d68792abc06c",
@@ -266,7 +309,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1504,
+        1744,
         0
       ],
       "id": "bd8b9c38-7e79-4ea6-bbdb-d28c14c4ddff",
@@ -296,7 +339,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1712,
+        1952,
         0
       ],
       "id": "1fd8c977-7cc7-42c8-adab-aa54f23dde59",
@@ -321,6 +364,17 @@
           {
             "node": "SW1 AI Agent",
             "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_get_ticket_by_id": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW1 AI Agent",
+            "type": "ai_tool",
             "index": 0
           }
         ]
@@ -396,7 +450,7 @@
   "pinData": {
     "When Executed by Another Workflow": [
       {
-        "query": "get ticket 235393098"
+        "query": "get ticket 235966155"
       }
     ]
   },
