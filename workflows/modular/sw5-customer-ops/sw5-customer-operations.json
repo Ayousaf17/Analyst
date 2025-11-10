@@ -1,0 +1,536 @@
+{
+  "name": "Ironside Computers — SW5 - Customer Operations",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        -176
+      ],
+      "id": "d86c23b2-5e9a-4f3b-9c8d-2f4a5b6c7d8e",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- Customer Email: {{ $json.customer_email || 'none' }}\n- Customer ID: {{ $json.customer_id || 'none' }}\n- Ticket ID: {{ $json.ticket_id || 'none' }}\n\nExecute the appropriate customer operation using the available tools.",
+        "options": {
+          "systemMessage": "=You are a Customer Operations Specialist for Gorgias. Help users discover customer information and manage customer data.\n\nAVAILABLE OPERATIONS (4 tools):\n\n**gorgias_list_customers**\n- List all customers in Gorgias\n- Returns customer IDs, emails, names, created dates\n- Use for: \"list customers\", \"show all customers\", \"how many customers\"\n\n**gorgias_get_customer**\n- Get specific customer details by ID\n- Requires customer_id parameter\n- Returns full customer profile including tickets count, tags, metadata\n- Use for: \"get customer 123\", \"show customer #456\"\n\n**gorgias_search_customers**\n- Search customers by email or name\n- Use for: \"find customer email@example.com\", \"search for John\"\n- Returns matching customers with fuzzy matching\n\n**gorgias_get_customer_tickets**\n- Get all tickets for a specific customer\n- Requires customer_id or customer_email\n- Returns ticket list with status, priority, assignee\n- Use for: \"show tickets for customer\", \"customer ticket history\"\n\n---\n\nEXECUTION STRATEGY:\n\n1. **List Customers**\n   - Trigger: \"list customers\", \"show all customers\", \"how many customers\"\n   - Tool: `gorgias_list_customers`\n\n2. **Get Customer Details**\n   - Trigger: \"get customer 123\", \"show customer #456\"\n   - Extract: `customer_id` using pattern `/customer(?: id|#)?\\\\s*(\\\\d+)/`\n   - Tool: `gorgias_get_customer` with customer_id parameter\n\n3. **Search Customers**\n   - Trigger: \"find customer email@example.com\", \"search for John\"\n   - Tool: `gorgias_search_customers` with email or name\n\n4. **Get Customer Tickets**\n   - Trigger: \"show tickets for customer\", \"customer ticket history for email@example.com\"\n   - If customer_id provided: use it directly\n   - If customer_email provided: first search customer, then get tickets\n   - Tool: `gorgias_get_customer_tickets`\n\n5. **Customer Analytics**\n   - Trigger: \"how many tickets does customer X have?\", \"customer stats\"\n   - First get customer, then analyze ticket data\n   - Return: Ticket count, average response time, satisfaction score (if available)\n\n---\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n\n{\n  \"workflow\": \"SW5\",\n  \"operation\": \"list_customers\" | \"get_customer\" | \"search_customers\" | \"get_customer_tickets\" | \"customer_analytics\",\n  \"success\": true | false,\n  \"data\": { /* customer data, tickets, analytics */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\n---\n\nCUSTOMER ID EXTRACTION:\nWhen user mentions a specific customer:\n- \"get customer 123\" → extract \"123\"\n- \"show customer #456\" → extract \"456\"\n- \"customer id 789\" → extract \"789\"\n- \"email@example.com\" → use search, then extract customer_id\n\n---\n\nIMPORTANT:\n- YOU extract customer IDs from queries using regex\n- YOU perform fuzzy matching for search operations\n- YOU validate customer existence when needed\n- For email-based queries, search first to get customer_id\n- Focus on accurate data retrieval — Router handles presentation"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        912,
+        -176
+      ],
+      "id": "e97d34c3-6f1b-4g4c-9d9e-3f5a6b7c8d9f",
+      "name": "SW5 AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        48
+      ],
+      "id": "f1a8e45d4-7g2c-4h5d-9e1f-4f6a7b8c9d1a",
+      "name": "OpenAI Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "lQEKjK3ZzGMrPX6v",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "List all customers in Gorgias. Returns customer IDs, emails, names, and created dates. Use when user wants to see all customers or count customers.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/customers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "order_by",
+              "value": "created_datetime:desc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        848,
+        48
+      ],
+      "id": "a2b9f56e-8h3d-4i6e-9f2g-5g7a8b9c1d2e",
+      "name": "gorgias_list_customers",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get specific customer details by ID. Use ONLY when you have the customer_id from a previous list or search. Returns full customer profile with tickets count, tags, and metadata.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/customers/{{ $json.customer_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        976,
+        48
+      ],
+      "id": "b3c1f67f-9i4e-4j7f-9g3h-6h8a9b1c2d3f",
+      "name": "gorgias_get_customer",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Search customers by email or name. Use for fuzzy matching when user provides email or customer name. Returns matching customers.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/customers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.search_query }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        48
+      ],
+      "id": "c4d2f78g-1j5f-4k8g-9h4i-7i9a1b2c3d4g",
+      "name": "gorgias_search_customers",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get all tickets for a specific customer. Requires customer_id or customer_email. Returns ticket list with status, priority, assignee, and messages.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "customer_id",
+              "value": "={{ $json.customer_id }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "order_by",
+              "value": "created_datetime:desc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1232,
+        48
+      ],
+      "id": "d5e3f89h-2k6g-4l9h-9i5j-8j1a2b3c4d5h",
+      "name": "gorgias_get_customer_tickets",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format SW5 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// If AI returned structured response, use it\nif (aiOutput.workflow === 'SW5') {\n  return [{\n    json: aiOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW5',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Try to parse AI output\nif (typeof aiOutput === 'string') {\n  try {\n    const parsed = JSON.parse(aiOutput);\n    response = { ...response, ...parsed };\n  } catch (e) {\n    response.summary = aiOutput;\n  }\n} else if (typeof aiOutput === 'object') {\n  response = { ...response, ...aiOutput };\n}\n\n// Infer operation type from query if not set\nconst query = (inputData.query || '').toLowerCase();\nif (!response.operation || response.operation === 'unknown') {\n  if (query.includes('list customers') || query.includes('show customers')) {\n    response.operation = 'list_customers';\n  } else if (query.includes('get customer') || inputData.customer_id) {\n    response.operation = 'get_customer';\n  } else if (query.includes('find customer') || query.includes('search')) {\n    response.operation = 'search_customers';\n  } else if (query.includes('tickets for') || query.includes('ticket history')) {\n    response.operation = 'get_customer_tickets';\n  } else if (query.includes('how many tickets') || query.includes('customer stats')) {\n    response.operation = 'customer_analytics';\n  }\n}\n\nreturn [{\n  json: response\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -176
+      ],
+      "id": "e6f4f91i-3l7h-4m1i-9j6k-9k2a3b4c5d6i",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log API call to Supabase\nconst items = $input.all();\nconst inputData = $('When Executed by Another Workflow').first().json;\nconst response = items[0].json;\n\nconst logEntry = {\n  workflow_id: 'SW5',\n  run_id: $execution.id,\n  node_name: 'SW5_AI_Agent',\n  direction: 'response',\n  method: response.operation || 'customer_ops',\n  url: `${$vars.GORGIAS_BASE_URL}/api/customers`,\n  status_code: response.success ? 200 : 500,\n  request_body: JSON.stringify(inputData),\n  response_body: JSON.stringify(response.data || response.summary),\n  error_message: response.error || null,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: inputData.ticket_id || null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    operation: response.operation,\n    customer_id: inputData.customer_id,\n    customer_email: inputData.customer_email\n  })\n};\n\nreturn [{\n  json: logEntry\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -176
+      ],
+      "id": "f7g5f12j-4m8i-4n2j-9k7l-1l3a4b5c6d7j",
+      "name": "Prepare Log Entry"
+    },
+    {
+      "parameters": {
+        "tableId": "api_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_id",
+              "fieldValue": "={{ $json.workflow_id }}"
+            },
+            {
+              "fieldId": "node_name",
+              "fieldValue": "={{ $json.node_name }}"
+            },
+            {
+              "fieldId": "duration_ms",
+              "fieldValue": "={{ $json.duration_ms }}"
+            },
+            {
+              "fieldId": "run_id",
+              "fieldValue": "={{ $json.run_id }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "={{ $json.direction }}"
+            },
+            {
+              "fieldId": "method",
+              "fieldValue": "={{ $json.method }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.url }}"
+            },
+            {
+              "fieldId": "status_code",
+              "fieldValue": "={{ $json.status_code }}"
+            },
+            {
+              "fieldId": "request_body",
+              "fieldValue": "={{ $json.request_body }}"
+            },
+            {
+              "fieldId": "response_body",
+              "fieldValue": "={{ $json.response_body }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.error_message }}"
+            },
+            {
+              "fieldId": "actor_user",
+              "fieldValue": "={{ $json.actor_user }}"
+            },
+            {
+              "fieldId": "channel",
+              "fieldValue": "={{ $json.channel }}"
+            },
+            {
+              "fieldId": "thread_ts",
+              "fieldValue": "={{ $json.thread_ts }}"
+            },
+            {
+              "fieldId": "ticket_id",
+              "fieldValue": "={{ $json.ticket_id }}"
+            },
+            {
+              "fieldId": "tags",
+              "fieldValue": "={{ $json.tags }}"
+            },
+            {
+              "fieldId": "extra",
+              "fieldValue": "={{ $json.extra }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        -176
+      ],
+      "id": "g8h6f23k-5n9j-4o3k-9l8m-2m4a5b6c7d8k",
+      "name": "Insert api_logs",
+      "credentials": {
+        "supabaseApi": {
+          "id": "xapu3wcO3s3Vehps",
+          "name": "Supabase account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final-response",
+              "name": "response",
+              "value": "={{ $('Format Response').first().json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2112,
+        -176
+      ],
+      "id": "h9i7f34l-6o1k-4p4l-9m9n-3n5a6b7c8d9l",
+      "name": "Prepare Final Response"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SW5 AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_list_customers": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_get_customer": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_search_customers": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_get_customer_tickets": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW5 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Insert api_logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert api_logs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "query": "list all customers"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "89aa7945180226003eaabc2f707966f9cb80855e1b923a9f8aa13c508486d4ce"
+  }
+}
