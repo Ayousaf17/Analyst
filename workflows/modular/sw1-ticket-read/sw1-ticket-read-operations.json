@@ -1,0 +1,406 @@
+{
+  "name": "Ironside Computers — SW1 - Ticket Read Operations",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        0
+      ],
+      "id": "81efb14b-5525-4ad8-a30d-4c7dd7c19002",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=USER REQUEST: {{ $json.query || $json.raw_text || 'No query provided' }}\n\nCONTEXT FROM ROUTER:\n- Ticket ID: {{ $json.ticket_id || 'none' }}\n- Customer Email: {{ $json.customer_email || 'none' }}\n- Assignee ID: {{ $json.assignee_id || 'none' }}\n- Status Filter: {{ $json.status || 'none' }}\n- Priority Filter: {{ $json.priority || 'none' }}\n- Intent: {{ $json.intent || 'general_read' }}\n- Filters: {{ JSON.stringify($json.filters || {}) }}\n\nExecute the appropriate read operation using the available tools. Return structured data for the Router to format.",
+        "options": {
+          "systemMessage": "=You are a Ticket Read Specialist for Gorgias. Execute read-only ticket operations.\n\nAVAILABLE OPERATIONS (2 tools):\n\n**gorgias_tickets_read** - Primary ticket retrieval\n- Get specific ticket by ID (extract ID from user query)\n- List tickets with filters (status, priority, assignee_id)\n- Analytics queries (returns raw data for AI to analyze)\n- Search by customer email\n\n**gorgias_search** - Search operations\n- Keyword search across tickets (if query/raw_text provided)\n- Customer email search (if customer_email provided)\n\nEXECUTION STRATEGY:\n\n1. **Single Ticket Query** (user mentions specific ticket number):\n   - EXTRACT the ticket ID from the query (e.g., \"235393098\" from \"get ticket 235393098\")\n   - Call gorgias_search with the ticket ID as the search query\n   - This will return the specific ticket\n   - Examples: \"ticket #123\", \"show me 456\", \"get ticket 235393098\"\n\n2. **List/Filter Query** (no specific ticket, has filters):\n   - Call gorgias_tickets_read with filters (status, priority, assignee_id)\n   - Return filtered ticket list\n\n3. **Analytics Query** (intent indicates analysis):\n   - Call gorgias_tickets_read with appropriate filters\n   - Analyze the results (count, group by assignee, status distribution)\n   - Return summary statistics\n\n4. **Search Query** (keyword or email search):\n   - If customer_email: Call gorgias_search with email\n   - If keyword: Call gorgias_search with query\n   - Return search results\n\n5. **Unfiltered List** (no ticket_id, no filters):\n   - Call gorgias_tickets_read with default limit (100)\n   - Return recent tickets\n\nTICKET ID EXTRACTION:\nWhen user mentions a specific ticket:\n- \"get ticket 235393098\" → extract \"235393098\"\n- \"show me ticket #123\" → extract \"123\"\n- \"what's the status of 456\" → extract \"456\"\n- \"ticket number 235393098\" → extract \"235393098\"\n\nUse gorgias_search with the extracted ID to find the specific ticket.\n\nRESPONSE FORMAT:\nAlways return structured JSON:\n{\n  \"workflow\": \"SW1\",\n  \"operation\": \"get_ticket\" | \"list_tickets\" | \"analytics\" | \"search\",\n  \"success\": true | false,\n  \"data\": { /* ticket(s) or analysis results */ },\n  \"summary\": \"Human-readable summary\",\n  \"error\": \"Error message if failed\"\n}\n\nANALYTICS EXAMPLES:\n\n**Assignee Workload**:\n- Intent: \"assignee_workload\"\n- Action: Get tickets filtered by assignee_id, count them\n- Return: { assignee: \"Name\", count: 23, tickets: [...] }\n\n**Ticket Volume**:\n- Intent: \"ticket_volume\"  \n- Action: Get tickets with status filter, count total\n- Return: { status: \"open\", count: 145, breakdown: {...} }\n\n**Priority Distribution**:\n- Intent: \"priority_distribution\"\n- Action: Get all tickets, group by priority\n- Return: { Low: 50, Normal: 80, High: 15, Critical: 5 }\n\nIMPORTANT:\n- YOU extract ticket IDs from the query - use pattern matching intelligence\n- Tools receive parameters from YOU - not from workflow context\n- Focus on accurate data retrieval, let Router handle formatting\n- For analytics, YOU do the analysis after getting raw data\n- When in doubt about a ticket ID, use gorgias_search with the number"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        0
+      ],
+      "id": "45c75e9b-e9f4-4788-8bcf-0d0d0691ba84",
+      "name": "SW1 AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        576,
+        224
+      ],
+      "id": "de40e253-885d-4dc7-867b-fec73f047153",
+      "name": "OpenAI Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "lQEKjK3ZzGMrPX6v",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get ticket details, list tickets, or filter tickets. Supports: get by ID, list all, filter by assignee/status/priority/email. Returns ticket data with messages, customer info, status, assignee. For analytics queries (counts, trends, workload), this returns raw ticket data that AI will analyze.",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "order_by",
+              "value": "created_datetime:desc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        256
+      ],
+      "id": "984e93cf-9383-48e5-8aee-623c16ffd4f2",
+      "name": "gorgias_tickets_read",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Search tickets by keyword or find all tickets for a customer email. For keyword search: provide 'query' field. For email search: provide 'customer_email' field. Returns matching tickets.",
+        "method": "POST",
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"search\": $json.search || \"\",\n    \"filters\": $json.filters || \"\"\n  }\n}}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        256
+      ],
+      "id": "e6186601-bbd5-4796-9834-e780ecc1baf1",
+      "name": "gorgias_search",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format SW1 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// If AI returned structured response, use it\nif (aiOutput.workflow === 'SW1') {\n  return [{\n    json: aiOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW1',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Try to parse AI output\nif (typeof aiOutput === 'string') {\n  try {\n    const parsed = JSON.parse(aiOutput);\n    response = { ...response, ...parsed };\n  } catch (e) {\n    response.summary = aiOutput;\n  }\n} else if (typeof aiOutput === 'object') {\n  response = { ...response, ...aiOutput };\n}\n\n// Ensure we have operation type\nif (inputData.ticket_id) {\n  response.operation = 'get_ticket';\n} else if (inputData.intent && inputData.intent.includes('workload')) {\n  response.operation = 'analytics';\n} else if (inputData.customer_email || inputData.query) {\n  response.operation = 'search';\n} else {\n  response.operation = 'list_tickets';\n}\n\nreturn [{\n  json: response\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "0547d7fa-7a5b-4fb3-a1b5-0cdc064e233f",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log API call to Supabase\nconst items = $input.all();\nconst inputData = $('When Executed by Another Workflow').first().json;\nconst response = items[0].json;\n\n// Build log entry\nconst logEntry = {\n  workflow_id: 'SW1',\n  run_id: $execution.id,\n  node_name: 'SW1_AI_Agent',\n  direction: 'response',\n  method: response.operation || 'read',\n  url: inputData.ticket_id \n    ? `https://ironsidecomputers.gorgias.com/api/tickets/${inputData.ticket_id}`\n    : 'https://ironsidecomputers.gorgias.com/api/tickets',\n  status_code: response.success ? 200 : 500,\n  request_body: JSON.stringify({\n    ticket_id: inputData.ticket_id,\n    filters: inputData.filters,\n    intent: inputData.intent\n  }),\n  response_body: JSON.stringify(response.data || response.summary),\n  error_message: response.error || null,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: inputData.ticket_id || null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    operation: response.operation,\n    intent: inputData.intent\n  })\n};\n\nreturn [{\n  json: logEntry\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "447723e4-5cfc-439e-88a3-d68792abc06c",
+      "name": "Prepare Log Entry"
+    },
+    {
+      "parameters": {
+        "tableId": "api_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_id",
+              "fieldValue": "={{ $json.workflow_id }}"
+            },
+            {
+              "fieldId": "node_name",
+              "fieldValue": "={{ $json.node_name }}"
+            },
+            {
+              "fieldId": "duration_ms",
+              "fieldValue": "={{ $json.duration_ms }}"
+            },
+            {
+              "fieldId": "run_id",
+              "fieldValue": "={{ $json.run_id }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "={{ $json.direction }}"
+            },
+            {
+              "fieldId": "method",
+              "fieldValue": "={{ $json.method }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.url }}"
+            },
+            {
+              "fieldId": "status_code",
+              "fieldValue": "={{ $json.status_code }}"
+            },
+            {
+              "fieldId": "request_body",
+              "fieldValue": "={{ $json.request_body }}"
+            },
+            {
+              "fieldId": "response_body",
+              "fieldValue": "={{ $json.response_body }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.error_message }}"
+            },
+            {
+              "fieldId": "actor_user",
+              "fieldValue": "={{ $json.actor_user }}"
+            },
+            {
+              "fieldId": "channel",
+              "fieldValue": "={{ $json.channel }}"
+            },
+            {
+              "fieldId": "thread_ts",
+              "fieldValue": "={{ $json.thread_ts }}"
+            },
+            {
+              "fieldId": "ticket_id",
+              "fieldValue": "={{ $json.ticket_id }}"
+            },
+            {
+              "fieldId": "tags",
+              "fieldValue": "={{ $json.tags }}"
+            },
+            {
+              "fieldId": "extra",
+              "fieldValue": "={{ $json.extra }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        0
+      ],
+      "id": "bd8b9c38-7e79-4ea6-bbdb-d28c14c4ddff",
+      "name": "Insert api_logs",
+      "retryOnFail": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "xapu3wcO3s3Vehps",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final-response",
+              "name": "response",
+              "value": "={{ $('Format Response').first().json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1712,
+        0
+      ],
+      "id": "1fd8c977-7cc7-42c8-adab-aa54f23dde59",
+      "name": "Prepare Final Response"
+    }
+  ],
+  "connections": {
+    "SW1 AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SW1 AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_tickets_read": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW1 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gorgias_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "SW1 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Insert api_logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "SW1 AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert api_logs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "query": "get ticket 235393098"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "89aa7945180226003eaabc2f707966f9cb80855e1b923a9f8aa13c508486d4ce"
+  }
+}
