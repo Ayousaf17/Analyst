@@ -81,8 +81,11 @@
         "options": {
           "response": {
             "response": {
-              "fullResponse": true,
-              "responseFormat": "json"
+              "fullResponse": false,
+              "responseFormat": "json",
+              "neverError": false,
+              "includeResponseHeadersAndStatusCode": false,
+              "dataPropertyName": "data"
             }
           }
         }
@@ -137,8 +140,11 @@
         "options": {
           "response": {
             "response": {
-              "fullResponse": true,
-              "responseFormat": "json"
+              "fullResponse": false,
+              "responseFormat": "json",
+              "neverError": false,
+              "includeResponseHeadersAndStatusCode": false,
+              "dataPropertyName": "data"
             }
           }
         }
@@ -184,8 +190,11 @@
         "options": {
           "response": {
             "response": {
-              "fullResponse": true,
-              "responseFormat": "json"
+              "fullResponse": false,
+              "responseFormat": "json",
+              "neverError": false,
+              "includeResponseHeadersAndStatusCode": false,
+              "dataPropertyName": "data"
             }
           }
         }
@@ -207,7 +216,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format SW1 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// If AI returned structured response, use it\nif (aiOutput.workflow === 'SW1') {\n  return [{\n    json: aiOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW1',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Try to parse AI output\nif (typeof aiOutput === 'string') {\n  try {\n    const parsed = JSON.parse(aiOutput);\n    response = { ...response, ...parsed };\n  } catch (e) {\n    response.summary = aiOutput;\n  }\n} else if (typeof aiOutput === 'object') {\n  response = { ...response, ...aiOutput };\n}\n\n// Ensure we have operation type\nif (inputData.ticket_id) {\n  response.operation = 'get_ticket';\n} else if (inputData.intent && inputData.intent.includes('workload')) {\n  response.operation = 'analytics';\n} else if (inputData.customer_email || inputData.query) {\n  response.operation = 'search';\n} else {\n  response.operation = 'list_tickets';\n}\n\nreturn [{\n  json: response\n}];"
+        "jsCode": "// Format SW1 response for Router\nconst items = $input.all();\nconst aiOutput = items[0].json.output || items[0].json;\nconst inputData = $('When Executed by Another Workflow').first().json;\n\n// Parse AI output if it's a string (handle markdown code blocks)\nlet parsedOutput = aiOutput;\nif (typeof aiOutput === 'string') {\n  // Remove markdown code blocks if present\n  const cleaned = aiOutput.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  try {\n    parsedOutput = JSON.parse(cleaned);\n  } catch (e) {\n    // If parsing fails, treat as plain text\n    parsedOutput = { summary: aiOutput };\n  }\n}\n\n// If AI returned structured response, use it\nif (parsedOutput.workflow === 'SW1') {\n  return [{\n    json: parsedOutput\n  }];\n}\n\n// Otherwise, build structured response\nlet response = {\n  workflow: 'SW1',\n  operation: 'unknown',\n  success: true,\n  data: null,\n  summary: '',\n  error: null\n};\n\n// Merge parsed output\nif (typeof parsedOutput === 'object') {\n  response = { ...response, ...parsedOutput };\n} else {\n  response.summary = String(parsedOutput);\n}\n\n// Infer operation type from input data\nif (inputData.ticket_id) {\n  response.operation = 'get_ticket';\n} else if (inputData.intent && inputData.intent.includes('workload')) {\n  response.operation = 'analytics';\n} else if (inputData.customer_email || inputData.query) {\n  response.operation = 'search';\n} else {\n  response.operation = 'list_tickets';\n}\n\nreturn [{\n  json: response\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -220,12 +229,75 @@
     },
     {
       "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "success-check",
+                    "leftValue": "={{ $json.success }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Success"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "error-check",
+                    "leftValue": "={{ $json.success }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Error"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1472,
+        0
+      ],
+      "id": "switch-success-check-sw1",
+      "name": "Check for Errors"
+    },
+    {
+      "parameters": {
         "jsCode": "// Log API call to Supabase\nconst items = $input.all();\nconst inputData = $('When Executed by Another Workflow').first().json;\nconst response = items[0].json;\n\n// Build log entry\nconst logEntry = {\n  workflow_id: 'SW1',\n  run_id: $execution.id,\n  node_name: 'SW1_AI_Agent',\n  direction: 'response',\n  method: response.operation || 'read',\n  url: inputData.ticket_id \n    ? `https://ironsidecomputers.gorgias.com/api/tickets/${inputData.ticket_id}`\n    : 'https://ironsidecomputers.gorgias.com/api/tickets',\n  status_code: response.success ? 200 : 500,\n  request_body: JSON.stringify({\n    ticket_id: inputData.ticket_id,\n    filters: inputData.filters,\n    intent: inputData.intent\n  }),\n  response_body: JSON.stringify(response.data || response.summary),\n  error_message: response.error || null,\n  actor_user: inputData.user || null,\n  channel: inputData.channel || null,\n  thread_ts: inputData.thread_ts || null,\n  ticket_id: inputData.ticket_id || null,\n  tags: [],\n  duration_ms: null,\n  extra: JSON.stringify({\n    operation: response.operation,\n    intent: inputData.intent\n  })\n};\n\nreturn [{\n  json: logEntry\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1504,
+        1696,
         0
       ],
       "id": "447723e4-5cfc-439e-88a3-d68792abc06c",
@@ -564,7 +636,25 @@
       "main": [
         [
           {
+            "node": "Check for Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Errors": {
+      "main": [
+        [
+          {
             "node": "Prepare Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
             "type": "main",
             "index": 0
           }
