@@ -1,0 +1,700 @@
+[
+  {
+    "filename": "ai_gmail_agent.json",
+    "name": "The Recap AI - Gmail Agent",
+    "node_count": 24,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.gmailTrigger",
+      "n8n-nodes-base.gmailTool",
+      "n8n-nodes-base.googleSheetsTool",
+      "n8n-nodes-base.markdown",
+      "n8n-nodes-base.stickyNote",
+      "@n8n/n8n-nodes-langchain.agent",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.noOp",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.googleDocsTool",
+      "n8n-nodes-base.if",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 46.0
+  },
+  {
+    "filename": "ai_news_data_ingestion.json",
+    "name": "AI News Data Ingestion",
+    "node_count": 80,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.scheduleTrigger",
+      "n8n-nodes-base.rssFeedReadTrigger",
+      "n8n-nodes-base.executeWorkflow",
+      "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "n8n-nodes-base.s3",
+      "n8n-nodes-base.reddit",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "@n8n/n8n-nodes-langchain.informationExtractor"
+    ],
+    "size_kb": 79.9
+  },
+  {
+    "filename": "ai_newsletter_generator.json",
+    "name": "Content - Newsletter Agent",
+    "node_count": 87,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.s3",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.executeWorkflow",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.informationExtractor",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.if",
+      "n8n-nodes-base.formTrigger",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini"
+    ],
+    "size_kb": 153.2
+  },
+  {
+    "filename": "ai_scraping_pipeline.json",
+    "name": "AI Scraping Pipeline",
+    "node_count": 12,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.scheduleTrigger",
+      "n8n-nodes-base.googleDrive"
+    ],
+    "size_kb": 9.0
+  },
+  {
+    "filename": "auto_repair_shop_gmail_agent.json",
+    "name": "The Recap AI - Auto Shop Gmail Agent",
+    "node_count": 9,
+    "node_types": [
+      "n8n-nodes-base.gmailTool",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.googleSheetsTool",
+      "@n8n/n8n-nodes-langchain.agent",
+      "n8n-nodes-base.noOp",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.gmailTrigger",
+      "n8n-nodes-base.twilioTool",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 17.0
+  },
+  {
+    "filename": "cal_ai_clone_backend.json",
+    "name": "The Recap AI - Lovable Calorie App Backend",
+    "node_count": 8,
+    "node_types": [
+      "n8n-nodes-base.stickyNote",
+      "@n8n/n8n-nodes-langchain.openAi",
+      "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.webhook",
+      "n8n-nodes-base.respondToWebhook"
+    ],
+    "size_kb": 11.0
+  },
+  {
+    "filename": "content_repurposing_factory.json",
+    "name": "The Recap AI - Repurpose YouTube Video To Socials",
+    "node_count": 23,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured"
+    ],
+    "size_kb": 39.0
+  },
+  {
+    "filename": "deal_breakdown_lawyer_lead_gen.json",
+    "name": "The Recap AI - Insurance Lawyer Lead Gen",
+    "node_count": 33,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.googleSheets",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.markdown",
+      "n8n-nodes-base.executeWorkflow",
+      "n8n-nodes-base.splitInBatches",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.informationExtractor",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.executeWorkflowTrigger",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 48.0
+  },
+  {
+    "filename": "dental_practice_voice_agent.json",
+    "name": "The Recap AI - Dentist Voice Agent",
+    "node_count": 9,
+    "node_types": [
+      "n8n-nodes-base.googleSheetsTool",
+      "@n8n/n8n-nodes-langchain.agent",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "n8n-nodes-base.webhook",
+      "n8n-nodes-base.respondToWebhook",
+      "n8n-nodes-base.googleCalendarTool",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 13.6
+  },
+  {
+    "filename": "email_research_report_tool.json",
+    "name": "Tool - Email Research Report",
+    "node_count": 3,
+    "node_types": [
+      "n8n-nodes-base.executeWorkflowTrigger",
+      "n8n-nodes-base.gmail",
+      "n8n-nodes-base.markdown"
+    ],
+    "size_kb": 7.4
+  },
+  {
+    "filename": "facebook_ugc_video_ad_thief.json",
+    "name": "The Recap AI - Facebook UGC Video Ad Thief",
+    "node_count": 38,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.convertToFile",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.googleDocs",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.markdown",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.if",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.merge",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini"
+    ],
+    "size_kb": 44.9
+  },
+  {
+    "filename": "firecrawl_email_scraper.json",
+    "name": "Email Scraper",
+    "node_count": 11,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.stopAndError",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 11.5
+  },
+  {
+    "filename": "firecrawl_scrape_url.json",
+    "name": "Node - Scrape Url",
+    "node_count": 2,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 4.2
+  },
+  {
+    "filename": "generate_image_tool.json",
+    "name": "Tool - Generate Image",
+    "node_count": 6,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 10.4
+  },
+  {
+    "filename": "generate_talking_avatar_tool.json",
+    "name": "Tool - Generate Talking Avatar",
+    "node_count": 6,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.executeWorkflowTrigger",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 6.7
+  },
+  {
+    "filename": "local_podcast_generator.json",
+    "name": "The Recap AI - Podcast Generator",
+    "node_count": 14,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.manualTrigger",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.stopAndError",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 27.3
+  },
+  {
+    "filename": "marketing_team_agent.json",
+    "name": "The Recap AI - Marketing Team Agent",
+    "node_count": 17,
+    "node_types": [
+      "n8n-nodes-base.webhook",
+      "n8n-nodes-base.stickyNote",
+      "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "@n8n/n8n-nodes-langchain.agent",
+      "@n8n/n8n-nodes-langchain.chatTrigger",
+      "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "n8n-nodes-base.noOp",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.perplexityTool",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 25.5
+  },
+  {
+    "filename": "nano_banana_ad_creative_generator.json",
+    "name": "The Recap AI - Nano Banana Influencer Ad Creative",
+    "node_count": 11,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.splitInBatches",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.set"
+    ],
+    "size_kb": 9.0
+  },
+  {
+    "filename": "nano_banana_facebook_ad_thief.json",
+    "name": "The Recap AI - Facebook Ad Thief",
+    "node_count": 16,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.merge",
+      "n8n-nodes-base.aggregate",
+      "@apify/n8n-nodes-apify.apify",
+      "n8n-nodes-base.splitInBatches",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 15.7
+  },
+  {
+    "filename": "nano_banana_static_ad_variation_generator.json",
+    "name": "The Recap AI - Nano Banana Static Ad Spinner",
+    "node_count": 31,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.markdown",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.aggregate",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.googleDocs",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.splitInBatches",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 38.5
+  },
+  {
+    "filename": "repurpose_to_short_form_script_tool.json",
+    "name": "Content - Short Form News Script Generator",
+    "node_count": 45,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.scheduleTrigger",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.executeWorkflow",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.s3",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 62.4
+  },
+  {
+    "filename": "repurpose_to_twitter_thread_tool.json",
+    "name": "Tool - Repurpose Newsletter Into Twitter Daily News Thread",
+    "node_count": 8,
+    "node_types": [
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 25.2
+  },
+  {
+    "filename": "reverse_engineer_viral_ai_videos.json",
+    "name": "The Recap AI - Reverse Engineer Short Form AI Video",
+    "node_count": 22,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.switch",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.set"
+    ],
+    "size_kb": 22.1
+  },
+  {
+    "filename": "short_form_video_script_generator.json",
+    "name": "The Recap AI - Short Form News Script Generator",
+    "node_count": 42,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.scheduleTrigger",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.executeWorkflow",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.s3",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured"
+    ],
+    "size_kb": 58.9
+  },
+  {
+    "filename": "sora2_ugc_consistent_character_ads_generator.json",
+    "name": "The Recap AI - UGC Ads With Consistent Characters",
+    "node_count": 18,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.switch",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.set",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.googleDrive",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini"
+    ],
+    "size_kb": 21.2
+  },
+  {
+    "filename": "sora_2_ugc_ecommerce_video_generator.json",
+    "name": "The Recap AI - eCommerce UGC Video Generator",
+    "node_count": 24,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.wait",
+      "@n8n/n8n-nodes-langchain.openAi",
+      "n8n-nodes-base.editImage",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.extractFromFile",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.splitInBatches",
+      "n8n-nodes-base.googleDrive",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 45.2
+  },
+  {
+    "filename": "twitter_reply_guy_agent.json",
+    "name": "Agent - Twitter Reply Guy",
+    "node_count": 26,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.stickyNote",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.slack",
+      "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "n8n-nodes-base.twitter",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.slackTrigger",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "@n8n/n8n-nodes-langchain.informationExtractor",
+      "n8n-nodes-base.code",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 32.7
+  },
+  {
+    "filename": "twitter_x_scraping.json",
+    "name": "The Recap AI - Twitter Scraping",
+    "node_count": 13,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.googleSheets",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote"
+    ],
+    "size_kb": 23.2
+  },
+  {
+    "filename": "veo_3.1_product_photo_animator.json",
+    "name": "The Recap AI - Veo 3.1 eCommerce Product Animator",
+    "node_count": 17,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.extractFromFile",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "n8n-nodes-base.splitInBatches",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.limit",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 15.3
+  },
+  {
+    "filename": "veo_3_viral_bigfoot_vlog_generator.json",
+    "name": "The Recap AI - VEO 3 Bigfoot Video",
+    "node_count": 26,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.wait",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.googleDrive",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 39.0
+  },
+  {
+    "filename": "viral_youtube_video_clipper.json",
+    "name": "The Recap AI - YouTube Video Clipper",
+    "node_count": 12,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.wait",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.if"
+    ],
+    "size_kb": 10.0
+  },
+  {
+    "filename": "web_develop_agent_tool_scrape_website.json",
+    "name": "Tool - Scrape Website",
+    "node_count": 6,
+    "node_types": [
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.set",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 4.3
+  },
+  {
+    "filename": "web_develop_agent_tool_write_website_prd.json",
+    "name": "Tool - Write Website PRD",
+    "node_count": 4,
+    "node_types": [
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.executeWorkflowTrigger",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.set"
+    ],
+    "size_kb": 9.2
+  },
+  {
+    "filename": "web_developer_agent.json",
+    "name": "The Recap AI - Web Developer Agent",
+    "node_count": 15,
+    "node_types": [
+      "n8n-nodes-base.webhook",
+      "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "@n8n/n8n-nodes-langchain.agentTool",
+      "@n8n/n8n-nodes-langchain.agent",
+      "@n8n/n8n-nodes-langchain.chatTrigger",
+      "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "n8n-nodes-base.airtopTool",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 38.2
+  },
+  {
+    "filename": "whatsapp_ai_chatbot_agent.json",
+    "name": "The Recap AI - Whats App Chatbot Agent",
+    "node_count": 19,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.whatsApp",
+      "@n8n/n8n-nodes-langchain.agent",
+      "@n8n/n8n-nodes-langchain.chatTrigger",
+      "n8n-nodes-base.aggregate",
+      "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "n8n-nodes-base.set",
+      "n8n-nodes-base.whatsAppTrigger",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "@n8n/n8n-nodes-langchain.toolThink"
+    ],
+    "size_kb": 75.9
+  },
+  {
+    "filename": "write_newsletter_tool.json",
+    "name": "Content - Newsletter Agent",
+    "node_count": 91,
+    "node_types": [
+      "n8n-nodes-base.filter",
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.s3",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "n8n-nodes-base.slack",
+      "n8n-nodes-base.aggregate",
+      "n8n-nodes-base.splitOut",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.extractFromFile",
+      "n8n-nodes-base.executeWorkflow",
+      "n8n-nodes-base.splitInBatches",
+      "@n8n/n8n-nodes-langchain.informationExtractor",
+      "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "n8n-nodes-base.if",
+      "n8n-nodes-base.formTrigger",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.executeWorkflowTrigger"
+    ],
+    "size_kb": 157.5
+  },
+  {
+    "filename": "write_seo_optimized_listicle_article.json",
+    "name": "Content - Write Best Tools In Category Article",
+    "node_count": 41,
+    "node_types": [
+      "n8n-nodes-base.httpRequest",
+      "n8n-nodes-base.convertToFile",
+      "n8n-nodes-base.formTrigger",
+      "n8n-nodes-base.stickyNote",
+      "n8n-nodes-base.splitOut",
+      "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "n8n-nodes-base.slack",
+      "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "n8n-nodes-base.aggregate",
+      "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "n8n-nodes-base.set",
+      "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "@n8n/n8n-nodes-langchain.chainLlm",
+      "n8n-nodes-base.code",
+      "@n8n/n8n-nodes-langchain.outputParserStructured"
+    ],
+    "size_kb": 127.7
+  }
+]
