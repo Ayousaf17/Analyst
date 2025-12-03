@@ -1,0 +1,483 @@
+{
+  "name": "Ironside Computers — SW3 - Ticket Analytics & Insights (Tenex)",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-1776, 320],
+      "id": "7c46f85d-2134-4f4a-a986-6d9ae50045d9",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.query }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "51073623-5dfc-4db9-9393-c373e112f044",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-1552, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract parameters from input\nconst intent = $input.item.json.intent;\nconst timeRange = $input.item.json.time_range || 'last_30d';\nconst filters = $input.item.json.filters || {};\n\n// Map time ranges to actual dates\nconst now = new Date();\nconst timeRangeMap = {\n  'today': () => {\n    const start = new Date(now);\n    start.setHours(0, 0, 0, 0);\n    return start;\n  },\n  'yesterday': () => {\n    const start = new Date(now);\n    start.setDate(start.getDate() - 1);\n    start.setHours(0, 0, 0, 0);\n    return start;\n  },\n  'this_week': () => {\n    const start = new Date(now);\n    start.setDate(start.getDate() - start.getDay());\n    start.setHours(0, 0, 0, 0);\n    return start;\n  },\n  'this_month': () => {\n    const start = new Date(now.getFullYear(), now.getMonth(), 1);\n    return start;\n  },\n  'last_7d': () => {\n    const start = new Date(now);\n    start.setDate(start.getDate() - 7);\n    return start;\n  },\n  'last_30d': () => {\n    const start = new Date(now);\n    start.setDate(start.getDate() - 30);\n    return start;\n  },\n  'last_90d': () => {\n    const start = new Date(now);\n    start.setDate(start.getDate() - 90);\n    return start;\n  }\n};\n\nconst startDate = timeRangeMap[timeRange] ? timeRangeMap[timeRange]() : timeRangeMap['last_30d']();\n\n// Build Gorgias query parameters\nconst params = {\n  created_datetime: {\n    $gte: startDate.toISOString()\n  }\n};\n\n// Add filters if provided\nif (filters.status && filters.status.length > 0) {\n  params.status = { $in: filters.status };\n}\n\nif (filters.assignee_id) {\n  params.assignee_user_id = filters.assignee_id;\n}\n\nif (filters.tags && filters.tags.length > 0) {\n  params.tags = { $in: filters.tags };\n}\n\nreturn {\n  json: {\n    intent,\n    timeRange,\n    startDate: startDate.toISOString(),\n    endDate: now.toISOString(),\n    queryParams: JSON.stringify(params),\n    filters\n  }\n};"
+      },
+      "id": "3dcca8b3-94e2-4928-84ee-0d6490ca04f9",
+      "name": "Build Query Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1344, 192]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.GORGIAS_BASE_URL }}/api/tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "={{ $json.limit || 100 }}"
+            },
+            {
+              "name": "order_by",
+              "value": "={{ $json.order_by || 'created_datetime:desc' }}"
+            },
+            {
+              "name": "cursor",
+              "value": "={{ $json.cursor || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bae3b1c0-29dc-4a5d-8fe4-7731e34e027d",
+      "name": "Fetch Tickets from Gorgias",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-1152, 64],
+      "retryOnFail": false,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "00RVVUesFbtpYkL5",
+          "name": "Gorgias"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "SS0khJKQgzgMCHG1",
+          "mode": "list",
+          "cachedResultName": "Gorgias Users",
+          "cachedResultUrl": "/projects/dJZdZEr9RLOOiIrC/datatables/SS0khJKQgzgMCHG1"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Slack_id",
+              "keyValue": "={{ $('Validate Input').item.json.user }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [-1104, 400],
+      "id": "31474657-74be-4cc1-9857-7c5a46459e60",
+      "name": "Fetch Team from Data Table"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get tickets data\nconst ticketsData = $('Fetch Tickets from Gorgias').first().json;\nconst tickets = ticketsData.data || [];\n\n// Get team data from n8n Data Table\nconst teamData = $('Fetch Team from Data Table').all().map(item => item.json);\n\n// Get query parameters for context\nconst queryParams = $('Build Query Parameters').first().json;\n\n// Initialize analytics object\nconst analytics = {\n  totalTickets: tickets.length,\n  timeRange: queryParams.timeRange,\n  startDate: queryParams.startDate,\n  endDate: queryParams.endDate,\n  tickets: tickets\n};\n\n// Calculate resolution times for closed tickets\nconst closedTickets = tickets.filter(t => t.status === 'closed');\nif (closedTickets.length > 0) {\n  const resolutionTimes = closedTickets.map(t => {\n    const created = new Date(t.created_datetime);\n    const closed = new Date(t.closed_datetime);\n    return (closed - created) / (1000 * 60); // minutes\n  }).filter(t => t > 0).sort((a, b) => a - b);\n  \n  analytics.resolutionTime = {\n    count: resolutionTimes.length,\n    avg: Math.round(resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length),\n    p50: Math.round(resolutionTimes[Math.floor(resolutionTimes.length * 0.5)]),\n    p90: Math.round(resolutionTimes[Math.floor(resolutionTimes.length * 0.9)]),\n    min: Math.round(resolutionTimes[0]),\n    max: Math.round(resolutionTimes[resolutionTimes.length - 1])\n  };\n}\n\n// Extract recurring questions (group by subject similarity)\nconst subjectGroups = {};\ntickets.forEach(t => {\n  if (t.subject) {\n    const key = t.subject.substring(0, 50).toLowerCase().trim();\n    if (!subjectGroups[key]) {\n      subjectGroups[key] = {\n        subject: t.subject,\n        count: 0,\n        ids: []\n      };\n    }\n    subjectGroups[key].count++;\n    subjectGroups[key].ids.push(t.id);\n  }\n});\n\nanalytics.recurringQuestions = Object.values(subjectGroups)\n  .filter(g => g.count > 1)\n  .sort((a, b) => b.count - a.count)\n  .slice(0, 10)\n  .map(g => ({\n    question: g.subject,\n    count: g.count,\n    ids: g.ids.slice(0, 10)\n  }));\n\n// Tag distribution\nconst tagCounts = {};\ntickets.forEach(t => {\n  if (t.tags && Array.isArray(t.tags)) {\n    t.tags.forEach(tag => {\n      tagCounts[tag.name] = (tagCounts[tag.name] || 0) + 1;\n    });\n  }\n});\n\nanalytics.topTags = Object.entries(tagCounts)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 10)\n  .map(([tag, count]) => ({ tag, count }));\n\n// Assignee workload with team context\nconst assigneeCounts = {};\ntickets.forEach(t => {\n  if (t.assignee_user) {\n    const key = t.assignee_user.email;\n    if (!assigneeCounts[key]) {\n      assigneeCounts[key] = {\n        email: key,\n        name: t.assignee_user.firstname || key,\n        count: 0\n      };\n    }\n    assigneeCounts[key].count++;\n  } else {\n    if (!assigneeCounts['unassigned']) {\n      assigneeCounts['unassigned'] = {\n        email: 'unassigned',\n        name: 'Unassigned',\n        count: 0\n      };\n    }\n    assigneeCounts['unassigned'].count++;\n  }\n});\n\n// Enhanced assignee analysis with team data\nanalytics.topAssignees = Object.values(assigneeCounts)\n  .map(agent => {\n    const teamMember = teamData.find(tm => tm.gorgias_email === agent.email);\n    return {\n      ...agent,\n      role: teamMember?.Role || 'unknown',\n      slackId: teamMember?.Slack_Id,\n      slackName: teamMember?.Slack_Name,\n      percentOfTotal: Math.round((agent.count / tickets.length) * 100)\n    };\n  })\n  .sort((a, b) => b.count - a.count)\n  .slice(0, 10);\n\n// Team context\nconst activeAgentEmails = [...new Set(tickets\n  .filter(t => t.assignee_user)\n  .map(t => t.assignee_user.email))];\n\nanalytics.teamContext = {\n  totalAgents: teamData.length,\n  activeAgents: activeAgentEmails.length,\n  inactiveAgents: teamData.filter(tm => !activeAgentEmails.includes(tm.gorgias_email)),\n  admins: teamData.filter(a => a.Role === 'ADMIN').length,\n  basic: teamData.filter(a => a.Role === 'BASIC').length,\n  avgTicketsPerAgent: tickets.length > 0 ? Math.round(tickets.length / activeAgentEmails.length) : 0\n};\n\n// Status distribution\nconst statusCounts = {};\ntickets.forEach(t => {\n  statusCounts[t.status] = (statusCounts[t.status] || 0) + 1;\n});\n\nanalytics.statusDistribution = statusCounts;\n\n// Priority distribution\nconst priorityCounts = {};\ntickets.forEach(t => {\n  const priority = t.priority || 'normal';\n  priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;\n});\n\nanalytics.priorityDistribution = priorityCounts;\n\n// Channel distribution\nconst channelCounts = {};\ntickets.forEach(t => {\n  channelCounts[t.channel] = (channelCounts[t.channel] || 0) + 1;\n});\n\nanalytics.channelDistribution = channelCounts;\n\nreturn { json: analytics };"
+      },
+      "id": "4493b37a-0dc0-4899-a159-a28eb97b1d2d",
+      "name": "Calculate Analytics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-656, 352],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.TENEX_BRIDGE_URL || 'http://localhost:3001' }}/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data\": {{ JSON.stringify($json) }},\n  \"prompt\": \"Analyze the above ticket data and provide comprehensive insights based on your role as an operations intelligence analyst for Ironside Computers support team.\",\n  \"phase\": \"execute\",\n  \"systemContext\": \"You are an operations intelligence analyst for Ironside Computers support team. Your job is to transform ticket data into actionable insights that help leadership reduce ticket volume, improve team efficiency, identify systemic issues, and make data-driven decisions.\\n\\nBe Data-Driven: Quantify everything with specific numbers. Compare patterns across agents, tags, channels, and time periods.\\n\\nBe Actionable: Every recommendation should be implementable immediately. Prioritize high-impact opportunities.\\n\\nOutput Format: Plain text suitable for direct Slack posting. NO code blocks, NO backticks. Use simple formatting: bullets (-), bold (*text*), newlines.\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "tenex-analyze-node",
+      "name": "Tenex Generate Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-432, 224],
+      "onError": "continueErrorOutput",
+      "notes": "Calls tenex bridge for multi-agent AI analysis. Falls back to original AI if unavailable."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "tenex-success-check",
+      "name": "Tenex Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-208, 224]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract output from Tenex response\nconst tenexResponse = $input.first().json;\n\nreturn {\n  json: {\n    output: tenexResponse.output,\n    source: 'tenex',\n    phase: tenexResponse.phase,\n    timestamp: tenexResponse.timestamp\n  }\n};"
+      },
+      "id": "extract-tenex-output",
+      "name": "Extract Tenex Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [16, 128]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Analytics Data\n\n{{ JSON.stringify($('Calculate Analytics').first().json, null, 2) }}\n\n# Task\n\nAnalyze the above ticket data and provide comprehensive insights based on your role and guidelines.",
+        "options": {
+          "systemMessage": "You are an operations intelligence analyst for Ironside Computers support team. Your job is to transform ticket data into actionable insights that help leadership:\n- Reduce ticket volume through better processes\n- Improve team efficiency and resource allocation  \n- Identify systemic issues before they escalate\n- Make data-driven operational decisions\n\n**Data Scope Awareness:**\n- You only have access to Gorgias ticket data (status, assignees, tags, timestamps, messages)\n- If a query requires data outside this scope (orders, purchases, e-commerce, inventory, etc.), clearly state that you cannot answer it and explain what data would be needed\n- Do NOT generate analysis on unrelated metrics when you cannot answer the core question\n\n**Analysis Guidelines:**\n\nBe Data-Driven:\n- Examine actual ticket timestamps to determine the real time period\n- Quantify everything with specific numbers\n- Compare patterns across agents, tags, channels, and time periods\n- Use team context to provide comparative analysis (individual vs team average)\n\nBe Actionable:\n- Every recommendation should be implementable immediately\n- Prioritize high-impact opportunities (automation, training, process changes)\n- Surface root causes, not just symptoms\n- Identify workload imbalances and suggest rebalancing\n\nAdapt Your Format:\n- Structure insights based on what the data reveals\n- Use clear sections, bullets, and emphasis for scannability\n- Match the depth to the query complexity\n- Highlight anomalies, trends, and patterns\n\nTeam Context:\n- You have access to the complete team roster with roles (ADMIN/BASIC)\n- Compare individual performance to team averages\n- Identify agents who are inactive or overwhelmed\n- Suggest role-based training opportunities\n- Flag workload distribution issues\n\n**Output Format:**\n- Plain text suitable for direct Slack posting\n- NO code blocks, NO backticks, NO markdown wrappers\n- Use simple formatting: bullets (-), bold (*text*), newlines\n\nAnalyze ticket data comprehensively. Let the data guide your analysis structure - you are NOT limited to any specific template."
+        }
+      },
+      "id": "eee7d9ef-776b-4d3d-9f71-f61b8ad59841",
+      "name": "Fallback AI Generate Insights",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [16, 320],
+      "onError": "continueErrorOutput",
+      "notes": "Fallback: Uses OpenRouter directly if Tenex is unavailable"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract output from Fallback AI response\nconst aiResponse = $input.first().json;\n\nreturn {\n  json: {\n    output: aiResponse.output,\n    source: 'fallback_ai',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "extract-fallback-output",
+      "name": "Extract Fallback Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 320]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [464, 224],
+      "id": "merge-insights",
+      "name": "Merge Insights"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the final output for Router\nconst insightsData = $input.first().json;\nconst analyticsData = $('Calculate Analytics').first().json;\n\nreturn {\n  json: {\n    success: true,\n    workflow: 'SW3',\n    operation: 'analytics_insights',\n    insights: insightsData.output,\n    source: insightsData.source || 'unknown',\n    rawData: {\n      totalTickets: analyticsData.totalTickets,\n      timeRange: analyticsData.timeRange,\n      resolutionTime: analyticsData.resolutionTime,\n      topTags: analyticsData.topTags?.slice(0, 5),\n      topAssignees: analyticsData.topAssignees?.slice(0, 5),\n      teamContext: analyticsData.teamContext,\n      statusDistribution: analyticsData.statusDistribution,\n      channelDistribution: analyticsData.channelDistribution\n    },\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "33f932da-6ff2-4a11-930d-f018647c1eb3",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [688, 224]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    success: false,\n    workflow: 'SW3',\n    error: 'Invalid input parameters',\n    message: 'Missing required field: intent',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "9b47155e-d561-40e4-b14e-0190087f44d4",
+      "name": "Error - Invalid Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1328, 416]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json.error || {};\n\nreturn {\n  json: {\n    success: false,\n    workflow: 'SW3',\n    error: 'Failed to fetch or process analytics',\n    details: error.message || JSON.stringify(error),\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "d8ee4d2f-9ea9-407b-83eb-de493b1c369e",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-32, 512]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-880, 208],
+      "id": "0b7f9ef2-37ab-4b38-8c89-a287fd96570b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4.5",
+        "options": {
+          "maxTokens": 4000,
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [16, 544],
+      "id": "5ca31fab-6e55-4cdc-aa82-fde1f8bab763",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "dkHyqaKDXnOTT5i0",
+          "name": "OpenRouter - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Build Query Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error - Invalid Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Query Parameters": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tickets from Gorgias",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Team from Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tickets from Gorgias": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Team from Data Table": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Calculate Analytics": {
+      "main": [
+        [
+          {
+            "node": "Tenex Generate Insights",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tenex Generate Insights": {
+      "main": [
+        [
+          {
+            "node": "Tenex Success?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback AI Generate Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tenex Success?": {
+      "main": [
+        [
+          {
+            "node": "Extract Tenex Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback AI Generate Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Tenex Output": {
+      "main": [
+        [
+          {
+            "node": "Merge Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback AI Generate Insights": {
+      "main": [
+        [
+          {
+            "node": "Extract Fallback Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fallback Output": {
+      "main": [
+        [
+          {
+            "node": "Merge Insights",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Insights": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Calculate Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fallback AI Generate Insights",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "query": "Generate an operational pulse check analyzing ticket trends for **today**.",
+        "user": "U09BSMA8U75",
+        "channel": "C09BXTD0WR0",
+        "thread_ts": "undefined"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "89aa7945180226003eaabc2f707966f9cb80855e1b923a9f8aa13c508486d4ce"
+  }
+}
