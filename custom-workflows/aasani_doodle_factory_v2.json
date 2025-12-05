@@ -1,0 +1,991 @@
+{
+  "name": "Aasani Doodle Factory v2",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🎨 Aasani Doodle Factory v2\n\n**Simplified Architecture:**\n1. Input topic/pain point\n2. GPT-4o generates script + scene descriptions\n3. DALL-E 3 generates doodle images\n4. ElevenLabs generates voiceover\n5. Creatomate assembles final video\n6. Save to Google Drive\n\n**Credentials Needed:**\n- OpenRouter API (for GPT-4o + DALL-E 3)\n- ElevenLabs API\n- Creatomate API\n- Google Drive OAuth",
+        "height": 320,
+        "width": 340,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-480, -100],
+      "id": "sticky-intro",
+      "name": "Intro"
+    },
+    {
+      "parameters": {
+        "formTitle": "Aasani Doodle Factory",
+        "formDescription": "Transform your business pain point into an engaging doodle-style Instagram Reel",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Topic / Pain Point",
+              "fieldType": "textarea",
+              "placeholder": "e.g., Sales team missing leads due to inconsistent data entry across multiple systems",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Audience",
+              "fieldType": "text",
+              "placeholder": "e.g., Small business owners, Sales managers",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Video Duration",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {"option": "30 seconds (4-5 scenes)"},
+                  {"option": "60 seconds (6-8 scenes)"}
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Call to Action",
+              "fieldType": "text",
+              "placeholder": "e.g., Visit aasani.ai to learn more",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "respondWithData": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [-100, 200],
+      "id": "form-trigger",
+      "name": "Input Form",
+      "webhookId": "aasani-doodle-factory-v2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "topic",
+              "name": "topic",
+              "value": "={{ $json['Topic / Pain Point'] }}",
+              "type": "string"
+            },
+            {
+              "id": "audience",
+              "name": "target_audience",
+              "value": "={{ $json['Target Audience'] }}",
+              "type": "string"
+            },
+            {
+              "id": "duration",
+              "name": "duration",
+              "value": "={{ $json['Video Duration'].includes('30') ? 30 : 60 }}",
+              "type": "number"
+            },
+            {
+              "id": "scene_count",
+              "name": "scene_count",
+              "value": "={{ $json['Video Duration'].includes('30') ? 5 : 7 }}",
+              "type": "number"
+            },
+            {
+              "id": "cta",
+              "name": "cta",
+              "value": "={{ $json['Call to Action'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [140, 200],
+      "id": "set-inputs",
+      "name": "Set Inputs"
+    },
+    {
+      "parameters": {
+        "content": "## Step 1: Generate Script\nGPT-4o creates scene-by-scene breakdown",
+        "height": 80,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [340, 100],
+      "id": "sticky-step1",
+      "name": "Step 1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert scriptwriter for whiteboard doodle explainer videos. You create scripts for Aasani AI, a business automation company. Your videos explain business pain points and position Aasani as the solution.\\n\\nYour scripts must:\\n- Hook viewers in the first 2 seconds with a relatable pain point\\n- Use simple visual metaphors perfect for doodle illustrations\\n- Keep each scene to 4-6 seconds of narration\\n- End with a clear call-to-action\\n\\nRETURN ONLY VALID JSON in this exact format:\\n{\\n  \\\"title\\\": \\\"Short video title\\\",\\n  \\\"hook\\\": \\\"Opening hook line (2 sec)\\\",\\n  \\\"scenes\\\": [\\n    {\\n      \\\"scene_number\\\": 1,\\n      \\\"duration_seconds\\\": 5,\\n      \\\"voiceover_text\\\": \\\"What the narrator says\\\",\\n      \\\"visual_description\\\": \\\"Detailed description of what to draw - stick figures, icons, arrows, simple shapes\\\",\\n      \\\"text_overlay\\\": \\\"Optional short text on screen\\\"\\n    }\\n  ],\\n  \\\"instagram_caption\\\": \\\"Engaging caption with line breaks and emojis\\\",\\n  \\\"hashtags\\\": [\\\"hashtag1\\\", \\\"hashtag2\\\"]\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a {{ $json.duration }}-second doodle video script with exactly {{ $json.scene_count }} scenes.\\n\\n**Topic/Pain Point:** {{ $json.topic }}\\n\\n**Target Audience:** {{ $json.target_audience }}\\n\\n**Call to Action:** {{ $json.cta }}\\n\\n**Visual Style Guidelines:**\\n- Black marker doodles on white background\\n- Simple stick figures for people\\n- Basic icons and shapes (arrows, gears, checkmarks, X marks)\\n- Thought bubbles, speech bubbles\\n- Simple graphs or charts when relevant\\n- Hand-drawn style text labels\\n- The Aasani logo appears in the final scene\\n\\nMake it relatable, slightly humorous, and educational.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [380, 200],
+      "id": "openrouter-script",
+      "name": "Generate Script (GPT-4o)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the script from OpenRouter response\nconst response = $input.first().json;\nconst content = response.choices[0].message.content;\n\ntry {\n  const script = JSON.parse(content);\n  \n  // Add metadata\n  script.generated_at = new Date().toISOString();\n  script.total_duration = script.scenes.reduce((sum, s) => sum + s.duration_seconds, 0);\n  \n  return { json: script };\n} catch (error) {\n  throw new Error('Failed to parse script JSON: ' + error.message);\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 200],
+      "id": "parse-script",
+      "name": "Parse Script"
+    },
+    {
+      "parameters": {
+        "content": "## Step 2: Generate Doodle Images\nDALL-E 3 creates images for each scene",
+        "height": 80,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [820, 100],
+      "id": "sticky-step2",
+      "name": "Step 2"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "scenes",
+        "options": {
+          "destinationFieldName": "scene",
+          "include": "selectedOtherFields",
+          "fieldsToInclude": "title, hook, instagram_caption, hashtags, total_duration"
+        }
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [860, 200],
+      "id": "split-scenes",
+      "name": "Split Scenes"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1100, 200],
+      "id": "loop-scenes",
+      "name": "Loop Scenes"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/dall-e-3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a whiteboard doodle illustration for a business explainer video.\\n\\n**Scene Description:** {{ $json.scene.visual_description }}\\n\\n**Text Overlay (if any):** {{ $json.scene.text_overlay || 'None' }}\\n\\n**STRICT STYLE REQUIREMENTS:**\\n- Pure white background (like a whiteboard)\\n- Black marker/pen line art only\\n- Hand-drawn doodle aesthetic\\n- Simple stick figures for any people\\n- Basic icons: arrows, checkmarks, X marks, gears, lightbulbs\\n- Minimalist, clean composition\\n- NO photorealistic elements\\n- NO gradients or shading\\n- NO colors except black lines on white\\n- Style similar to RSA Animate whiteboard videos\\n- Vertical format optimized for Instagram Reels (9:16 aspect ratio)\\n\\nThe image should look like someone quickly sketched it on a whiteboard with a black marker.\"\n    }\n  ],\n  \"max_tokens\": 1000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "id": "generate-image",
+      "name": "Generate Doodle (DALL-E 3)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"dall-e-3\",\n  \"prompt\": \"Create a whiteboard doodle illustration for a business explainer video. Scene: {{ $json.scene.visual_description }}. {{ $json.scene.text_overlay ? 'Include text label: ' + $json.scene.text_overlay : '' }} STYLE: Pure white background, black marker line art only, hand-drawn doodle aesthetic, simple stick figures, minimalist icons (arrows, checkmarks, gears), NO photorealistic elements, NO colors except black on white, RSA Animate whiteboard style, vertical 9:16 format for Instagram Reels.\",\n  \"n\": 1,\n  \"size\": \"1024x1792\",\n  \"quality\": \"standard\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "id": "generate-image-direct",
+      "name": "Generate Doodle (DALL-E 3 Direct)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "content": "## Step 3: Generate Voiceover\nElevenLabs TTS for each scene",
+        "height": 80,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1540, 100],
+      "id": "sticky-step3",
+      "name": "Step 3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $('Loop Scenes').item.json.scene.voiceover_text }}\",\n  \"model_id\": \"eleven_monolingual_v1\",\n  \"voice_settings\": {\n    \"stability\": 0.5,\n    \"similarity_boost\": 0.75\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 200],
+      "id": "generate-audio",
+      "name": "Generate Voiceover (ElevenLabs)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ELEVENLABS_CREDENTIAL_ID",
+          "name": "ElevenLabs API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "=scene_{{ $('Loop Scenes').item.json.scene.scene_number }}_audio.mp3",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GOOGLE_DRIVE_TEMP_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1820, 200],
+      "id": "upload-audio-temp",
+      "name": "Upload Audio (Temp)",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Generate Doodle (DALL-E 3 Direct)').item.json.data[0].url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 360],
+      "id": "download-image",
+      "name": "Download Image"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "=scene_{{ $('Loop Scenes').item.json.scene.scene_number }}_image.png",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GOOGLE_DRIVE_TEMP_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2060, 360],
+      "id": "upload-image-temp",
+      "name": "Upload Image (Temp)",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "scene-num",
+              "name": "scene_number",
+              "value": "={{ $('Loop Scenes').item.json.scene.scene_number }}",
+              "type": "number"
+            },
+            {
+              "id": "duration",
+              "name": "duration_seconds",
+              "value": "={{ $('Loop Scenes').item.json.scene.duration_seconds }}",
+              "type": "number"
+            },
+            {
+              "id": "voiceover",
+              "name": "voiceover_text",
+              "value": "={{ $('Loop Scenes').item.json.scene.voiceover_text }}",
+              "type": "string"
+            },
+            {
+              "id": "image-url",
+              "name": "image_url",
+              "value": "={{ $('Upload Image (Temp)').item.json.webContentLink }}",
+              "type": "string"
+            },
+            {
+              "id": "audio-url",
+              "name": "audio_url",
+              "value": "={{ $('Upload Audio (Temp)').item.json.webContentLink }}",
+              "type": "string"
+            },
+            {
+              "id": "text-overlay",
+              "name": "text_overlay",
+              "value": "={{ $('Loop Scenes').item.json.scene.text_overlay || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2300, 280],
+      "id": "prepare-scene-output",
+      "name": "Prepare Scene Output"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "all_scenes",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2540, 200],
+      "id": "aggregate-scenes",
+      "name": "Aggregate Scenes"
+    },
+    {
+      "parameters": {
+        "content": "## Step 4: Render Video\nCreatomate assembles final video",
+        "height": 80,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2740, 100],
+      "id": "sticky-step4",
+      "name": "Step 4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Creatomate render payload\nconst scenes = $input.first().json.all_scenes;\nconst scriptData = $('Parse Script').first().json;\n\n// Calculate cumulative start times\nlet currentTime = 0;\nconst elements = [];\n\nscenes.forEach((scene, index) => {\n  // Image element\n  elements.push({\n    \"type\": \"image\",\n    \"track\": 1,\n    \"time\": currentTime,\n    \"duration\": scene.duration_seconds,\n    \"source\": scene.image_url,\n    \"fit\": \"cover\",\n    \"animations\": [\n      { \"type\": \"fade\", \"fade_type\": \"in\", \"duration\": 0.3 },\n      { \"type\": \"fade\", \"fade_type\": \"out\", \"duration\": 0.3, \"start_time\": scene.duration_seconds - 0.3 }\n    ]\n  });\n  \n  // Audio element\n  elements.push({\n    \"type\": \"audio\",\n    \"track\": 2,\n    \"time\": currentTime,\n    \"source\": scene.audio_url\n  });\n  \n  // Text overlay (if any)\n  if (scene.text_overlay) {\n    elements.push({\n      \"type\": \"text\",\n      \"track\": 3,\n      \"time\": currentTime + 0.5,\n      \"duration\": scene.duration_seconds - 1,\n      \"text\": scene.text_overlay,\n      \"font_family\": \"Permanent Marker\",\n      \"font_size\": \"8 vmin\",\n      \"fill_color\": \"#000000\",\n      \"x\": \"50%\",\n      \"y\": \"85%\",\n      \"x_anchor\": \"50%\",\n      \"y_anchor\": \"50%\",\n      \"animations\": [\n        { \"type\": \"fade\", \"fade_type\": \"in\", \"duration\": 0.3 }\n      ]\n    });\n  }\n  \n  currentTime += scene.duration_seconds;\n});\n\nreturn {\n  json: {\n    \"output_format\": \"mp4\",\n    \"width\": 1080,\n    \"height\": 1920,\n    \"frame_rate\": 30,\n    \"elements\": elements,\n    \"metadata\": {\n      \"title\": scriptData.title,\n      \"instagram_caption\": scriptData.instagram_caption,\n      \"hashtags\": scriptData.hashtags\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2780, 200],
+      "id": "build-creatomate-payload",
+      "name": "Build Creatomate Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.creatomate.com/v1/renders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3020, 200],
+      "id": "creatomate-render",
+      "name": "Start Render (Creatomate)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CREATOMATE_CREDENTIAL_ID",
+          "name": "Creatomate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3260, 200],
+      "id": "wait-render",
+      "name": "Wait 30s",
+      "webhookId": "wait-creatomate"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.creatomate.com/v1/renders/{{ $('Start Render (Creatomate)').item.json[0].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3500, 200],
+      "id": "check-render-status",
+      "name": "Check Render Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CREATOMATE_CREDENTIAL_ID",
+          "name": "Creatomate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "succeeded",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3740, 200],
+      "id": "render-complete",
+      "name": "Render Complete?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3980, 100],
+      "id": "download-video",
+      "name": "Download Video"
+    },
+    {
+      "parameters": {
+        "content": "## Step 5: Save & Notify",
+        "height": 80,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [4180, 0],
+      "id": "sticky-step5",
+      "name": "Step 5"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "=Aasani_Reel_{{ $('Parse Script').item.json.title.replace(/[^a-zA-Z0-9]/g, '_') }}_{{ $now.format('yyyy-MM-dd_HHmm') }}.mp4",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GOOGLE_DRIVE_OUTPUT_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [4220, 100],
+      "id": "save-final-video",
+      "name": "Save Final Video",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "output-url",
+              "name": "video_url",
+              "value": "={{ $json.webViewLink }}",
+              "type": "string"
+            },
+            {
+              "id": "output-title",
+              "name": "title",
+              "value": "={{ $('Parse Script').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "output-caption",
+              "name": "instagram_caption",
+              "value": "={{ $('Parse Script').item.json.instagram_caption }}",
+              "type": "string"
+            },
+            {
+              "id": "output-hashtags",
+              "name": "hashtags",
+              "value": "={{ $('Parse Script').item.json.hashtags.map(h => '#' + h).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "output-full-caption",
+              "name": "full_caption",
+              "value": "={{ $('Parse Script').item.json.instagram_caption }}\n\n{{ $('Parse Script').item.json.hashtags.map(h => '#' + h).join(' ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [4460, 100],
+      "id": "prepare-output",
+      "name": "Prepare Output"
+    },
+    {
+      "parameters": {
+        "channel": "#content-created",
+        "text": "=🎬 *New Aasani Doodle Reel Created!*\n\n*Title:* {{ $json.title }}\n\n*Video:* {{ $json.video_url }}\n\n*Instagram Caption:*\n{{ $json.full_caption }}\n\n✅ Ready for posting!",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [4700, 100],
+      "id": "slack-notify",
+      "name": "Notify Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"title\": {{ JSON.stringify($json.title) }},\n  \"video_url\": {{ JSON.stringify($json.video_url) }},\n  \"instagram_caption\": {{ JSON.stringify($json.full_caption) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [4940, 100],
+      "id": "respond-success",
+      "name": "Return Success"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3980, 300],
+      "id": "wait-more",
+      "name": "Wait More",
+      "webhookId": "wait-more-creatomate"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials to Replace\n\n1. `OPENROUTER_CREDENTIAL_ID` → Your OpenRouter API key\n   - Header Name: `Authorization`\n   - Header Value: `Bearer YOUR_OPENROUTER_KEY`\n\n2. `OPENAI_CREDENTIAL_ID` → Your OpenAI API key (for DALL-E 3)\n   - Header Name: `Authorization`\n   - Header Value: `Bearer YOUR_OPENAI_KEY`\n\n3. `ELEVENLABS_CREDENTIAL_ID` → Your ElevenLabs API key\n   - Header Name: `xi-api-key`\n   - Header Value: `YOUR_ELEVENLABS_KEY`\n\n4. `CREATOMATE_CREDENTIAL_ID` → Your Creatomate API key\n   - Header Name: `Authorization`\n   - Header Value: `Bearer YOUR_CREATOMATE_KEY`\n\n5. `GOOGLE_DRIVE_CREDENTIAL_ID` → Google Drive OAuth2\n\n6. `SLACK_CREDENTIAL_ID` → Slack Bot Token (optional)\n\n7. `GOOGLE_DRIVE_TEMP_FOLDER_ID` → Folder for temp files\n\n8. `GOOGLE_DRIVE_OUTPUT_FOLDER_ID` → Folder for final videos",
+        "height": 440,
+        "width": 460,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-480, 240],
+      "id": "sticky-credentials",
+      "name": "Credentials Guide"
+    },
+    {
+      "parameters": {
+        "content": "## ElevenLabs Voice IDs\n\nReplace the voice ID in the URL with your preferred voice:\n\n- `21m00Tcm4TlvDq8ikWAM` → Rachel (calm, professional)\n- `AZnzlk1XvdvUeBnXmlld` → Domi (confident)\n- `EXAVITQu4vr4xnSDxMaL` → Bella (soft)\n- `ErXwobaYiN019PkySvjV` → Antoni (warm)\n- `MF3mGyEYCl7XYWbV9V6O` → Elli (young)\n- `TxGEqnHWrfWFTfGW9XjX` → Josh (deep)\n- `VR6AewLTigWG4xSOukaG` → Arnold (energetic)\n- `pNInz6obpgDQGcFmaJgB` → Adam (deep, narrative)\n- `yoZ06aMxZJJ28mfd3POQ` → Sam (dynamic)",
+        "height": 300,
+        "width": 380,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -200],
+      "id": "sticky-voices",
+      "name": "Voice Options"
+    }
+  ],
+  "connections": {
+    "Input Form": {
+      "main": [
+        [
+          {
+            "node": "Set Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inputs": {
+      "main": [
+        [
+          {
+            "node": "Generate Script (GPT-4o)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script (GPT-4o)": {
+      "main": [
+        [
+          {
+            "node": "Parse Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script": {
+      "main": [
+        [
+          {
+            "node": "Split Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Scenes": {
+      "main": [
+        [
+          {
+            "node": "Loop Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Scenes": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Doodle (DALL-E 3 Direct)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Voiceover (ElevenLabs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Doodle (DALL-E 3 Direct)": {
+      "main": [
+        [
+          {
+            "node": "Download Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Image": {
+      "main": [
+        [
+          {
+            "node": "Upload Image (Temp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Voiceover (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "Upload Audio (Temp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Audio (Temp)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Scene Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Image (Temp)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Scene Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Scene Output": {
+      "main": [
+        [
+          {
+            "node": "Loop Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Scenes": {
+      "main": [
+        [
+          {
+            "node": "Build Creatomate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Creatomate Payload": {
+      "main": [
+        [
+          {
+            "node": "Start Render (Creatomate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Render (Creatomate)": {
+      "main": [
+        [
+          {
+            "node": "Wait 30s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30s": {
+      "main": [
+        [
+          {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Render Status": {
+      "main": [
+        [
+          {
+            "node": "Render Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Complete?": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait More",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Save Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait More": {
+      "main": [
+        [
+          {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Final Video": {
+      "main": [
+        [
+          {
+            "node": "Prepare Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Output": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack": {
+      "main": [
+        [
+          {
+            "node": "Return Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "aasani-doodle-factory-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "aasani-doodle-factory"
+  },
+  "id": "aasani-doodle-factory-v2",
+  "tags": [
+    {"name": "Aasani", "id": "aasani"},
+    {"name": "Video", "id": "video"},
+    {"name": "AI", "id": "ai"},
+    {"name": "Content", "id": "content"}
+  ]
+}
