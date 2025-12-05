@@ -1,0 +1,903 @@
+{
+  "name": "Aasani AI - Doodle Reel Generator for Business Solutions",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aasani AI - Doodle Reel Generator\n\n**Purpose:** Transform business solution descriptions into engaging doodle-style Instagram Reels\n\n**Flow:**\n1. Input your business solution text\n2. AI generates an engaging video script\n3. Script is broken into visual scenes\n4. Doodle/whiteboard images are generated for each scene\n5. Images are compiled into a video\n6. Caption and hashtags are generated\n7. Video is saved and ready for posting\n\n**Requirements:**\n- OpenAI API key\n- Google Gemini API key (optional, for image generation)\n- Replicate API key (for video generation)\n- Google Drive (for storage)",
+        "height": 380,
+        "width": 400,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-440, -200],
+      "typeVersion": 1,
+      "id": "intro-note",
+      "name": "Intro Note"
+    },
+    {
+      "parameters": {
+        "formTitle": "Doodle Reel Generator - Aasani AI",
+        "formDescription": "Transform your business solution description into an engaging doodle-style Instagram Reel",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Business Solution Description",
+              "fieldType": "textarea",
+              "placeholder": "Describe your business solution, the problem it solves, and the benefits it provides. Be specific about the pain points and how your solution addresses them.",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Audience",
+              "fieldType": "text",
+              "placeholder": "e.g., Small business owners, HR managers, Healthcare providers",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Tone/Style",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {"option": "Professional & Educational"},
+                  {"option": "Friendly & Conversational"},
+                  {"option": "Energetic & Exciting"},
+                  {"option": "Calm & Reassuring"}
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Video Duration",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {"option": "15 seconds (Quick tip)"},
+                  {"option": "30 seconds (Standard)"},
+                  {"option": "60 seconds (Detailed)"}
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Brand Color (Hex)",
+              "fieldType": "text",
+              "placeholder": "#4A90D9",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {
+          "respondWithData": true
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 200],
+      "id": "form-trigger",
+      "name": "Input Form",
+      "webhookId": "aasani-doodle-reel-generator"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "duration-extract",
+              "name": "duration_seconds",
+              "value": "={{ $json['Video Duration'].includes('15') ? 15 : $json['Video Duration'].includes('30') ? 30 : 60 }}",
+              "type": "number"
+            },
+            {
+              "id": "scene-count",
+              "name": "scene_count",
+              "value": "={{ $json['Video Duration'].includes('15') ? 3 : $json['Video Duration'].includes('30') ? 5 : 8 }}",
+              "type": "number"
+            },
+            {
+              "id": "business-desc",
+              "name": "business_description",
+              "value": "={{ $json['Business Solution Description'] }}",
+              "type": "string"
+            },
+            {
+              "id": "target-audience",
+              "name": "target_audience",
+              "value": "={{ $json['Target Audience'] }}",
+              "type": "string"
+            },
+            {
+              "id": "tone-style",
+              "name": "tone_style",
+              "value": "={{ $json['Tone/Style'] }}",
+              "type": "string"
+            },
+            {
+              "id": "brand-color",
+              "name": "brand_color",
+              "value": "={{ $json['Brand Color (Hex)'] || '#4A90D9' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [240, 200],
+      "id": "extract-inputs",
+      "name": "Extract Inputs"
+    },
+    {
+      "parameters": {
+        "content": "## Step 1: Generate Video Script\nAI creates an engaging script with scene breakdowns",
+        "height": 100,
+        "width": 600,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [440, 80],
+      "typeVersion": 1,
+      "id": "step1-note",
+      "name": "Step 1 Note"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert video scriptwriter specializing in creating engaging whiteboard/doodle-style explainer videos for social media. Your scripts are designed for Instagram Reels that explain business solutions in a simple, visual, and memorable way.\n\nYou create scripts that:\n- Hook viewers in the first 2 seconds\n- Break down complex business problems into simple visual concepts\n- Use relatable scenarios and pain points\n- End with a clear call-to-action\n- Are perfect for whiteboard/doodle animation style\n\nYour output must be a JSON object with this exact structure:\n{\n  \"hook\": \"The attention-grabbing opening line (2-3 seconds)\",\n  \"problem_statement\": \"The relatable problem description\",\n  \"solution_intro\": \"How the solution addresses this\",\n  \"key_benefits\": [\"benefit 1\", \"benefit 2\", \"benefit 3\"],\n  \"call_to_action\": \"The closing CTA\",\n  \"scenes\": [\n    {\n      \"scene_number\": 1,\n      \"duration_seconds\": 3,\n      \"narration\": \"What is said during this scene\",\n      \"visual_description\": \"Detailed description of what should be drawn/animated in doodle style\",\n      \"doodle_elements\": [\"element1\", \"element2\"],\n      \"text_overlay\": \"Any text that should appear on screen\"\n    }\n  ],\n  \"instagram_caption\": \"Engaging caption with line breaks\",\n  \"hashtags\": [\"hashtag1\", \"hashtag2\"]\n}",
+              "role": "system"
+            },
+            {
+              "content": "=Create a {{ $json.duration_seconds }}-second Instagram Reel script with exactly {{ $json.scene_count }} scenes.\n\n**Business Solution:**\n{{ $json.business_description }}\n\n**Target Audience:** {{ $json.target_audience }}\n\n**Tone/Style:** {{ $json.tone_style }}\n\n**Important Guidelines:**\n1. The script should explain the business problem and solution in a way that's perfect for whiteboard/doodle animation\n2. Each scene should have clear visual elements that can be drawn in a simple, iconic style\n3. Use simple metaphors and visual analogies (e.g., tangled ropes for complexity, flowing arrows for automation)\n4. Include pain points that the target audience will immediately recognize\n5. Keep narration concise - this is for short-form video\n6. Doodle elements should be simple icons and illustrations (stick figures, simple shapes, arrows, icons)\n7. The visual style should be clean, minimalist whiteboard drawings with occasional color accents\n\nReturn ONLY valid JSON, no markdown code blocks.",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {
+          "responseFormat": "json_object",
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [480, 200],
+      "id": "generate-script",
+      "name": "Generate Script",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the script JSON from OpenAI response\nconst scriptData = JSON.parse($input.first().json.content);\n\n// Add metadata from previous nodes\nscriptData.brand_color = $('Extract Inputs').first().json.brand_color;\nscriptData.duration_seconds = $('Extract Inputs').first().json.duration_seconds;\nscriptData.target_audience = $('Extract Inputs').first().json.target_audience;\nscriptData.business_description = $('Extract Inputs').first().json.business_description;\n\nreturn { json: scriptData };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 200],
+      "id": "parse-script",
+      "name": "Parse Script JSON"
+    },
+    {
+      "parameters": {
+        "content": "## Step 2: Generate Doodle Images\nCreate whiteboard-style images for each scene",
+        "height": 100,
+        "width": 600,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [920, 80],
+      "typeVersion": 1,
+      "id": "step2-note",
+      "name": "Step 2 Note"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "scenes",
+        "options": {
+          "destinationFieldName": "scene",
+          "include": "selectedOtherFields",
+          "fieldsToInclude": "brand_color, duration_seconds, hook"
+        }
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [960, 200],
+      "id": "split-scenes",
+      "name": "Split Scenes"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 200],
+      "id": "iterate-scenes",
+      "name": "Iterate Scenes"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "generate",
+        "model": {
+          "__rl": true,
+          "value": "dall-e-3",
+          "mode": "list"
+        },
+        "prompt": "=Create a whiteboard doodle-style illustration for a business explainer video scene.\n\n**Scene Description:** {{ $json.scene.visual_description }}\n\n**Doodle Elements to Include:** {{ $json.scene.doodle_elements.join(', ') }}\n\n**Style Requirements:**\n- Clean whiteboard/chalkboard background (white or light gray)\n- Hand-drawn doodle style with black line art\n- Simple, iconic illustrations (stick figures, basic shapes, arrows)\n- Accent color: {{ $json.brand_color }} used sparingly for emphasis\n- Minimalist and clean composition\n- NO photorealistic elements - everything should look hand-drawn\n- Style similar to RSA Animate or whiteboard explainer videos\n- Include simple text labels where helpful\n- Cartoon/sketch aesthetic with personality\n\n**Text Overlay (if any):** {{ $json.scene.text_overlay || 'None' }}\n\nThe image should be perfect for an Instagram Reel frame, vertical aspect ratio preferred.",
+        "options": {
+          "size": "1024x1792",
+          "quality": "hd",
+          "style": "natural"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1440, 200],
+      "id": "generate-doodle-image",
+      "name": "Generate Doodle Image",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data[0].url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 200],
+      "id": "download-image",
+      "name": "Download Image"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "scene-data",
+              "name": "scene_number",
+              "value": "={{ $('Iterate Scenes').item.json.scene.scene_number }}",
+              "type": "number"
+            },
+            {
+              "id": "duration",
+              "name": "scene_duration",
+              "value": "={{ $('Iterate Scenes').item.json.scene.duration_seconds }}",
+              "type": "number"
+            },
+            {
+              "id": "narration",
+              "name": "narration",
+              "value": "={{ $('Iterate Scenes').item.json.scene.narration }}",
+              "type": "string"
+            },
+            {
+              "id": "text-overlay",
+              "name": "text_overlay",
+              "value": "={{ $('Iterate Scenes').item.json.scene.text_overlay }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1920, 200],
+      "id": "prepare-scene-data",
+      "name": "Prepare Scene Data"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "scenes_with_images",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2160, 200],
+      "id": "aggregate-scenes",
+      "name": "Aggregate All Scenes"
+    },
+    {
+      "parameters": {
+        "content": "## Step 3: Generate Video\nCompile images into animated video with AI",
+        "height": 100,
+        "width": 600,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [2360, 80],
+      "typeVersion": 1,
+      "id": "step3-note",
+      "name": "Step 3 Note"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are creating a narration script for text-to-speech. Combine all the scene narrations into one smooth, flowing script that will be used for voiceover. Add natural pauses indicated by '...' where appropriate. Keep the energy and tone consistent.",
+              "role": "system"
+            },
+            {
+              "content": "=Combine these scene narrations into one flowing voiceover script:\n\n{{ $json.scenes_with_images.map(s => `Scene ${s.scene_number}: \"${s.narration}\"`).join('\\n\\n') }}\n\nReturn ONLY the combined narration text, nothing else. Add brief pauses (...) between scene transitions.",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [2400, 200],
+      "id": "combine-narration",
+      "name": "Combine Narration",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "generate",
+        "model": "tts-1-hd",
+        "input": "={{ $json.content }}",
+        "voice": "nova",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [2640, 200],
+      "id": "generate-voiceover",
+      "name": "Generate Voiceover",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.replicate.com/v1/predictions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"version\": \"minimax/video-01\",\n  \"input\": {\n    \"prompt\": \"Whiteboard doodle animation style video. Hand-drawn illustrations animating smoothly. Clean transitions between scenes. Educational explainer video aesthetic. Black line art on white background with {{ $('Parse Script JSON').item.json.brand_color }} accent color. Simple, iconic illustrations coming to life. Stick figures and simple shapes animate naturally. Arrows flow and connect concepts. Text appears as if being written. Professional business explainer video style similar to RSA Animate.\",\n    \"first_frame_image\": \"{{ $('Aggregate All Scenes').item.json.scenes_with_images[0].data }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 200],
+      "id": "generate-video-api",
+      "name": "Generate Video (Replicate)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_REPLICATE_CREDENTIAL_ID",
+          "name": "Replicate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3120, 200],
+      "id": "wait-for-video",
+      "name": "Wait for Processing",
+      "webhookId": "video-wait"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Generate Video (Replicate)').item.json.urls.get }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3360, 200],
+      "id": "check-video-status",
+      "name": "Check Video Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_REPLICATE_CREDENTIAL_ID",
+          "name": "Replicate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "succeeded",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3600, 200],
+      "id": "video-ready-check",
+      "name": "Video Ready?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.output }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3840, 100],
+      "id": "download-video",
+      "name": "Download Video"
+    },
+    {
+      "parameters": {
+        "content": "## Step 4: Save & Prepare for Posting",
+        "height": 100,
+        "width": 600,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [4040, -20],
+      "typeVersion": 1,
+      "id": "step4-note",
+      "name": "Step 4 Note"
+    },
+    {
+      "parameters": {
+        "name": "=Aasani_Reel_{{ new Date().toISOString().split('T')[0] }}_{{ Math.random().toString(36).substr(2, 6) }}.mp4",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [4080, 100],
+      "id": "save-to-drive",
+      "name": "Save to Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final-output",
+              "name": "video_url",
+              "value": "={{ $json.webViewLink }}",
+              "type": "string"
+            },
+            {
+              "id": "caption",
+              "name": "instagram_caption",
+              "value": "={{ $('Parse Script JSON').item.json.instagram_caption }}",
+              "type": "string"
+            },
+            {
+              "id": "hashtags",
+              "name": "hashtags",
+              "value": "={{ $('Parse Script JSON').item.json.hashtags.map(h => '#' + h).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "full-caption",
+              "name": "full_post_caption",
+              "value": "={{ $('Parse Script JSON').item.json.instagram_caption }}\\n\\n{{ $('Parse Script JSON').item.json.hashtags.map(h => '#' + h).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "script-summary",
+              "name": "script_summary",
+              "value": "=Hook: {{ $('Parse Script JSON').item.json.hook }}\\nProblem: {{ $('Parse Script JSON').item.json.problem_statement }}\\nSolution: {{ $('Parse Script JSON').item.json.solution_intro }}\\nCTA: {{ $('Parse Script JSON').item.json.call_to_action }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [4320, 100],
+      "id": "prepare-final-output",
+      "name": "Prepare Final Output"
+    },
+    {
+      "parameters": {
+        "channel": "#social-media-content",
+        "text": "=🎬 *New Doodle Reel Generated!*\n\n*Video URL:* {{ $json.video_url }}\n\n*Script Summary:*\n{{ $json.script_summary }}\n\n*Instagram Caption:*\n{{ $json.full_post_caption }}\n\n_Ready for review and posting!_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [4560, 100],
+      "id": "notify-slack",
+      "name": "Notify via Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Your doodle reel has been generated!\",\n  \"video_url\": \"{{ $json.video_url }}\",\n  \"instagram_caption\": {{ JSON.stringify($json.full_post_caption) }},\n  \"script_summary\": {{ JSON.stringify($json.script_summary) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [4800, 100],
+      "id": "respond-success",
+      "name": "Return Success"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Video is still processing. Please check back in a few minutes.\",\n  \"status\": \"{{ $json.status }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3840, 300],
+      "id": "respond-processing",
+      "name": "Still Processing"
+    },
+    {
+      "parameters": {
+        "content": "## Alternative: Manual Video Creation Path\n\nIf you prefer to create videos manually or use a different video tool:\n\n1. The workflow generates all doodle images\n2. Download images from the aggregated output\n3. Use CapCut, Canva, or InVideo to compile\n4. Add the generated voiceover audio\n5. Export and post manually\n\nThis gives you more control over timing and transitions.",
+        "height": 200,
+        "width": 400,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [2880, 380],
+      "typeVersion": 1,
+      "id": "manual-note",
+      "name": "Manual Alternative"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials Required\n\n1. **OpenAI API** - For script generation, image generation (DALL-E 3), and text-to-speech\n\n2. **Replicate API** - For AI video generation (or use alternative like Runway ML, Luma AI)\n\n3. **Google Drive** - For saving generated videos\n\n4. **Slack** (Optional) - For notifications\n\n## Setup Instructions\n\n1. Replace all `YOUR_*_CREDENTIAL_ID` placeholders with your actual credential IDs\n2. Set your Google Drive folder ID for video storage\n3. Adjust the video generation API if using a different service\n4. Test with a simple business description first",
+        "height": 340,
+        "width": 400,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-440, 200],
+      "typeVersion": 1,
+      "id": "setup-note",
+      "name": "Setup Instructions"
+    }
+  ],
+  "connections": {
+    "Input Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Inputs": {
+      "main": [
+        [
+          {
+            "node": "Generate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Script JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script JSON": {
+      "main": [
+        [
+          {
+            "node": "Split Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Scenes": {
+      "main": [
+        [
+          {
+            "node": "Iterate Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Iterate Scenes": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Doodle Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Doodle Image": {
+      "main": [
+        [
+          {
+            "node": "Download Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Image": {
+      "main": [
+        [
+          {
+            "node": "Prepare Scene Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Scene Data": {
+      "main": [
+        [
+          {
+            "node": "Iterate Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Scenes": {
+      "main": [
+        [
+          {
+            "node": "Combine Narration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Narration": {
+      "main": [
+        [
+          {
+            "node": "Generate Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Generate Video (Replicate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Video (Replicate)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Processing": {
+      "main": [
+        [
+          {
+            "node": "Check Video Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Video Status": {
+      "main": [
+        [
+          {
+            "node": "Video Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Ready?": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Still Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Output": {
+      "main": [
+        [
+          {
+            "node": "Notify via Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify via Slack": {
+      "main": [
+        [
+          {
+            "node": "Return Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "aasani-doodle-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "aasani-custom-workflow"
+  },
+  "id": "aasani-doodle-reel-generator",
+  "tags": [
+    {
+      "name": "AI",
+      "id": "ai"
+    },
+    {
+      "name": "Video Generation",
+      "id": "video"
+    },
+    {
+      "name": "Social Media",
+      "id": "social"
+    },
+    {
+      "name": "Content Creation",
+      "id": "content"
+    }
+  ]
+}
