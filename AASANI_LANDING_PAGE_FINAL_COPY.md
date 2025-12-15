@@ -20,10 +20,10 @@ Template: https://agenius.framer.website
 ## 2. HERO
 
 **Headline:**
-> Get your business running smoother.
+> Intelligence Needs Structure
 
 **Subheadline:**
-> I help businesses run smoother by organizing their people, tools, and data.
+> We align your people, data, and tools into a clear, connected system that supports your entire business.
 
 **Button:** [Let's Talk]
 
@@ -35,18 +35,18 @@ Template: https://agenius.framer.website
 
 | Card | Icon/Doodle | Headline | Subtext |
 |------|-------------|----------|---------|
-| 1 | Simple person icon | **People** | Turn team knowledge into clear systems |
-| 2 | Connected boxes icon | **Tools** | Connect your software so it works as one |
-| 3 | Organized folder icon | **Data** | Organize scattered information into one source |
-| 4 | Watering can / plant icon | **Ongoing Support** | Keep everything running as you grow |
+| 1 | Simple person icon | **People** | Capture knowledge and build clear processes |
+| 2 | Connected boxes icon | **Tools** | Connect systems so information flows seamlessly |
+| 3 | Organized folder icon | **Data** | Centralize information into one reliable source |
+| 4 | Watering can / plant icon | **Ongoing Support** | Maintain and improve systems as you grow |
 
 ---
 
 ## 4. STATS SECTION
 
-**Headline:** It works.
+**Headline:** Results that matter.
 
-**Subheadline:** Businesses I have helped get organized.
+**Subheadline:** Businesses we have helped get organized.
 
 | Number | Label |
 |--------|-------|
@@ -63,7 +63,7 @@ Template: https://agenius.framer.website
 ### Section A: PEOPLE
 
 **Headline:** People
-**Subheadline:** Turn team knowledge into documented systems
+**Subheadline:** Capture knowledge and create clear processes
 
 **Tags (pills on left):**
 - Process Documentation
@@ -73,7 +73,7 @@ Template: https://agenius.framer.website
 - Onboarding Systems
 
 **Description (right side):**
-> Your best employees hold valuable knowledge. But if that knowledge only exists in their heads, it leaves when they do. I work with your team to capture what they know and turn it into simple systems that anyone can follow.
+> Your team holds valuable knowledge about how work gets done. We help capture that knowledge and turn it into clear, documented processes that anyone can follow. This protects your business and makes onboarding seamless.
 
 **Images:** Photos or doodles of someone interviewing a team member, a simple process document, a checklist
 
@@ -84,7 +84,7 @@ Template: https://agenius.framer.website
 ### Section B: TOOLS
 
 **Headline:** Tools
-**Subheadline:** Connect your software so it works as one system
+**Subheadline:** Connect systems so information flows seamlessly
 
 **Tags (pills on left):**
 - Tool Audit
@@ -94,7 +94,7 @@ Template: https://agenius.framer.website
 - Removing Redundant Apps
 
 **Description (right side):**
-> Most businesses use five to ten tools that do not communicate with each other. This leads to duplicate work, missed information, and confusion about what is current. I connect what you already have so information flows automatically.
+> Most businesses use multiple tools that do not communicate with each other. This creates duplicate work and confusion. We connect your existing systems so information flows automatically and your team can focus on what matters.
 
 **Images:** Screenshots of connected tools, before/after of messy vs clean dashboard
 
@@ -105,7 +105,7 @@ Template: https://agenius.framer.website
 ### Section C: DATA
 
 **Headline:** Data
-**Subheadline:** Organize scattered information into one clear source
+**Subheadline:** Centralize information into one reliable source
 
 **Tags (pills on left):**
 - Data Cleanup
@@ -115,7 +115,7 @@ Template: https://agenius.framer.website
 - Dashboard Basics
 
 **Description (right side):**
-> Your data probably lives in six different places. Some in spreadsheets, some in tools, some buried in email threads. I bring it together, clean it up, and create simple ways for you to see what is happening in your business.
+> When data lives in multiple places, it creates confusion and errors. We bring your information together, clean it up, and create simple ways to see what is happening across your business.
 
 **Images:** Before/after of messy spreadsheet vs clean simple dashboard
 
@@ -126,7 +126,7 @@ Template: https://agenius.framer.website
 ### Section D: ONGOING SUPPORT
 
 **Headline:** Ongoing Support
-**Subheadline:** Keep everything running as your business grows
+**Subheadline:** Maintain and improve systems as you grow
 
 **Tags (pills on left):**
 - Monthly Check-ins
@@ -136,7 +136,7 @@ Template: https://agenius.framer.website
 - Training New Hires
 
 **Description (right side):**
-> Systems need maintenance. New people join, tools get updated, and processes drift over time. I stay involved to answer questions, handle small fixes, and make sure what we built continues working as your business evolves.
+> Systems need attention over time. New people join, tools change, and processes evolve. We stay involved to answer questions, make adjustments, and ensure everything continues running smoothly as your business grows.
 
 **Images:** Photos or doodles of ongoing support, maintenance, someone answering a quick question
 
@@ -147,15 +147,15 @@ Template: https://agenius.framer.website
 ## 6. WHY THIS WORKS (Benefit Cards)
 
 **Headline:** Why this works
-**Subheadline:** What makes this different from hiring a consultant or buying more software.
+**Subheadline:** What makes this different from traditional consulting or buying more software.
 
 | Card | Headline | Subtext | Doodle Prompt |
 |------|----------|---------|---------------|
-| 1 | **Keep Your Team** | I work with the people you already have. No one gets replaced. | Two people shaking hands, team in background smiling |
-| 2 | **Plain Language** | I explain everything in simple terms. You will always understand what is happening. | Person speaking with simple speech bubble, listener nodding |
-| 3 | **Start Small** | We fix one thing at a time. No overwhelming projects. | Small plant growing, not a giant tree |
+| 1 | **Keep Your Team** | We work with the people you already have. No one gets replaced. | Two people shaking hands, team in background smiling |
+| 2 | **Plain Language** | We explain everything in simple terms. You will always understand what is happening. | Person speaking with simple speech bubble, listener nodding |
+| 3 | **Start Small** | We address one thing at a time. No overwhelming projects. | Small plant growing, not a giant tree |
 | 4 | **No Long Contracts** | Month to month. Stay because it is working, not because you are locked in. | Open door with welcome mat |
-| 5 | **I Do The Work** | I am not here to give advice and leave. I build the systems with you. | Person with sleeves rolled up, hands on keyboard |
+| 5 | **We Do The Work** | We are not here to advise and leave. We build the systems alongside you. | Person with sleeves rolled up, hands on keyboard |
 | 6 | **Affordable** | A fraction of what a full-time operations hire would cost. | Simple calculator showing smaller number |
 
 ---
@@ -166,16 +166,16 @@ Template: https://agenius.framer.website
 **Subheadline:** Real examples of businesses getting organized.
 
 ### If you have clients:
-| Project | What Was Broken | What We Fixed | Result |
-|---------|-----------------|---------------|--------|
+| Project | Challenge | Solution | Result |
+|---------|-----------|----------|--------|
 | Healthcare Clinic (45 people) | Patient info in 4 different systems | Connected their EHR, scheduling, and billing | 12 hours saved per week |
-| Marketing Agency (28 people) | Project status lived in Slack threads | Built simple project tracker everyone uses | No more missed deadlines |
-| Manufacturing (60 people) | Inventory counts were always wrong | Single source of truth for stock levels | 90% fewer stockouts |
+| Marketing Agency (28 people) | Project status scattered across channels | Built a simple project tracker everyone uses | No more missed deadlines |
+| Manufacturing (60 people) | Inventory counts were inconsistent | Created a single source of truth for stock levels | 90% fewer stockouts |
 
 ### If you are just starting:
 > Currently working with first clients. Check back soon for examples.
 >
-> In the meantime, try the Workflow Detangler. It is a free tool I built to help you see what is not working in your business.
+> In the meantime, try the Workflow Detangler. It is a free tool we built to help you identify friction in your business.
 >
 > [Try Workflow Detangler]
 
@@ -188,9 +188,9 @@ Template: https://agenius.framer.website
 
 | Step | Number | Headline | Description |
 |------|--------|----------|-------------|
-| 1 | 01 | **We Talk** | You tell me what is not working. What feels frustrating. Where things fall through the cracks. No preparation needed. |
-| 2 | 02 | **I Look** | I examine your people, tools, and data. I identify what is causing the problems, not just the symptoms. |
-| 3 | 03 | **We Fix** | I build the systems, connect the tools, and document the processes. You stay involved, but I handle the heavy lifting. |
+| 1 | 01 | **We Listen** | You share what is not working. What feels frustrating. Where things fall through the cracks. No preparation needed. |
+| 2 | 02 | **We Assess** | We examine your people, tools, and data. We identify the root causes, not just the symptoms. |
+| 3 | 03 | **We Build** | We create the systems, connect the tools, and document the processes. You stay involved, but we handle the work. |
 
 **Doodle Prompt for each:**
 1. Two people on a video call, one talking, one listening with notepad
@@ -199,19 +199,19 @@ Template: https://agenius.framer.website
 
 ---
 
-## 9. WHAT I DO VS WHAT I DO NOT (Comparison)
+## 9. WHAT WE DO VS WHAT WE DO NOT (Comparison)
 
-**Headline:** What I do vs what I do not
+**Headline:** What we do vs what we do not
 **Subheadline:** Just so we are clear.
 
-| I Do | I Do Not |
-|------|----------|
-| Fix your current situation | Sell you software you do not need |
+| We Do | We Do Not |
+|-------|-----------|
+| Improve your current systems | Sell you software you do not need |
 | Work with your existing team | Replace your people |
-| Start with small wins | Push large six-month projects |
-| Explain everything simply | Use consultant jargon |
-| Stay until it is working | Disappear after giving a report |
-| Charge monthly, no lock-in | Require long contracts |
+| Start with small wins | Push large multi-month projects |
+| Explain everything clearly | Use consultant jargon |
+| Stay until it is working | Disappear after delivering a report |
+| Offer monthly flexibility | Require long contracts |
 
 ---
 
@@ -226,14 +226,14 @@ Template: https://agenius.framer.website
 **One-time**
 
 **What is included:**
-- 60-minute call to understand what is not working
+- 60-minute call to understand your challenges
 - Review of your current tools and workflows
 - Written report with clear next steps
-- Honest opinion on whether I can help
+- Honest opinion on whether we can help
 
 **Button:** [Book Assessment]
 
-**Best for:** You are not sure what is wrong. You just know something is not working.
+**Best for:** You are not sure where to start. You just know something is not working.
 
 ---
 
@@ -252,7 +252,7 @@ Template: https://agenius.framer.website
 
 **Button:** [Let's Talk]
 
-**Best for:** You know things are not working and you want someone to fix them.
+**Best for:** You know what needs fixing and you want a partner to help.
 
 ---
 
@@ -265,31 +265,31 @@ Template: https://agenius.framer.website
 - Everything in monthly support
 - Larger system overhauls
 - Team training
-- Hiring an operations person and training them
+- Hiring support for operations roles
 
 **Button:** [Let's Talk]
 
-**Best for:** You have a specific problem that needs focused work.
+**Best for:** You have a specific initiative that needs focused attention.
 
 ---
 
 ## 11. ABOUT
 
-**Headline:** Why I do this
+**Headline:** Why we do this
 **Subheadline:** A little background.
 
 **Body copy:**
 > Aasani means "ease" in Urdu.
 >
-> I started this because I kept seeing the same problem. Small businesses growing fast, but their operations could not keep up. Tools everywhere. Processes stuck in people's heads. Data scattered across ten different places.
+> We started this because we kept seeing the same challenge. Businesses growing fast, but their operations could not keep up. Tools everywhere. Processes stuck in people's heads. Data scattered across multiple places.
 >
-> Everyone is busy, but nothing flows.
+> Everyone is busy, but nothing flows smoothly.
 >
-> I am not here to sell you AI or fancy software. I am here to help you get organized. Your people, your tools, your data. That is it.
+> We are not here to sell you fancy software. We are here to help you get organized. Your people, your tools, your data. That is it.
 >
-> Most of the time, you do not need new technology. You need someone to understand how your business works and sort things out.
+> Most of the time, you do not need more technology. You need someone to understand how your business works and bring structure to it.
 >
-> That is what I do.
+> That is what we do.
 
 **Sign-off:**
 > [Your Name]
@@ -308,19 +308,18 @@ Template: https://agenius.framer.website
 
 | Question | Answer |
 |----------|--------|
-| **What size business do you work with?** | Usually 10 to 100 employees. Big enough to have real problems, small enough that I can actually help. |
-| **Do you do AI?** | Only if you are ready for it. Most businesses need their basics sorted first. AI comes later, if at all. |
-| **How long until I see results?** | Usually within the first month. We start with quick wins so you see progress fast. |
-| **What if it is not working?** | You can cancel anytime. No contracts. If I am not helping, you should not pay me. |
-| **Do you work with businesses outside Austin?** | Yes. Most of my work is remote. Austin is just where I am based. |
-| **What tools do you use?** | Whatever you are already using. I am not here to sell software. I work with Google Workspace, Microsoft, Notion, Slack, Airtable, and whatever makes sense for you. |
-| **Can you help us hire an operations person?** | Yes. I can help you figure out what you need, write the job description, and train them once they start. |
+| **What size business do you work with?** | Usually 10 to 100 employees. Big enough to have real challenges, small enough that we can make a meaningful impact. |
+| **How long until we see results?** | Usually within the first month. We start with quick wins so you see progress early. |
+| **What if it is not working?** | You can cancel anytime. No contracts. If we are not helping, you should not pay us. |
+| **Do you work with businesses outside Austin?** | Yes. Most of our work is remote. Austin is just where we are based. |
+| **What tools do you use?** | Whatever you are already using. We are not here to sell software. We work with Google Workspace, Microsoft, Notion, Slack, Airtable, and whatever makes sense for your business. |
+| **Can you help us hire an operations person?** | Yes. We can help you define the role, write the job description, and train them once they start. |
 
 ---
 
 ## 13. CALL TO ACTION (Before Footer)
 
-**Headline:** Let us see if I can help.
+**Headline:** Let us see if we can help.
 **Subheadline:** 15 minutes. No pressure. Just a conversation.
 
 **Button:** [Book a Call]
@@ -334,7 +333,7 @@ Template: https://agenius.framer.website
 
 **Logo:** AASANI
 
-**Tagline:** Making business operations easier.
+**Tagline:** Bringing structure to your business.
 
 **Links:**
 - Services
@@ -399,8 +398,8 @@ Template: https://agenius.framer.website
 3. Final CTA section (alternative to booking call)
 
 **How it appears:**
-> Not sure what is broken? Try this free tool.
-> Describe how work flows in your business, and I will show you where the friction is.
+> Not sure where to start? Try this free tool.
+> Describe how work flows in your business, and we will show you where the friction is.
 > [Try Workflow Detangler]
 
 ---
