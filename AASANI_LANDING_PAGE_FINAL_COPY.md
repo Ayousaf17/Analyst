@@ -31,13 +31,14 @@ Template: https://agenius.framer.website
 
 ---
 
-## 3. THREE FEATURE CARDS
+## 3. FOUR FEATURE CARDS
 
 | Card | Icon/Doodle | Headline | Subtext |
 |------|-------------|----------|---------|
 | 1 | Simple person icon | **People** | Get what's in their heads into systems |
 | 2 | Connected boxes icon | **Tools** | Make your software actually work together |
 | 3 | Organized folder icon | **Data** | Turn scattered info into something useful |
+| 4 | Watering can / plant icon | **Ongoing Support** | Keep things running as you grow |
 
 ---
 
@@ -57,7 +58,7 @@ Template: https://agenius.framer.website
 
 ---
 
-## 5. THE AASANI METHOD (Three Expandable Service Sections)
+## 5. THE AASANI METHOD (Four Expandable Service Sections)
 
 ### Section A: PEOPLE
 
@@ -119,6 +120,27 @@ Template: https://agenius.framer.website
 **Images:** Before/after of messy spreadsheet vs clean simple dashboard
 
 **Doodle Prompt:** Person looking at a single clean screen with a simple chart, surrounded by faded/crossed-out images of scattered spreadsheets and sticky notes.
+
+---
+
+### Section D: ONGOING SUPPORT
+
+**Headline:** Ongoing Support
+**Subheadline:** Keeping things running after we set it up
+
+**Tags (pills on left):**
+- Monthly Check-ins
+- System Maintenance
+- Team Questions
+- Small Fixes
+- Training New Hires
+
+**Description (right side):**
+> Systems break down over time. New people join, tools update, processes drift. I stick around to keep things running — answer questions, fix small issues, and make sure what we built keeps working as your business grows.
+
+**Images:** Photos or doodles of ongoing support, maintenance, someone answering a quick question
+
+**Doodle Prompt:** Person watering a small plant that's growing steadily. Or: person with headset giving a thumbs up, small chat bubbles with checkmarks around them.
 
 ---
 
@@ -397,7 +419,7 @@ Template: https://agenius.framer.website
 ## WHAT TO BUILD FIRST (Priority Order)
 
 1. Hero + Nav
-2. Three feature cards (People, Tools, Data)
+2. Four feature cards (People, Tools, Data, Ongoing Support)
 3. How It Works (3 steps)
 4. Pricing
 5. FAQ
