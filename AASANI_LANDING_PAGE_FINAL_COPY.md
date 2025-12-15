@@ -23,7 +23,7 @@ Template: https://agenius.framer.website
 > Get your business running smoother.
 
 **Subheadline:**
-> I help small teams organize their operations — people, tools, and data — so things stop falling through the cracks.
+> I help businesses run smoother by organizing their people, tools, and data.
 
 **Button:** [Let's Talk]
 
