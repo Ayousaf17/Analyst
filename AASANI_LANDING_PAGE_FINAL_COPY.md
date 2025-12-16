@@ -290,6 +290,86 @@
 
 ---
 
+## DOODLE SCENE PROMPTS
+
+Visual style: Simple black line drawings. Minimal detail. Calm and clear. Visuals explain the concept, not decorate the page.
+
+### HERO
+> A small group of three connected circles (people, data, tools) with simple lines linking them into one unified shape. Clean. Balanced. No clutter.
+
+### SERVICE CARDS
+
+**People:**
+> Two figures seated across from each other. One speaks, one writes notes. A simple document appears between them.
+
+**Tools:**
+> Three or four app icons (calendar, spreadsheet, email, folder) with dotted lines connecting them. All lines lead to a central point.
+
+**Data:**
+> Multiple small scattered shapes on the left. An arrow pointing right. One clean organized rectangle on the right.
+
+**Ongoing Support:**
+> A small plant in a pot. A hand with a watering can above it. Simple growth lines.
+
+### THE AASANI METHOD (Expandable Sections)
+
+**People Section:**
+> Person at whiteboard drawing a simple flowchart. Another person watching and nodding.
+
+**Tools Section:**
+> A person standing calmly between multiple floating app icons, connecting them with lines.
+
+**Data Section:**
+> A desk with scattered papers on one side. Same desk clean with one folder on the other side.
+
+**Ongoing Support Section:**
+> A person with a headset. Small checkmarks floating nearby. Calm posture.
+
+### WHY THIS WORKS
+
+**Your Team Stays:**
+> Two figures standing side by side. Simple handshake.
+
+**Clear Communication:**
+> One figure speaking. Clean speech bubble with a checkmark inside.
+
+**Small Steps:**
+> Three small stepping stones in a row. Simple path.
+
+**No Lock-in:**
+> An open door. Welcome mat.
+
+**We Execute:**
+> Figure with sleeves rolled up. Hands on a keyboard or document.
+
+**Reasonable Cost:**
+> Simple calculator showing a modest number.
+
+### HOW IT WORKS
+
+**Step 01 (We Listen):**
+> Two figures on a video call. One speaking, one taking notes.
+
+**Step 02 (We Assess):**
+> Figure looking at a whiteboard with sticky notes. Connecting lines between them.
+
+**Step 03 (We Build):**
+> Figure at computer. Checkmarks appearing on screen. Second figure giving approval.
+
+### COMPARISON
+> Split view. Left side: organized desk, connected icons. Right side: cluttered desk, disconnected icons. Simple contrast.
+
+### ABOUT
+> Single figure at a desk. Laptop open. Window with simple cityscape. Plant nearby. Calm workspace.
+
+### FAQ
+> Question mark on left. Simple lightbulb on right.
+
+### FINAL CTA
+> Two figures shaking hands. Simple. Professional.
+
+---
+
 ## STYLE NOTES
 
 **Tone:** Calm. Clear. Competent. Grounded.
