@@ -1,6 +1,4 @@
-# Aasani Systems - Complete Landing Page Copy
-
-Template: https://agenius.framer.website
+# Aasani Systems - Landing Page Structure
 
 ---
 
@@ -13,7 +11,7 @@ Template: https://agenius.framer.website
 - Method
 - Pricing
 - About
-- [Let's Talk] ← button
+- [Let's Talk]
 
 ---
 
@@ -27,18 +25,16 @@ Template: https://agenius.framer.website
 
 **Button:** [Let's Talk]
 
-**Doodle Prompt:** Simple line illustration of a small team around a table, one person drawing a workflow on a whiteboard, others nodding. Calm, not chaotic.
-
 ---
 
-## 3. FOUR FEATURE CARDS
+## 3. FOUR SERVICE CARDS
 
-| Card | Icon/Doodle | Headline | Subtext |
-|------|-------------|----------|---------|
-| 1 | Simple person icon | **People** | Capture knowledge and build clear processes |
-| 2 | Connected boxes icon | **Tools** | Connect systems so information flows seamlessly |
-| 3 | Organized folder icon | **Data** | Centralize information into one reliable source |
-| 4 | Watering can / plant icon | **Ongoing Support** | Maintain and improve systems as you grow |
+| Card | Headline | Subtext |
+|------|----------|---------|
+| 1 | **People** | Capture institutional knowledge. Document how work gets done. |
+| 2 | **Tools** | Connect your systems so information flows where it needs to go. |
+| 3 | **Data** | Centralize your information into one reliable source. |
+| 4 | **Ongoing Support** | Maintain and refine systems as your business evolves. |
 
 ---
 
@@ -46,286 +42,227 @@ Template: https://agenius.framer.website
 
 **Headline:** Results that matter.
 
-**Subheadline:** Businesses we have helped get organized.
-
 | Number | Label |
 |--------|-------|
-| 10-100 | Employees (the sweet spot) |
-| 40+ | Hours saved per month |
-| 0 | Long-term contracts required |
-
-*Note: Update these as you get real client data*
+| 10-100 | Employees |
+| 40+ | Hours saved monthly |
+| 0 | Long-term contracts |
 
 ---
 
-## 5. THE AASANI METHOD (Four Expandable Service Sections)
+## 5. THE AASANI METHOD (Four Expandable Sections)
 
 ### Section A: PEOPLE
 
 **Headline:** People
-**Subheadline:** Capture knowledge and create clear processes
+**Subheadline:** Document knowledge. Define processes.
 
-**Tags (pills on left):**
+**Tags:**
 - Process Documentation
 - Role Clarity
 - Team Workflows
 - Knowledge Transfer
 - Onboarding Systems
 
-**Description (right side):**
-> Your team holds valuable knowledge about how work gets done. We help capture that knowledge and turn it into clear, documented processes that anyone can follow. This protects your business and makes onboarding seamless.
-
-**Images:** Photos or doodles of someone interviewing a team member, a simple process document, a checklist
-
-**Doodle Prompt:** Two people sitting across a table, one taking notes while the other explains something with hand gestures. Whiteboard behind them with simple flowchart boxes.
+**Description:**
+> Your team knows how work gets done. That knowledge is valuable. We help capture it, structure it, and turn it into documented processes that protect your business and make training simple.
 
 ---
 
 ### Section B: TOOLS
 
 **Headline:** Tools
-**Subheadline:** Connect systems so information flows seamlessly
+**Subheadline:** Connect systems. Reduce manual work.
 
-**Tags (pills on left):**
+**Tags:**
 - Tool Audit
 - Integration Setup
 - Automation
 - Data Syncing
-- Removing Redundant Apps
+- Consolidation
 
-**Description (right side):**
-> Most businesses use multiple tools that do not communicate with each other. This creates duplicate work and confusion. We connect your existing systems so information flows automatically and your team can focus on what matters.
-
-**Images:** Screenshots of connected tools, before/after of messy vs clean dashboard
-
-**Doodle Prompt:** Several app icons (calendar, spreadsheet, email, chat) with dotted lines connecting them. A person in the middle directing traffic calmly.
+**Description:**
+> Most businesses run on tools that do not talk to each other. This creates duplicate work and confusion. We connect what you already have so information flows automatically between systems.
 
 ---
 
 ### Section C: DATA
 
 **Headline:** Data
-**Subheadline:** Centralize information into one reliable source
+**Subheadline:** Centralize information. Create visibility.
 
-**Tags (pills on left):**
+**Tags:**
 - Data Cleanup
 - Spreadsheet Organization
 - Reporting Setup
 - Single Source of Truth
-- Dashboard Basics
+- Dashboards
 
-**Description (right side):**
-> When data lives in multiple places, it creates confusion and errors. We bring your information together, clean it up, and create simple ways to see what is happening across your business.
-
-**Images:** Before/after of messy spreadsheet vs clean simple dashboard
-
-**Doodle Prompt:** Person looking at a single clean screen with a simple chart, surrounded by faded/crossed-out images of scattered spreadsheets and sticky notes.
+**Description:**
+> Scattered data creates errors and slows decisions. We consolidate your information, clean it up, and build simple reporting so you can see what is happening across your business.
 
 ---
 
 ### Section D: ONGOING SUPPORT
 
 **Headline:** Ongoing Support
-**Subheadline:** Maintain and improve systems as you grow
+**Subheadline:** Maintain systems. Adapt to change.
 
-**Tags (pills on left):**
+**Tags:**
 - Monthly Check-ins
 - System Maintenance
 - Team Questions
-- Small Fixes
-- Training New Hires
+- Adjustments
+- New Hire Training
 
-**Description (right side):**
-> Systems need attention over time. New people join, tools change, and processes evolve. We stay involved to answer questions, make adjustments, and ensure everything continues running smoothly as your business grows.
-
-**Images:** Photos or doodles of ongoing support, maintenance, someone answering a quick question
-
-**Doodle Prompt:** Person watering a small plant that is growing steadily. Or: person with headset giving a thumbs up, small chat bubbles with checkmarks around them.
+**Description:**
+> Systems need attention. People leave, tools update, processes shift. We stay involved to answer questions, make adjustments, and keep everything running as your business changes.
 
 ---
 
-## 6. WHY THIS WORKS (Benefit Cards)
+## 6. WHY THIS WORKS
 
 **Headline:** Why this works
-**Subheadline:** What makes this different from traditional consulting or buying more software.
 
-| Card | Headline | Subtext | Doodle Prompt |
-|------|----------|---------|---------------|
-| 1 | **Keep Your Team** | We work with the people you already have. No one gets replaced. | Two people shaking hands, team in background smiling |
-| 2 | **Plain Language** | We explain everything in simple terms. You will always understand what is happening. | Person speaking with simple speech bubble, listener nodding |
-| 3 | **Start Small** | We address one thing at a time. No overwhelming projects. | Small plant growing, not a giant tree |
-| 4 | **No Long Contracts** | Month to month. Stay because it is working, not because you are locked in. | Open door with welcome mat |
-| 5 | **We Do The Work** | We are not here to advise and leave. We build the systems alongside you. | Person with sleeves rolled up, hands on keyboard |
-| 6 | **Affordable** | A fraction of what a full-time operations hire would cost. | Simple calculator showing smaller number |
+| Card | Headline | Subtext |
+|------|----------|---------|
+| 1 | **Your Team Stays** | We work with your existing people. No replacements. |
+| 2 | **Clear Communication** | We explain everything in plain terms. No jargon. |
+| 3 | **Small Steps** | We address one area at a time. No overwhelming projects. |
+| 4 | **No Lock-in** | Month to month. Stay because it works. |
+| 5 | **We Execute** | We build alongside you. Not just advise. |
+| 6 | **Reasonable Cost** | Less than a full-time hire. |
 
 ---
 
-## 7. WHAT THIS LOOKS LIKE (Portfolio/Case Studies)
+## 7. PORTFOLIO
 
 **Headline:** What this looks like
-**Subheadline:** Real examples of businesses getting organized.
 
-### If you have clients:
-| Project | Challenge | Solution | Result |
-|---------|-----------|----------|--------|
-| Healthcare Clinic (45 people) | Patient info in 4 different systems | Connected their EHR, scheduling, and billing | 12 hours saved per week |
-| Marketing Agency (28 people) | Project status scattered across channels | Built a simple project tracker everyone uses | No more missed deadlines |
-| Manufacturing (60 people) | Inventory counts were inconsistent | Created a single source of truth for stock levels | 90% fewer stockouts |
-
-### If you are just starting:
-> Currently working with first clients. Check back soon for examples.
->
-> In the meantime, try the Workflow Detangler. It is a free tool we built to help you identify friction in your business.
->
-> [Try Workflow Detangler]
+| Client | Challenge | Solution | Result |
+|--------|-----------|----------|--------|
+| Healthcare Clinic (45 people) | Patient data in four disconnected systems | Connected EHR, scheduling, and billing | 12 hours saved weekly |
+| Marketing Agency (28 people) | Project status scattered across channels | Built centralized project tracking | Missed deadlines eliminated |
+| Manufacturing (60 people) | Inconsistent inventory counts | Created single source of truth for stock | 90% fewer stockouts |
 
 ---
 
-## 8. HOW IT WORKS (3-Step Process)
+## 8. HOW IT WORKS
 
 **Headline:** How it works
-**Subheadline:** Simple. No surprises.
 
-| Step | Number | Headline | Description |
-|------|--------|----------|-------------|
-| 1 | 01 | **We Listen** | You share what is not working. What feels frustrating. Where things fall through the cracks. No preparation needed. |
-| 2 | 02 | **We Assess** | We examine your people, tools, and data. We identify the root causes, not just the symptoms. |
-| 3 | 03 | **We Build** | We create the systems, connect the tools, and document the processes. You stay involved, but we handle the work. |
-
-**Doodle Prompt for each:**
-1. Two people on a video call, one talking, one listening with notepad
-2. Person looking at a whiteboard with sticky notes, connecting dots
-3. Person at computer with checkmarks appearing, other person giving thumbs up
+| Step | Headline | Description |
+|------|----------|-------------|
+| 01 | **We Listen** | You explain what is not working. We ask questions to understand the full picture. |
+| 02 | **We Assess** | We examine your people, tools, and data. We identify root causes. |
+| 03 | **We Build** | We create systems, connect tools, and document processes. You stay involved. We handle the work. |
 
 ---
 
-## 9. WHAT WE DO VS WHAT WE DO NOT (Comparison)
+## 9. COMPARISON
 
-**Headline:** What we do vs what we do not
-**Subheadline:** Just so we are clear.
+**Headline:** What we do
 
 | We Do | We Do Not |
 |-------|-----------|
-| Improve your current systems | Sell you software you do not need |
-| Work with your existing team | Replace your people |
+| Improve existing systems | Sell unnecessary software |
+| Work with your team | Replace your people |
 | Start with small wins | Push large multi-month projects |
-| Explain everything clearly | Use consultant jargon |
-| Stay until it is working | Disappear after delivering a report |
-| Offer monthly flexibility | Require long contracts |
+| Explain clearly | Use consultant jargon |
+| Stay until it works | Disappear after a report |
+| Monthly flexibility | Require long contracts |
 
 ---
 
 ## 10. PRICING
 
-**Headline:** Simple pricing
-**Subheadline:** No scope creep. No surprise invoices.
+**Headline:** Pricing
 
-### Tier 1: ASSESSMENT
+### ASSESSMENT
 
 **Price:** $500
 **One-time**
 
-**What is included:**
-- 60-minute call to understand your challenges
-- Review of your current tools and workflows
-- Written report with clear next steps
-- Honest opinion on whether we can help
+- 60-minute call to understand your situation
+- Review of current tools and workflows
+- Written report with recommendations
+- Honest assessment of fit
 
-**Button:** [Book Assessment]
-
-**Best for:** You are not sure where to start. You just know something is not working.
+**Best for:** You know something is not working but are unsure where to start.
 
 ---
 
-### Tier 2: MONTHLY SUPPORT
+### MONTHLY SUPPORT
 
 **Price:** $3,500/month
 **Cancel anytime**
 
-**What is included:**
 - Dedicated operations support
 - Process documentation
 - Tool setup and integration
 - Data cleanup and organization
-- Weekly check-in calls
-- Slack and email access for questions
+- Weekly check-ins
+- Slack and email access
 
-**Button:** [Let's Talk]
-
-**Best for:** You know what needs fixing and you want a partner to help.
+**Best for:** You want ongoing support to fix and maintain your systems.
 
 ---
 
-### Tier 3: PROJECT-BASED
+### PROJECT-BASED
 
 **Price:** Custom
-**Based on scope**
 
-**What is included:**
-- Everything in monthly support
-- Larger system overhauls
+- Scoped to your specific needs
+- System overhauls
 - Team training
 - Hiring support for operations roles
 
-**Button:** [Let's Talk]
-
-**Best for:** You have a specific initiative that needs focused attention.
+**Best for:** You have a defined initiative that needs focused attention.
 
 ---
 
 ## 11. ABOUT
 
 **Headline:** Why we do this
-**Subheadline:** A little background.
 
-**Body copy:**
-> Aasani means "ease" in Urdu.
+> Aasani means ease in Urdu.
 >
-> We started this because we kept seeing the same challenge. Businesses growing fast, but their operations could not keep up. Tools everywhere. Processes stuck in people's heads. Data scattered across multiple places.
+> We started this because we kept seeing the same pattern. Businesses growing quickly but operations falling behind. Tools everywhere. Processes undocumented. Data scattered.
 >
-> Everyone is busy, but nothing flows smoothly.
+> Everyone busy. Nothing connected.
 >
-> We are not here to sell you fancy software. We are here to help you get organized. Your people, your tools, your data. That is it.
+> We bring structure. We align people, data, and tools into systems that work. That is it.
 >
-> Most of the time, you do not need more technology. You need someone to understand how your business works and bring structure to it.
->
-> That is what we do.
+> Most businesses do not need more technology. They need someone to understand how the business runs and organize it properly.
 
 **Sign-off:**
 > [Your Name]
 > Austin, TX
-
-**Photo:** Simple headshot, friendly, approachable
-
-**Doodle Prompt:** Person at desk with laptop, window showing Austin skyline (simple), plant on desk, calm workspace.
 
 ---
 
 ## 12. FAQ
 
 **Headline:** Questions
-**Subheadline:** Things people usually ask.
 
 | Question | Answer |
 |----------|--------|
-| **What size business do you work with?** | Usually 10 to 100 employees. Big enough to have real challenges, small enough that we can make a meaningful impact. |
-| **How long until we see results?** | Usually within the first month. We start with quick wins so you see progress early. |
-| **What if it is not working?** | You can cancel anytime. No contracts. If we are not helping, you should not pay us. |
-| **Do you work with businesses outside Austin?** | Yes. Most of our work is remote. Austin is just where we are based. |
-| **What tools do you use?** | Whatever you are already using. We are not here to sell software. We work with Google Workspace, Microsoft, Notion, Slack, Airtable, and whatever makes sense for your business. |
-| **Can you help us hire an operations person?** | Yes. We can help you define the role, write the job description, and train them once they start. |
+| **What size business do you work with?** | 10 to 100 employees. Large enough to have real complexity. Small enough for us to have meaningful impact. |
+| **How long until results?** | Usually within the first month. We prioritize early wins. |
+| **What if it does not work?** | Cancel anytime. No contracts. |
+| **Do you work remotely?** | Yes. Most work is remote. Austin is where we are based. |
+| **What tools do you use?** | Whatever you already have. We are not here to sell software. |
+| **Can you help hire an operations person?** | Yes. We can define the role, write the description, and train them. |
 
 ---
 
-## 13. CALL TO ACTION (Before Footer)
+## 13. FINAL CTA
 
 **Headline:** Let us see if we can help.
-**Subheadline:** 15 minutes. No pressure. Just a conversation.
+
+**Subheadline:** 15 minutes. No pressure.
 
 **Button:** [Book a Call]
-
-**Or:** Try the Workflow Detangler first. It is free.
-**Button:** [Try Workflow Detangler]
 
 ---
 
@@ -333,7 +270,7 @@ Template: https://agenius.framer.website
 
 **Logo:** AASANI
 
-**Tagline:** Bringing structure to your business.
+**Tagline:** Structure for your business.
 
 **Links:**
 - Services
@@ -344,7 +281,6 @@ Template: https://agenius.framer.website
 **Contact:**
 - hello@aasani.ai
 - Austin, TX
-- [LinkedIn icon]
 
 **Legal:**
 - Privacy Policy
@@ -354,81 +290,41 @@ Template: https://agenius.framer.website
 
 ---
 
-## DOODLE STYLE GUIDE
+## STYLE NOTES
 
-**Overall style:** Simple black line drawings on white or cream background. Hand-drawn feel, not polished. Friendly, calm, not corporate.
+**Tone:** Calm. Clear. Competent. Grounded.
 
-**Consistent elements:**
-- People have simple round heads, minimal features (dot eyes, small smile)
-- No complex shading, just lines
-- Slight imperfection is good (human feel)
-- Color: Black lines only, or black plus one accent color (yellow from your brand)
+**Avoid:** Hype. Buzzwords. Salesy language. Excessive enthusiasm.
 
-**Mood:** Calm, organized, approachable. Not chaotic, not corporate, not overly technical.
+**Writing rules:**
+- No contractions
+- No em dashes
+- No excessive bolding
+- Short, direct sentences
+- No filler phrases
 
----
-
-## COLOR PALETTE (From Template)
-
-| Use | Color |
-|-----|-------|
-| Background (main) | Cream or off-white |
-| Background (sections) | Light yellow, light green, light pink (alternating) |
-| Text | Black or dark gray |
-| Accent | Yellow (buttons, highlights) |
-| Cards | White with subtle shadow |
+**Visual style:**
+- Clean and minimal
+- Black, white, neutral tones
+- Clear separation between elements
+- Visuals explain systems, not decorate
 
 ---
 
-## FONTS (Suggestion)
-
-| Use | Font |
-|-----|------|
-| Headlines | Bold sans-serif (like the template) |
-| Body | Clean sans-serif, easy to read |
-| Tags/Pills | Small, rounded, same sans-serif |
-
----
-
-## WORKFLOW DETANGLER PLACEMENT
-
-**Where:**
-1. Hero section (secondary CTA)
-2. Portfolio section (if no case studies yet)
-3. Final CTA section (alternative to booking call)
-
-**How it appears:**
-> Not sure where to start? Try this free tool.
-> Describe how work flows in your business, and we will show you where the friction is.
-> [Try Workflow Detangler]
-
----
-
-## NOTES FOR BUILDING IN FRAMER
-
-1. **Keep sections short.** Do not add more copy than what is here.
-2. **Use the expandable format.** For People, Tools, Data, and Ongoing Support sections (like the template).
-3. **Alternate background colors.** Cream, then yellow, then green, then pink (like template).
-4. **Mobile-first.** Most visitors will be on phone.
-5. **One CTA per section max.** Do not overwhelm.
-6. **Load fast.** Compress images, do not over-animate.
-
----
-
-## WHAT TO BUILD FIRST (Priority Order)
+## BUILD ORDER
 
 1. Hero and Nav
-2. Four feature cards (People, Tools, Data, Ongoing Support)
-3. How It Works (3 steps)
+2. Four service cards
+3. How it works
 4. Pricing
 5. FAQ
-6. Footer and CTA
+6. Footer
 
-**Add later:**
-- Stats (once you have real numbers)
-- Portfolio (once you have clients)
+Add later:
+- Stats (with real data)
+- Portfolio (with real clients)
 - Workflow Detangler integration
 
 ---
 
-*This document is ready to use. Copy each section directly into Framer.*
+*Copy each section directly into Framer.*
