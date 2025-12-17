@@ -1,0 +1,1081 @@
+{
+  "name": "RE Marketing Automation Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Marketing Automation Agent\n\n**TENEX Equivalent:** Architect Agent designing system structure and patterns\n\n**Core Function:** Maintains consistent market presence without manual effort. Schedules content, promotes listings, and ensures the agent's brand stays visible during busy transaction periods.\n\n## Trigger Events\n- New listing\n- Price change\n- Under contract\n- Just sold\n- Market update release\n\n## Success Metrics\n- Listing views\n- Social engagement\n- Email open rates\n- Brand consistency score",
+        "height": 380,
+        "width": 400,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -200],
+      "id": "sticky-overview",
+      "name": "Agent Overview"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials to Configure\n\n1. `OPENROUTER_CREDENTIAL_ID` → AI for content generation\n2. `GMAIL_CREDENTIAL_ID` → Email distribution\n3. `GOOGLE_SHEETS_CREDENTIAL_ID` → Listing/content tracking\n4. `OPENAI_CREDENTIAL_ID` → DALL-E for images\n5. `BUFFER_CREDENTIAL_ID` → Social media scheduling (optional)\n6. `CANVA_CREDENTIAL_ID` → Design automation (optional)\n\n## Social Platforms\n- Instagram, Facebook, LinkedIn\n- Configure per-platform posting",
+        "height": 300,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 200],
+      "id": "sticky-credentials",
+      "name": "Credentials Setup"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-listing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 100],
+      "id": "webhook-new-listing",
+      "name": "New Listing Webhook",
+      "webhookId": "re-marketing-new-listing"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "listing-update",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "webhook-listing-update",
+      "name": "Listing Update Webhook",
+      "webhookId": "re-marketing-listing-update"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "just-sold",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 500],
+      "id": "webhook-just-sold",
+      "name": "Just Sold Webhook",
+      "webhookId": "re-marketing-just-sold"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1]
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 700],
+      "id": "schedule-market-update",
+      "name": "Weekly Market Update"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "listing-id",
+              "name": "listing_id",
+              "value": "={{ $json.listing_id || $json.mls_number || 'L-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "address",
+              "name": "property_address",
+              "value": "={{ $json.address || $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "city",
+              "name": "city",
+              "value": "={{ $json.city || 'Austin' }}",
+              "type": "string"
+            },
+            {
+              "id": "price",
+              "name": "price",
+              "value": "={{ $json.price || $json.list_price }}",
+              "type": "number"
+            },
+            {
+              "id": "bedrooms",
+              "name": "bedrooms",
+              "value": "={{ $json.bedrooms || $json.beds || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "bathrooms",
+              "name": "bathrooms",
+              "value": "={{ $json.bathrooms || $json.baths || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "sqft",
+              "name": "sqft",
+              "value": "={{ $json.sqft || $json.square_feet || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "description",
+              "name": "description",
+              "value": "={{ $json.description || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "features",
+              "name": "key_features",
+              "value": "={{ $json.features || $json.key_features || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "photos",
+              "name": "photo_urls",
+              "value": "={{ $json.photos || $json.photo_urls || [] }}",
+              "type": "string"
+            },
+            {
+              "id": "agent",
+              "name": "agent_name",
+              "value": "=YOUR_AGENT_NAME",
+              "type": "string"
+            },
+            {
+              "id": "agent-phone",
+              "name": "agent_phone",
+              "value": "=YOUR_AGENT_PHONE",
+              "type": "string"
+            },
+            {
+              "id": "event-type",
+              "name": "event_type",
+              "value": "=new_listing",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 100],
+      "id": "set-new-listing-data",
+      "name": "Set New Listing Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "listing-id",
+              "name": "listing_id",
+              "value": "={{ $json.listing_id || $json.mls_number }}",
+              "type": "string"
+            },
+            {
+              "id": "address",
+              "name": "property_address",
+              "value": "={{ $json.address || $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "update-type",
+              "name": "update_type",
+              "value": "={{ $json.update_type }}",
+              "type": "string"
+            },
+            {
+              "id": "old-price",
+              "name": "old_price",
+              "value": "={{ $json.old_price || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "new-price",
+              "name": "new_price",
+              "value": "={{ $json.new_price || $json.price }}",
+              "type": "number"
+            },
+            {
+              "id": "event-type",
+              "name": "event_type",
+              "value": "={{ $json.update_type === 'price_reduction' ? 'price_reduced' : $json.update_type === 'under_contract' ? 'under_contract' : 'listing_update' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300],
+      "id": "set-update-data",
+      "name": "Set Update Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "listing-id",
+              "name": "listing_id",
+              "value": "={{ $json.listing_id || $json.mls_number }}",
+              "type": "string"
+            },
+            {
+              "id": "address",
+              "name": "property_address",
+              "value": "={{ $json.address || $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "sale-price",
+              "name": "sale_price",
+              "value": "={{ $json.sale_price || $json.sold_price }}",
+              "type": "number"
+            },
+            {
+              "id": "days-on-market",
+              "name": "days_on_market",
+              "value": "={{ $json.days_on_market || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "client",
+              "name": "client_name",
+              "value": "={{ $json.client_name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "event-type",
+              "name": "event_type",
+              "value": "=just_sold",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 500],
+      "id": "set-sold-data",
+      "name": "Set Just Sold Data"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate marketing expert. Generate engaging social media content for property listings. Create content for Instagram, Facebook, and LinkedIn. Return JSON with keys: instagram_caption (max 2200 chars with emojis and hashtags), facebook_post (engaging with call to action), linkedin_post (professional tone), email_subject, email_body_html.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate marketing content for NEW LISTING:\\n- Address: {{ $json.property_address }}\\n- City: {{ $json.city }}\\n- Price: ${{ $json.price?.toLocaleString() }}\\n- Beds: {{ $json.bedrooms }}\\n- Baths: {{ $json.bathrooms }}\\n- Sqft: {{ $json.sqft?.toLocaleString() }}\\n- Features: {{ $json.key_features }}\\n- Agent: {{ $json.agent_name }}\\n- Phone: {{ $json.agent_phone }}\\n\\nReturn valid JSON only.\"\n    }\n  ],\n  \"max_tokens\": 1500\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 100],
+      "id": "generate-listing-content",
+      "name": "Generate Listing Content",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate marketing expert. Generate engaging content for a listing update (price reduction or status change). Create urgency without being pushy. Return JSON with keys: instagram_caption, facebook_post, email_subject, email_body_html.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate content for {{ $json.event_type === 'price_reduced' ? 'PRICE REDUCTION' : 'UNDER CONTRACT' }}:\\n- Address: {{ $json.property_address }}\\n- Update Type: {{ $json.update_type }}\\n{{ $json.event_type === 'price_reduced' ? '- Old Price: $' + $json.old_price?.toLocaleString() + '\\n- New Price: $' + $json.new_price?.toLocaleString() + '\\n- Savings: $' + ($json.old_price - $json.new_price)?.toLocaleString() : '' }}\\n\\nReturn valid JSON only.\"\n    }\n  ],\n  \"max_tokens\": 1000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "id": "generate-update-content",
+      "name": "Generate Update Content",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate marketing expert. Generate celebratory 'Just Sold' content that showcases success without revealing private details. Focus on the agent's expertise and results. Return JSON with keys: instagram_caption (celebratory with hashtags), facebook_post (testimonial request included), linkedin_post (professional achievement), email_subject, email_body_html.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate JUST SOLD content:\\n- Address: {{ $json.property_address }}\\n- Sale Price: ${{ $json.sale_price?.toLocaleString() }}\\n- Days on Market: {{ $json.days_on_market }}\\n- Client (optional): {{ $json.client_name || 'Happy Clients' }}\\n\\nReturn valid JSON only.\"\n    }\n  ],\n  \"max_tokens\": 1200\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 500],
+      "id": "generate-sold-content",
+      "name": "Generate Just Sold Content",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI response and extract content\nconst response = $input.first().json;\nconst content = response.choices[0].message.content;\n\nlet parsed = {};\ntry {\n  // Try to extract JSON from the response\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Fallback content\n  parsed = {\n    instagram_caption: '🏠 New listing alert! Contact us for details. #realestate #newlisting',\n    facebook_post: 'Excited to share this new listing! Reach out for more information.',\n    linkedin_post: 'Pleased to announce a new property listing. Contact me for details.',\n    email_subject: 'New Listing Alert',\n    email_body_html: '<p>Check out our latest listing!</p>'\n  };\n}\n\n// Get the original data\nlet eventData = {};\ntry {\n  eventData = $('Set New Listing Data').item?.json || $('Set Update Data').item?.json || $('Set Just Sold Data').item?.json || {};\n} catch (e) {\n  eventData = {};\n}\n\nreturn [{\n  json: {\n    ...eventData,\n    ...parsed,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 100],
+      "id": "parse-listing-content",
+      "name": "Parse Listing Content"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI response for updates\nconst response = $input.first().json;\nconst content = response.choices[0].message.content;\n\nlet parsed = {};\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  parsed = {\n    instagram_caption: '📢 Listing update! Contact us for details. #realestate',\n    facebook_post: 'Important update on this property!',\n    email_subject: 'Listing Update',\n    email_body_html: '<p>There has been an update to this listing.</p>'\n  };\n}\n\nconst eventData = $('Set Update Data').item?.json || {};\n\nreturn [{\n  json: {\n    ...eventData,\n    ...parsed,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300],
+      "id": "parse-update-content",
+      "name": "Parse Update Content"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI response for just sold\nconst response = $input.first().json;\nconst content = response.choices[0].message.content;\n\nlet parsed = {};\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  parsed = {\n    instagram_caption: '🎉 JUST SOLD! Another happy client! #justsold #realestate',\n    facebook_post: 'Thrilled to announce another successful closing!',\n    linkedin_post: 'Pleased to share another successful transaction.',\n    email_subject: 'Just Sold!',\n    email_body_html: '<p>Another successful sale!</p>'\n  };\n}\n\nconst eventData = $('Set Just Sold Data').item?.json || {};\n\nreturn [{\n  json: {\n    ...eventData,\n    ...parsed,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 500],
+      "id": "parse-sold-content",
+      "name": "Parse Sold Content"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_MARKETING_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Content Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Content ID": "={{ 'C-' + $now.toMillis() }}",
+            "Listing ID": "={{ $json.listing_id }}",
+            "Event Type": "={{ $json.event_type }}",
+            "Property": "={{ $json.property_address }}",
+            "Instagram": "={{ $json.instagram_caption }}",
+            "Facebook": "={{ $json.facebook_post }}",
+            "LinkedIn": "={{ $json.linkedin_post || '' }}",
+            "Email Subject": "={{ $json.email_subject }}",
+            "Email Body": "={{ $json.email_body_html }}",
+            "Created At": "={{ $json.generated_at }}",
+            "Status": "=Pending",
+            "Scheduled For": "={{ $now.plus({hours: 2}).toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 100],
+      "id": "queue-listing-content",
+      "name": "Queue Listing Content",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_MARKETING_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Content Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Content ID": "={{ 'C-' + $now.toMillis() }}",
+            "Listing ID": "={{ $json.listing_id }}",
+            "Event Type": "={{ $json.event_type }}",
+            "Property": "={{ $json.property_address }}",
+            "Instagram": "={{ $json.instagram_caption }}",
+            "Facebook": "={{ $json.facebook_post }}",
+            "Email Subject": "={{ $json.email_subject }}",
+            "Email Body": "={{ $json.email_body_html }}",
+            "Created At": "={{ $json.generated_at }}",
+            "Status": "=Pending"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 300],
+      "id": "queue-update-content",
+      "name": "Queue Update Content",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_MARKETING_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Content Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Content ID": "={{ 'C-' + $now.toMillis() }}",
+            "Listing ID": "={{ $json.listing_id }}",
+            "Event Type": "=just_sold",
+            "Property": "={{ $json.property_address }}",
+            "Instagram": "={{ $json.instagram_caption }}",
+            "Facebook": "={{ $json.facebook_post }}",
+            "LinkedIn": "={{ $json.linkedin_post }}",
+            "Email Subject": "={{ $json.email_subject }}",
+            "Email Body": "={{ $json.email_body_html }}",
+            "Created At": "={{ $json.generated_at }}",
+            "Status": "=Pending"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 500],
+      "id": "queue-sold-content",
+      "name": "Queue Sold Content",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_MARKETING_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Email Subscribers",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1440, 100],
+      "id": "get-subscribers",
+      "name": "Get Email Subscribers",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-subscribed",
+              "leftValue": "={{ $json.Subscribed }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [1680, 100],
+      "id": "filter-subscribed",
+      "name": "Filter Active Subscribers"
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1920, 100],
+      "id": "batch-emails",
+      "name": "Batch Emails"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "={{ $('Parse Listing Content').item.json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Parse Listing Content').item.json.email_body_html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2160, 100],
+      "id": "send-listing-email",
+      "name": "Send Listing Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2400, 100],
+      "id": "wait-between-emails",
+      "name": "Rate Limit Wait",
+      "webhookId": "marketing-email-rate-limit"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate market analyst. Generate a weekly market update for Austin, TX real estate. Include general market trends, buyer/seller tips, and a positive outlook. Return JSON with keys: subject, intro, market_stats_html, buyer_tips, seller_tips, outlook, social_post.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate weekly market update for the week of {{ $now.toISODate() }}. Focus on Austin, TX metro area. Include helpful tips and market insights. Agent: YOUR_AGENT_NAME. Return valid JSON only.\"\n    }\n  ],\n  \"max_tokens\": 1500\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 700],
+      "id": "generate-market-update",
+      "name": "Generate Market Update",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\n\nlet parsed = {};\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  parsed = {\n    subject: 'Weekly Austin Real Estate Market Update',\n    intro: 'Here is your weekly market update.',\n    market_stats_html: '<p>Market data coming soon.</p>',\n    buyer_tips: 'Stay patient and work with a knowledgeable agent.',\n    seller_tips: 'Price competitively and stage well.',\n    outlook: 'The market remains active.',\n    social_post: 'Check out this week\\'s market update! #austinrealestate'\n  };\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 700],
+      "id": "parse-market-update",
+      "name": "Parse Market Update"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_MARKETING_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Email Subscribers",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [960, 700],
+      "id": "get-market-subscribers",
+      "name": "Get Market Update Subscribers",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "wants-updates",
+              "leftValue": "={{ $json['Market Updates'] }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [1200, 700],
+      "id": "filter-market-subscribers",
+      "name": "Filter Market Subscribers"
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1440, 700],
+      "id": "batch-market-emails",
+      "name": "Batch Market Emails"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "={{ $('Parse Market Update').item.json.subject }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <h1>Weekly Austin Market Update</h1>\n  \n  <p>{{ $('Parse Market Update').item.json.intro }}</p>\n  \n  <h2>Market Snapshot</h2>\n  {{ $('Parse Market Update').item.json.market_stats_html }}\n  \n  <h2>Buyer Tips</h2>\n  <p>{{ $('Parse Market Update').item.json.buyer_tips }}</p>\n  \n  <h2>Seller Tips</h2>\n  <p>{{ $('Parse Market Update').item.json.seller_tips }}</p>\n  \n  <h2>Market Outlook</h2>\n  <p>{{ $('Parse Market Update').item.json.outlook }}</p>\n  \n  <hr>\n  <p style=\"font-size: 12px; color: #666;\">Questions about the market? Reply to this email or call YOUR_AGENT_PHONE</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 700],
+      "id": "send-market-email",
+      "name": "Send Market Update Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1920, 700],
+      "id": "wait-market-emails",
+      "name": "Rate Limit Wait",
+      "webhookId": "marketing-market-rate-limit"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2640, 100],
+      "id": "emails-sent",
+      "name": "Emails Sent"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2160, 700],
+      "id": "market-emails-sent",
+      "name": "Market Emails Sent"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=Marketing Agent: {{ $('Set New Listing Data').item.json.event_type || $('Set Update Data').item.json.event_type || $('Set Just Sold Data').item.json.event_type }} Content Generated",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif;\">\n  <h2>Marketing Content Generated</h2>\n  <p>Content has been created and queued for your review.</p>\n  \n  <h3>Instagram Caption (Preview)</h3>\n  <div style=\"background: #f5f5f5; padding: 10px; border-radius: 5px;\">{{ ($('Parse Listing Content').item.json.instagram_caption || $('Parse Update Content').item.json.instagram_caption || $('Parse Sold Content').item.json.instagram_caption || 'N/A').substring(0, 200) }}...</div>\n  \n  <p>Check your Content Queue sheet to review and approve.</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1440, 200],
+      "id": "notify-agent",
+      "name": "Notify Agent",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Listing Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set New Listing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listing Update Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Just Sold Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Just Sold Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set New Listing Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Listing Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Update Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Update Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Just Sold Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Just Sold Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Listing Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Listing Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Update Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Update Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Just Sold Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Sold Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Listing Content": {
+      "main": [
+        [
+          {
+            "node": "Queue Listing Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Update Content": {
+      "main": [
+        [
+          {
+            "node": "Queue Update Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sold Content": {
+      "main": [
+        [
+          {
+            "node": "Queue Sold Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Listing Content": {
+      "main": [
+        [
+          {
+            "node": "Get Email Subscribers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Batch Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Emails": {
+      "main": [
+        [
+          {
+            "node": "Send Listing Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Emails Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Listing Email": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Wait": {
+      "main": [
+        [
+          {
+            "node": "Batch Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Market Update": {
+      "main": [
+        [
+          {
+            "node": "Generate Market Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Market Update": {
+      "main": [
+        [
+          {
+            "node": "Parse Market Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Market Update": {
+      "main": [
+        [
+          {
+            "node": "Get Market Update Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Market Update Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Filter Market Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Market Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Batch Market Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Market Emails": {
+      "main": [
+        [
+          {
+            "node": "Send Market Update Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Market Emails Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Market Update Email": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "re-marketing-automation-agent",
+  "meta": {
+    "instanceId": "aasani-re-automation"
+  },
+  "tags": [
+    {"name": "Real Estate", "id": "real-estate"},
+    {"name": "Marketing", "id": "marketing"},
+    {"name": "Content", "id": "content"},
+    {"name": "Automation", "id": "automation"}
+  ]
+}

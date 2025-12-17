@@ -1,0 +1,958 @@
+{
+  "name": "RE Transaction Coordinator Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Transaction Coordination Agent\n\n**TENEX Equivalent:** Tester Agent validating implementation against requirements\n\n**Core Function:** Manages the 30 administrative hours per transaction. Tracks deadlines, coordinates documents, and ensures nothing falls through the cracks from contract to close.\n\n## Trigger Events\n- Contract executed\n- Option period start\n- Inspection scheduled\n- Financing deadline\n\n## Success Metrics\n- On-time closings\n- Deadline compliance rate\n- Document turnaround time\n- Agent hours saved",
+        "height": 380,
+        "width": 400,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -200],
+      "id": "sticky-overview",
+      "name": "Agent Overview"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials to Configure\n\n1. `GOOGLE_SHEETS_CREDENTIAL_ID` → Transaction tracking sheet\n2. `GMAIL_CREDENTIAL_ID` → Gmail OAuth2\n3. `OPENROUTER_CREDENTIAL_ID` → AI for document generation\n4. `GOOGLE_DRIVE_CREDENTIAL_ID` → Document storage\n5. `TWILIO_CREDENTIAL_ID` → SMS alerts\n\n## Sheet Structure\n- Transaction ID, Property Address, Client Name\n- Contract Date, Option Period End, Financing Deadline\n- Inspection Date, Appraisal Date, Closing Date\n- Status, Agent, Notes",
+        "height": 320,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 200],
+      "id": "sticky-credentials",
+      "name": "Credentials Setup"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-transaction",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 100],
+      "id": "webhook-new-transaction",
+      "name": "New Transaction Webhook",
+      "webhookId": "re-tc-new-transaction"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400],
+      "id": "schedule-deadline-check",
+      "name": "Check Deadlines (6hr)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 600],
+      "id": "schedule-daily-summary",
+      "name": "Daily Summary (8am)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tx-id",
+              "name": "transaction_id",
+              "value": "={{ $json.transaction_id || 'TX-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "property",
+              "name": "property_address",
+              "value": "={{ $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "client",
+              "name": "client_name",
+              "value": "={{ $json.client_name }}",
+              "type": "string"
+            },
+            {
+              "id": "client-email",
+              "name": "client_email",
+              "value": "={{ $json.client_email }}",
+              "type": "string"
+            },
+            {
+              "id": "client-phone",
+              "name": "client_phone",
+              "value": "={{ $json.client_phone }}",
+              "type": "string"
+            },
+            {
+              "id": "tx-type",
+              "name": "transaction_type",
+              "value": "={{ $json.type || 'buyer' }}",
+              "type": "string"
+            },
+            {
+              "id": "contract-date",
+              "name": "contract_date",
+              "value": "={{ $json.contract_date || $now.toISODate() }}",
+              "type": "string"
+            },
+            {
+              "id": "option-end",
+              "name": "option_period_end",
+              "value": "={{ $json.option_period_end }}",
+              "type": "string"
+            },
+            {
+              "id": "financing-deadline",
+              "name": "financing_deadline",
+              "value": "={{ $json.financing_deadline }}",
+              "type": "string"
+            },
+            {
+              "id": "closing-date",
+              "name": "closing_date",
+              "value": "={{ $json.closing_date }}",
+              "type": "string"
+            },
+            {
+              "id": "purchase-price",
+              "name": "purchase_price",
+              "value": "={{ $json.purchase_price || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "title-company",
+              "name": "title_company",
+              "value": "={{ $json.title_company || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "lender",
+              "name": "lender_name",
+              "value": "={{ $json.lender_name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "lender-contact",
+              "name": "lender_contact",
+              "value": "={{ $json.lender_contact || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 100],
+      "id": "set-tx-data",
+      "name": "Normalize Transaction Data"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Transactions",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Transaction ID": "={{ $json.transaction_id }}",
+            "Property Address": "={{ $json.property_address }}",
+            "Client Name": "={{ $json.client_name }}",
+            "Client Email": "={{ $json.client_email }}",
+            "Client Phone": "={{ $json.client_phone }}",
+            "Type": "={{ $json.transaction_type }}",
+            "Contract Date": "={{ $json.contract_date }}",
+            "Option Period End": "={{ $json.option_period_end }}",
+            "Financing Deadline": "={{ $json.financing_deadline }}",
+            "Closing Date": "={{ $json.closing_date }}",
+            "Purchase Price": "={{ $json.purchase_price }}",
+            "Title Company": "={{ $json.title_company }}",
+            "Lender": "={{ $json.lender_name }}",
+            "Lender Contact": "={{ $json.lender_contact }}",
+            "Status": "=Active",
+            "Created At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 100],
+      "id": "create-transaction",
+      "name": "Create Transaction Record",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate transaction coordinator assistant. Generate a JSON checklist of tasks for a new real estate transaction. Include typical milestones with due dates calculated from the contract date. Return ONLY valid JSON array.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate transaction checklist for:\\n- Type: {{ $('Normalize Transaction Data').item.json.transaction_type }}\\n- Contract Date: {{ $('Normalize Transaction Data').item.json.contract_date }}\\n- Option Period End: {{ $('Normalize Transaction Data').item.json.option_period_end }}\\n- Financing Deadline: {{ $('Normalize Transaction Data').item.json.financing_deadline }}\\n- Closing Date: {{ $('Normalize Transaction Data').item.json.closing_date }}\\n\\nReturn JSON array with: [{task, due_date, priority, category}]\"\n    }\n  ],\n  \"max_tokens\": 1000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 100],
+      "id": "generate-checklist",
+      "name": "Generate Task Checklist",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response and extract checklist\nconst response = $input.first().json;\nconst content = response.choices[0].message.content;\n\n// Extract JSON from response\nlet checklist = [];\ntry {\n  // Try to find JSON array in response\n  const jsonMatch = content.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    checklist = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Default checklist if parsing fails\n  const contractDate = new Date($('Normalize Transaction Data').item.json.contract_date);\n  checklist = [\n    { task: 'Send executed contract to all parties', due_date: contractDate.toISOString().split('T')[0], priority: 'high', category: 'documents' },\n    { task: 'Order title commitment', due_date: new Date(contractDate.getTime() + 3*24*60*60*1000).toISOString().split('T')[0], priority: 'high', category: 'title' },\n    { task: 'Schedule inspection', due_date: new Date(contractDate.getTime() + 5*24*60*60*1000).toISOString().split('T')[0], priority: 'high', category: 'inspection' },\n    { task: 'Verify earnest money deposit', due_date: new Date(contractDate.getTime() + 3*24*60*60*1000).toISOString().split('T')[0], priority: 'high', category: 'financial' },\n    { task: 'Follow up with lender on loan status', due_date: new Date(contractDate.getTime() + 7*24*60*60*1000).toISOString().split('T')[0], priority: 'medium', category: 'financing' },\n    { task: 'Schedule appraisal', due_date: new Date(contractDate.getTime() + 10*24*60*60*1000).toISOString().split('T')[0], priority: 'medium', category: 'financing' },\n    { task: 'Review title commitment', due_date: new Date(contractDate.getTime() + 14*24*60*60*1000).toISOString().split('T')[0], priority: 'medium', category: 'title' },\n    { task: 'Confirm clear to close', due_date: $('Normalize Transaction Data').item.json.closing_date, priority: 'high', category: 'closing' },\n    { task: 'Schedule final walkthrough', due_date: $('Normalize Transaction Data').item.json.closing_date, priority: 'high', category: 'closing' }\n  ];\n}\n\nconst txId = $('Normalize Transaction Data').item.json.transaction_id;\n\nreturn checklist.map((item, index) => ({\n  json: {\n    transaction_id: txId,\n    task_id: `${txId}-T${index + 1}`,\n    task: item.task,\n    due_date: item.due_date,\n    priority: item.priority,\n    category: item.category,\n    status: 'pending',\n    created_at: new Date().toISOString()\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 100],
+      "id": "parse-checklist",
+      "name": "Parse Checklist"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Transaction ID": "={{ $json.transaction_id }}",
+            "Task ID": "={{ $json.task_id }}",
+            "Task": "={{ $json.task }}",
+            "Due Date": "={{ $json.due_date }}",
+            "Priority": "={{ $json.priority }}",
+            "Category": "={{ $json.category }}",
+            "Status": "={{ $json.status }}",
+            "Created At": "={{ $json.created_at }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1440, 100],
+      "id": "save-tasks",
+      "name": "Save Tasks to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalize Transaction Data').item.json.client_email }}",
+        "subject": "=Welcome to Your Transaction: {{ $('Normalize Transaction Data').item.json.property_address }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2>Congratulations on Your Contract!</h2>\n  \n  <p>Dear {{ $('Normalize Transaction Data').item.json.client_name }},</p>\n  \n  <p>I'm excited to help guide you through the purchase of <strong>{{ $('Normalize Transaction Data').item.json.property_address }}</strong>!</p>\n  \n  <h3>Key Dates to Remember:</h3>\n  <ul>\n    <li><strong>Contract Date:</strong> {{ $('Normalize Transaction Data').item.json.contract_date }}</li>\n    <li><strong>Option Period Ends:</strong> {{ $('Normalize Transaction Data').item.json.option_period_end }}</li>\n    <li><strong>Financing Deadline:</strong> {{ $('Normalize Transaction Data').item.json.financing_deadline }}</li>\n    <li><strong>Closing Date:</strong> {{ $('Normalize Transaction Data').item.json.closing_date }}</li>\n  </ul>\n  \n  <h3>What Happens Next:</h3>\n  <ol>\n    <li>Earnest money deposit (within 3 days)</li>\n    <li>Schedule home inspection</li>\n    <li>Appraisal ordered by lender</li>\n    <li>Title work in progress</li>\n    <li>Final walkthrough before closing</li>\n  </ol>\n  \n  <p>I'll keep you updated at every step. Please don't hesitate to reach out with any questions!</p>\n  \n  <p>Best regards,<br>YOUR_AGENT_NAME</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 100],
+      "id": "send-welcome-email",
+      "name": "Send Welcome Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 400],
+      "id": "get-all-tasks",
+      "name": "Get All Tasks",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for upcoming deadlines (within 48 hours) and overdue tasks\nconst now = new Date();\nconst in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);\n\nconst tasks = $input.all();\nconst alerts = [];\n\nfor (const task of tasks) {\n  if (task.json.Status === 'completed') continue;\n  \n  const dueDate = new Date(task.json['Due Date']);\n  \n  // Check if overdue\n  if (dueDate < now) {\n    alerts.push({\n      ...task.json,\n      alert_type: 'OVERDUE',\n      days_overdue: Math.floor((now - dueDate) / (1000 * 60 * 60 * 24)),\n      urgency: 'critical'\n    });\n  }\n  // Check if due within 48 hours\n  else if (dueDate <= in48Hours) {\n    alerts.push({\n      ...task.json,\n      alert_type: 'DUE_SOON',\n      hours_until_due: Math.floor((dueDate - now) / (1000 * 60 * 60)),\n      urgency: task.json.Priority === 'high' ? 'high' : 'medium'\n    });\n  }\n}\n\n// Sort by urgency\nalerts.sort((a, b) => {\n  const urgencyOrder = { critical: 0, high: 1, medium: 2 };\n  return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];\n});\n\nreturn alerts.map(a => ({ json: a }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 400],
+      "id": "filter-deadline-alerts",
+      "name": "Filter Deadline Alerts"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-alerts",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 400],
+      "id": "check-has-alerts",
+      "name": "Has Alerts?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 380],
+      "id": "loop-alerts",
+      "name": "Loop Alerts"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-critical",
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1440, 380],
+      "id": "check-critical",
+      "name": "Is Critical?"
+    },
+    {
+      "parameters": {
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "+1YOUR_AGENT_PHONE"
+            },
+            {
+              "name": "From",
+              "value": "+1YOUR_TWILIO_NUMBER"
+            },
+            {
+              "name": "Body",
+              "value": "=🚨 OVERDUE: {{ $json.Task }} for {{ $json['Transaction ID'] }}. Was due {{ $json.days_overdue }} day(s) ago. Action required!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 320],
+      "id": "send-critical-sms",
+      "name": "Send Critical SMS Alert",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "TWILIO_CREDENTIAL_ID",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=⚠️ Deadline Alert: {{ $json.Task }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif;\">\n  <h2 style=\"color: {{ $json.urgency === 'critical' ? '#dc3545' : '#ffc107' }};\">{{ $json.alert_type === 'OVERDUE' ? '🚨 OVERDUE TASK' : '⚠️ UPCOMING DEADLINE' }}</h2>\n  \n  <table style=\"border-collapse: collapse; width: 100%;\">\n    <tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Transaction:</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json['Transaction ID'] }}</td></tr>\n    <tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Task:</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.Task }}</td></tr>\n    <tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Due Date:</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json['Due Date'] }}</td></tr>\n    <tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Priority:</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.Priority }}</td></tr>\n    <tr><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Category:</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.Category }}</td></tr>\n  </table>\n  \n  <p style=\"margin-top: 20px;\">{{ $json.alert_type === 'OVERDUE' ? 'This task is ' + $json.days_overdue + ' day(s) overdue!' : 'Due in ' + $json.hours_until_due + ' hours' }}</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 440],
+      "id": "send-alert-email",
+      "name": "Send Alert Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1920, 380],
+      "id": "merge-alerts",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Transactions",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 600],
+      "id": "get-active-transactions",
+      "name": "Get Active Transactions",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-active",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Active",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [720, 600],
+      "id": "filter-active",
+      "name": "Filter Active Only"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [960, 600],
+      "id": "get-tasks-for-summary",
+      "name": "Get All Tasks for Summary",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build daily summary\nconst transactions = $('Filter Active Only').all();\nconst tasks = $input.all();\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\n\nlet summary = {\n  date: today,\n  active_transactions: transactions.length,\n  transactions: [],\n  overdue_tasks: 0,\n  due_today: 0,\n  due_this_week: 0\n};\n\nfor (const tx of transactions) {\n  const txId = tx.json['Transaction ID'];\n  const txTasks = tasks.filter(t => t.json['Transaction ID'] === txId && t.json.Status !== 'completed');\n  \n  const overdue = txTasks.filter(t => new Date(t.json['Due Date']) < now);\n  const dueToday = txTasks.filter(t => t.json['Due Date'] === today);\n  const dueThisWeek = txTasks.filter(t => {\n    const due = new Date(t.json['Due Date']);\n    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);\n    return due >= now && due <= weekFromNow;\n  });\n  \n  summary.overdue_tasks += overdue.length;\n  summary.due_today += dueToday.length;\n  summary.due_this_week += dueThisWeek.length;\n  \n  summary.transactions.push({\n    id: txId,\n    property: tx.json['Property Address'],\n    client: tx.json['Client Name'],\n    closing_date: tx.json['Closing Date'],\n    days_to_close: Math.ceil((new Date(tx.json['Closing Date']) - now) / (1000 * 60 * 60 * 24)),\n    pending_tasks: txTasks.length,\n    overdue: overdue.length,\n    high_priority: txTasks.filter(t => t.json.Priority === 'high').length\n  });\n}\n\n// Sort by days to close\nsummary.transactions.sort((a, b) => a.days_to_close - b.days_to_close);\n\nreturn [{ json: summary }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 600],
+      "id": "build-summary",
+      "name": "Build Daily Summary"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=📋 Daily Transaction Summary - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px;\">\n  <h1>📋 Daily Transaction Summary</h1>\n  <p style=\"color: #666;\">{{ $json.date }}</p>\n  \n  <div style=\"display: flex; gap: 20px; margin: 20px 0;\">\n    <div style=\"background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center; flex: 1;\">\n      <h3 style=\"margin: 0; color: #1976d2;\">{{ $json.active_transactions }}</h3>\n      <p style=\"margin: 5px 0 0; font-size: 12px;\">Active Transactions</p>\n    </div>\n    <div style=\"background: {{ $json.overdue_tasks > 0 ? '#ffebee' : '#e8f5e9' }}; padding: 15px; border-radius: 8px; text-align: center; flex: 1;\">\n      <h3 style=\"margin: 0; color: {{ $json.overdue_tasks > 0 ? '#c62828' : '#2e7d32' }};\">{{ $json.overdue_tasks }}</h3>\n      <p style=\"margin: 5px 0 0; font-size: 12px;\">Overdue Tasks</p>\n    </div>\n    <div style=\"background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center; flex: 1;\">\n      <h3 style=\"margin: 0; color: #ef6c00;\">{{ $json.due_today }}</h3>\n      <p style=\"margin: 5px 0 0; font-size: 12px;\">Due Today</p>\n    </div>\n    <div style=\"background: #f3e5f5; padding: 15px; border-radius: 8px; text-align: center; flex: 1;\">\n      <h3 style=\"margin: 0; color: #7b1fa2;\">{{ $json.due_this_week }}</h3>\n      <p style=\"margin: 5px 0 0; font-size: 12px;\">Due This Week</p>\n    </div>\n  </div>\n  \n  <h2>Transaction Pipeline</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr style=\"background: #f5f5f5;\">\n      <th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Property</th>\n      <th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Client</th>\n      <th style=\"padding: 10px; text-align: center; border: 1px solid #ddd;\">Days to Close</th>\n      <th style=\"padding: 10px; text-align: center; border: 1px solid #ddd;\">Tasks</th>\n      <th style=\"padding: 10px; text-align: center; border: 1px solid #ddd;\">⚠️</th>\n    </tr>\n    {{ $json.transactions.map(t => '<tr><td style=\"padding: 10px; border: 1px solid #ddd;\">' + t.property + '</td><td style=\"padding: 10px; border: 1px solid #ddd;\">' + t.client + '</td><td style=\"padding: 10px; text-align: center; border: 1px solid #ddd;\">' + t.days_to_close + '</td><td style=\"padding: 10px; text-align: center; border: 1px solid #ddd;\">' + t.pending_tasks + '</td><td style=\"padding: 10px; text-align: center; border: 1px solid #ddd; color: ' + (t.overdue > 0 ? 'red' : 'green') + ';\">' + (t.overdue > 0 ? t.overdue : '✓') + '</td></tr>').join('') }}\n  </table>\n  \n  <p style=\"margin-top: 20px; color: #666; font-size: 12px;\">Generated by RE Transaction Coordinator Agent</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1440, 600],
+      "id": "send-daily-summary",
+      "name": "Send Daily Summary Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "update-task",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 800],
+      "id": "webhook-update-task",
+      "name": "Update Task Webhook",
+      "webhookId": "re-tc-update-task"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json.task_id }}",
+            "Status": "={{ $json.status || 'completed' }}",
+            "Completed At": "={{ $now.toISO() }}",
+            "Notes": "={{ $json.notes || '' }}"
+          },
+          "matchingColumns": ["Task ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 800],
+      "id": "update-task-status",
+      "name": "Update Task Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 440],
+      "id": "no-alerts",
+      "name": "No Alerts"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "message",
+              "name": "message",
+              "value": "=Transaction {{ $('Normalize Transaction Data').item.json.transaction_id }} created successfully with task checklist.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1920, 100],
+      "id": "set-tx-success",
+      "name": "Transaction Created"
+    }
+  ],
+  "connections": {
+    "New Transaction Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Transaction Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Transaction Data": {
+      "main": [
+        [
+          {
+            "node": "Create Transaction Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Transaction Record": {
+      "main": [
+        [
+          {
+            "node": "Generate Task Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Task Checklist": {
+      "main": [
+        [
+          {
+            "node": "Parse Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Checklist": {
+      "main": [
+        [
+          {
+            "node": "Save Tasks to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Tasks to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Transaction Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Deadlines (6hr)": {
+      "main": [
+        [
+          {
+            "node": "Get All Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Deadline Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Deadline Alerts": {
+      "main": [
+        [
+          {
+            "node": "Has Alerts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Alerts?": {
+      "main": [
+        [
+          {
+            "node": "Loop Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Alerts": {
+      "main": [
+        [
+          {
+            "node": "Is Critical?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Critical?": {
+      "main": [
+        [
+          {
+            "node": "Send Critical SMS Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Critical SMS Alert": {
+      "main": [
+        [
+          {
+            "node": "Loop Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Loop Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Summary (8am)": {
+      "main": [
+        [
+          {
+            "node": "Get Active Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Transactions": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Only": {
+      "main": [
+        [
+          {
+            "node": "Get All Tasks for Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Tasks for Summary": {
+      "main": [
+        [
+          {
+            "node": "Build Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Task Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update Task Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "re-transaction-coordinator-agent",
+  "meta": {
+    "instanceId": "aasani-re-automation"
+  },
+  "tags": [
+    {"name": "Real Estate", "id": "real-estate"},
+    {"name": "Transaction", "id": "transaction"},
+    {"name": "Coordination", "id": "coordination"},
+    {"name": "Automation", "id": "automation"}
+  ]
+}

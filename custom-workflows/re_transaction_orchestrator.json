@@ -1,0 +1,1020 @@
+{
+  "name": "RE Transaction Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Transaction Orchestrator\n\n**TENEX Equivalent:** Project Manager (PM) coordinating workflow and delegating to specialists\n\n**Core Function:** Central hub monitoring all pipelines. Provides unified visibility across all four agents while they operate independently. Handles cross-agent triggers and exception escalation.\n\n## Orchestrator Functions\n- Unified Dashboard\n- Cross-Agent Triggers\n- Exception Handling\n- Performance Aggregation\n\n## Cross-Agent Events\n- Lead → Transaction handoff\n- Transaction → Client Success handoff\n- Listing → Marketing triggers",
+        "height": 400,
+        "width": 420,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -200],
+      "id": "sticky-overview",
+      "name": "Orchestrator Overview"
+    },
+    {
+      "parameters": {
+        "content": "## Agent Webhook Endpoints\n\n**Lead Nurturing Agent**\n- POST /webhook/new-lead\n\n**Transaction Coordinator Agent**\n- POST /webhook/new-transaction\n- POST /webhook/update-task\n\n**Marketing Automation Agent**\n- POST /webhook/new-listing\n- POST /webhook/listing-update\n- POST /webhook/just-sold\n\n**Client Success Agent**\n- POST /webhook/new-client",
+        "height": 340,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 220],
+      "id": "sticky-endpoints",
+      "name": "Agent Endpoints"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orchestrator/lead-converted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 100],
+      "id": "webhook-lead-converted",
+      "name": "Lead Converted to Transaction",
+      "webhookId": "re-orchestrator-lead-converted"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orchestrator/transaction-closed",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "webhook-transaction-closed",
+      "name": "Transaction Closed",
+      "webhookId": "re-orchestrator-tx-closed"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orchestrator/new-listing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 500],
+      "id": "webhook-new-listing",
+      "name": "New Listing Event",
+      "webhookId": "re-orchestrator-new-listing"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 700],
+      "id": "schedule-daily-dashboard",
+      "name": "Daily Dashboard (7am)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [5],
+              "triggerAtHour": 16
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 900],
+      "id": "schedule-weekly-report",
+      "name": "Weekly Report (Fri 4pm)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "lead-id",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "client-name",
+              "name": "client_name",
+              "value": "={{ $json.client_name || $json.lead_name }}",
+              "type": "string"
+            },
+            {
+              "id": "client-email",
+              "name": "client_email",
+              "value": "={{ $json.email || $json.lead_email }}",
+              "type": "string"
+            },
+            {
+              "id": "client-phone",
+              "name": "client_phone",
+              "value": "={{ $json.phone || $json.lead_phone }}",
+              "type": "string"
+            },
+            {
+              "id": "property",
+              "name": "property_address",
+              "value": "={{ $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "contract-date",
+              "name": "contract_date",
+              "value": "={{ $json.contract_date || $now.toISODate() }}",
+              "type": "string"
+            },
+            {
+              "id": "type",
+              "name": "transaction_type",
+              "value": "={{ $json.type || 'buyer' }}",
+              "type": "string"
+            },
+            {
+              "id": "closing-date",
+              "name": "closing_date",
+              "value": "={{ $json.closing_date }}",
+              "type": "string"
+            },
+            {
+              "id": "purchase-price",
+              "name": "purchase_price",
+              "value": "={{ $json.purchase_price || 0 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 100],
+      "id": "set-conversion-data",
+      "name": "Prepare Conversion Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL || 'http://localhost:5678' }}/webhook/new-transaction",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client_name\": \"{{ $json.client_name }}\",\n  \"client_email\": \"{{ $json.client_email }}\",\n  \"client_phone\": \"{{ $json.client_phone }}\",\n  \"property_address\": \"{{ $json.property_address }}\",\n  \"type\": \"{{ $json.transaction_type }}\",\n  \"contract_date\": \"{{ $json.contract_date }}\",\n  \"closing_date\": \"{{ $json.closing_date }}\",\n  \"purchase_price\": {{ $json.purchase_price }},\n  \"source\": \"lead_conversion\",\n  \"lead_id\": \"{{ $json.lead_id }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 100],
+      "id": "trigger-transaction-agent",
+      "name": "Trigger Transaction Agent"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_LEADS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Prepare Conversion Data').item.json.lead_id }}",
+            "Status": "=Converted",
+            "Converted At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["Lead ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [960, 100],
+      "id": "update-lead-status",
+      "name": "Update Lead Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_ORCHESTRATOR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Events",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event ID": "={{ 'EVT-' + $now.toMillis() }}",
+            "Event Type": "=Lead Converted",
+            "Source Agent": "=Lead Nurturing",
+            "Target Agent": "=Transaction Coordinator",
+            "Data": "={{ JSON.stringify($('Prepare Conversion Data').item.json) }}",
+            "Timestamp": "={{ $now.toISO() }}",
+            "Status": "=Completed"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 100],
+      "id": "log-conversion-event",
+      "name": "Log Conversion Event",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tx-id",
+              "name": "transaction_id",
+              "value": "={{ $json.transaction_id }}",
+              "type": "string"
+            },
+            {
+              "id": "client-name",
+              "name": "client_name",
+              "value": "={{ $json.client_name }}",
+              "type": "string"
+            },
+            {
+              "id": "client-email",
+              "name": "client_email",
+              "value": "={{ $json.client_email }}",
+              "type": "string"
+            },
+            {
+              "id": "client-phone",
+              "name": "client_phone",
+              "value": "={{ $json.client_phone }}",
+              "type": "string"
+            },
+            {
+              "id": "property",
+              "name": "property_address",
+              "value": "={{ $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "close-date",
+              "name": "close_date",
+              "value": "={{ $json.close_date || $now.toISODate() }}",
+              "type": "string"
+            },
+            {
+              "id": "sale-price",
+              "name": "sale_price",
+              "value": "={{ $json.sale_price || $json.purchase_price || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "type",
+              "name": "client_type",
+              "value": "={{ $json.type || 'buyer' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300],
+      "id": "set-close-data",
+      "name": "Prepare Close Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL || 'http://localhost:5678' }}/webhook/new-client",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"{{ $json.client_name }}\",\n  \"email\": \"{{ $json.client_email }}\",\n  \"phone\": \"{{ $json.client_phone }}\",\n  \"address\": \"{{ $json.property_address }}\",\n  \"close_date\": \"{{ $json.close_date }}\",\n  \"purchase_price\": {{ $json.sale_price }},\n  \"type\": \"{{ $json.client_type }}\",\n  \"source\": \"transaction_close\",\n  \"transaction_id\": \"{{ $json.transaction_id }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "id": "trigger-client-success",
+      "name": "Trigger Client Success Agent"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL || 'http://localhost:5678' }}/webhook/just-sold",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"listing_id\": \"{{ $json.transaction_id }}\",\n  \"address\": \"{{ $json.property_address }}\",\n  \"sale_price\": {{ $json.sale_price }},\n  \"days_on_market\": {{ $json.days_on_market || 30 }},\n  \"client_name\": \"{{ $json.client_name }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 400],
+      "id": "trigger-marketing-sold",
+      "name": "Trigger Marketing (Just Sold)"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Transactions",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Transaction ID": "={{ $('Prepare Close Data').item.json.transaction_id }}",
+            "Status": "=Closed",
+            "Closed At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["Transaction ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [960, 350],
+      "id": "update-transaction-status",
+      "name": "Update Transaction Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_ORCHESTRATOR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Events",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event ID": "={{ 'EVT-' + $now.toMillis() }}",
+            "Event Type": "=Transaction Closed",
+            "Source Agent": "=Transaction Coordinator",
+            "Target Agent": "=Client Success + Marketing",
+            "Data": "={{ JSON.stringify($('Prepare Close Data').item.json) }}",
+            "Timestamp": "={{ $now.toISO() }}",
+            "Status": "=Completed"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 350],
+      "id": "log-close-event",
+      "name": "Log Close Event",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "listing-id",
+              "name": "listing_id",
+              "value": "={{ $json.listing_id || $json.mls_number }}",
+              "type": "string"
+            },
+            {
+              "id": "address",
+              "name": "property_address",
+              "value": "={{ $json.address || $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "price",
+              "name": "price",
+              "value": "={{ $json.price || $json.list_price || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "details",
+              "name": "listing_details",
+              "value": "={{ JSON.stringify({ beds: $json.bedrooms, baths: $json.bathrooms, sqft: $json.sqft, features: $json.features }) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 500],
+      "id": "set-listing-data",
+      "name": "Prepare Listing Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL || 'http://localhost:5678' }}/webhook/new-listing",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 500],
+      "id": "trigger-marketing-listing",
+      "name": "Trigger Marketing Agent"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_LEADS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 560],
+      "id": "get-buyer-leads",
+      "name": "Get Buyer Leads",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find buyer leads that might be interested in this listing\nconst leads = $input.all();\nconst listing = $('Prepare Listing Data').item.json;\nconst matches = [];\n\nfor (const lead of leads) {\n  const data = lead.json;\n  \n  // Skip converted or lost leads\n  if (data.Status === 'Converted' || data.Status === 'Lost') continue;\n  \n  // Check if buyer lead\n  if (data.Type !== 'buyer') continue;\n  \n  // Add as potential match (in real implementation, would match on criteria)\n  matches.push({\n    lead_id: data['Lead ID'],\n    lead_name: data.Name,\n    lead_email: data.Email,\n    listing_id: listing.listing_id,\n    listing_address: listing.property_address,\n    listing_price: listing.price\n  });\n}\n\n// Limit to top 10 matches\nreturn matches.slice(0, 10).map(m => ({ json: m }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 560],
+      "id": "match-buyer-leads",
+      "name": "Match Buyer Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-matches",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 560],
+      "id": "has-matches",
+      "name": "Has Matches?"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=New Listing Match: {{ $('Prepare Listing Data').item.json.property_address }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif;\">\n  <h2>New Listing Matched with Buyer Leads</h2>\n  \n  <h3>Listing: {{ $('Prepare Listing Data').item.json.property_address }}</h3>\n  <p>Price: ${{ $('Prepare Listing Data').item.json.price?.toLocaleString() }}</p>\n  \n  <h3>Matched Leads ({{ $input.all().length }})</h3>\n  <ul>\n  {{ $input.all().map(l => '<li>' + l.json.lead_name + ' (' + l.json.lead_email + ')</li>').join('') }}\n  </ul>\n  \n  <p>Consider reaching out to these leads about the new listing!</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1440, 500],
+      "id": "notify-lead-matches",
+      "name": "Notify Agent of Matches",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_LEADS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 700],
+      "id": "get-leads-dashboard",
+      "name": "Get All Leads",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_TRANSACTIONS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Transactions",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 800],
+      "id": "get-transactions-dashboard",
+      "name": "Get All Transactions",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 900],
+      "id": "get-clients-dashboard",
+      "name": "Get All Clients",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate data from all agents for unified dashboard\nconst leads = $('Get All Leads').all();\nconst transactions = $('Get All Transactions').all();\nconst clients = $('Get All Clients').all();\n\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\n\n// Lead metrics\nconst activeLeads = leads.filter(l => l.json.Status !== 'Converted' && l.json.Status !== 'Lost').length;\nconst newLeadsToday = leads.filter(l => l.json['Received At']?.split('T')[0] === today).length;\nconst convertedThisMonth = leads.filter(l => {\n  if (l.json.Status !== 'Converted') return false;\n  const converted = new Date(l.json['Converted At']);\n  return converted.getMonth() === now.getMonth() && converted.getFullYear() === now.getFullYear();\n}).length;\n\n// Transaction metrics\nconst activeTransactions = transactions.filter(t => t.json.Status === 'Active').length;\nconst closingThisWeek = transactions.filter(t => {\n  if (t.json.Status !== 'Active') return false;\n  const closing = new Date(t.json['Closing Date']);\n  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);\n  return closing <= weekFromNow && closing >= now;\n}).length;\nconst closedThisMonth = transactions.filter(t => {\n  if (t.json.Status !== 'Closed') return false;\n  const closed = new Date(t.json['Closed At']);\n  return closed.getMonth() === now.getMonth() && closed.getFullYear() === now.getFullYear();\n}).length;\n\n// Client metrics\nconst totalClients = clients.length;\nconst reviewsReceived = clients.filter(c => c.json['Review Status'] === 'received').length;\nconst referrals = clients.reduce((sum, c) => sum + parseInt(c.json['Referral Count'] || 0), 0);\n\n// Pipeline value\nconst pipelineValue = transactions\n  .filter(t => t.json.Status === 'Active')\n  .reduce((sum, t) => sum + parseFloat(t.json['Purchase Price'] || 0), 0);\n\nreturn [{\n  json: {\n    date: today,\n    lead_metrics: {\n      active: activeLeads,\n      new_today: newLeadsToday,\n      converted_this_month: convertedThisMonth\n    },\n    transaction_metrics: {\n      active: activeTransactions,\n      closing_this_week: closingThisWeek,\n      closed_this_month: closedThisMonth,\n      pipeline_value: pipelineValue\n    },\n    client_metrics: {\n      total: totalClients,\n      reviews_received: reviewsReceived,\n      referrals: referrals\n    },\n    agent_status: {\n      lead_nurturing: 'Active',\n      transaction_coordinator: 'Active',\n      marketing_automation: 'Active',\n      client_success: 'Active'\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 800],
+      "id": "aggregate-metrics",
+      "name": "Aggregate All Metrics"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=📊 Daily Dashboard - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <h1 style=\"color: #2c5282;\">📊 Daily Dashboard</h1>\n  <p style=\"color: #666;\">{{ $json.date }}</p>\n  \n  <div style=\"display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap;\">\n    <div style=\"background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; flex: 1; min-width: 150px;\">\n      <h3 style=\"margin: 0;\">Active Leads</h3>\n      <p style=\"font-size: 32px; margin: 10px 0 0;\">{{ $json.lead_metrics.active }}</p>\n    </div>\n    <div style=\"background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 10px; flex: 1; min-width: 150px;\">\n      <h3 style=\"margin: 0;\">Active Deals</h3>\n      <p style=\"font-size: 32px; margin: 10px 0 0;\">{{ $json.transaction_metrics.active }}</p>\n    </div>\n    <div style=\"background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 10px; flex: 1; min-width: 150px;\">\n      <h3 style=\"margin: 0;\">Pipeline Value</h3>\n      <p style=\"font-size: 24px; margin: 10px 0 0;\">${{ ($json.transaction_metrics.pipeline_value / 1000000).toFixed(1) }}M</p>\n    </div>\n    <div style=\"background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 20px; border-radius: 10px; flex: 1; min-width: 150px;\">\n      <h3 style=\"margin: 0;\">Total Clients</h3>\n      <p style=\"font-size: 32px; margin: 10px 0 0;\">{{ $json.client_metrics.total }}</p>\n    </div>\n  </div>\n  \n  <h2>Lead Nurturing Agent</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">New Leads Today</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;\">{{ $json.lead_metrics.new_today }}</td></tr>\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Converted This Month</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;\">{{ $json.lead_metrics.converted_this_month }}</td></tr>\n  </table>\n  \n  <h2>Transaction Coordinator Agent</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Closing This Week</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; {{ $json.transaction_metrics.closing_this_week > 0 ? 'color: #38a169;' : '' }}\">{{ $json.transaction_metrics.closing_this_week }}</td></tr>\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Closed This Month</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;\">{{ $json.transaction_metrics.closed_this_month }}</td></tr>\n  </table>\n  \n  <h2>Client Success Agent</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Reviews Received</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;\">{{ $json.client_metrics.reviews_received }}</td></tr>\n    <tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Total Referrals</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;\">{{ $json.client_metrics.referrals }}</td></tr>\n  </table>\n  \n  <h2>Agent Status</h2>\n  <div style=\"display: flex; gap: 10px; flex-wrap: wrap;\">\n    <span style=\"background: #c6f6d5; color: #276749; padding: 5px 15px; border-radius: 20px;\">✓ Lead Nurturing</span>\n    <span style=\"background: #c6f6d5; color: #276749; padding: 5px 15px; border-radius: 20px;\">✓ Transaction Coord</span>\n    <span style=\"background: #c6f6d5; color: #276749; padding: 5px 15px; border-radius: 20px;\">✓ Marketing</span>\n    <span style=\"background: #c6f6d5; color: #276749; padding: 5px 15px; border-radius: 20px;\">✓ Client Success</span>\n  </div>\n  \n  <hr style=\"margin: 30px 0; border: none; border-top: 1px solid #eee;\">\n  <p style=\"color: #666; font-size: 12px;\">Generated by RE Transaction Orchestrator</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [960, 800],
+      "id": "send-dashboard",
+      "name": "Send Daily Dashboard",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_ORCHESTRATOR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Events",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 1000],
+      "id": "get-events-weekly",
+      "name": "Get Weekly Events",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate weekly performance report\nconst events = $input.all();\nconst now = new Date();\nconst weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\n\nconst weeklyEvents = events.filter(e => {\n  const eventDate = new Date(e.json.Timestamp);\n  return eventDate >= weekAgo;\n});\n\nconst eventsByType = {};\nfor (const event of weeklyEvents) {\n  const type = event.json['Event Type'];\n  eventsByType[type] = (eventsByType[type] || 0) + 1;\n}\n\nconst eventsByAgent = {};\nfor (const event of weeklyEvents) {\n  const source = event.json['Source Agent'];\n  eventsByAgent[source] = (eventsByAgent[source] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    week_ending: now.toISOString().split('T')[0],\n    total_events: weeklyEvents.length,\n    events_by_type: eventsByType,\n    events_by_agent: eventsByAgent,\n    summary: {\n      lead_conversions: eventsByType['Lead Converted'] || 0,\n      transactions_closed: eventsByType['Transaction Closed'] || 0,\n      new_listings: eventsByType['New Listing'] || 0\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 1000],
+      "id": "build-weekly-report",
+      "name": "Build Weekly Report"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_AGENT_EMAIL",
+        "subject": "=📈 Weekly Performance Report - Week Ending {{ $json.week_ending }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <h1 style=\"color: #2c5282;\">📈 Weekly Performance Report</h1>\n  <p style=\"color: #666;\">Week Ending: {{ $json.week_ending }}</p>\n  \n  <div style=\"background: #f7fafc; padding: 20px; border-radius: 10px; margin: 20px 0;\">\n    <h2 style=\"margin-top: 0;\">Summary</h2>\n    <div style=\"display: flex; gap: 30px; flex-wrap: wrap;\">\n      <div>\n        <p style=\"margin: 0; color: #666;\">Lead Conversions</p>\n        <p style=\"font-size: 28px; margin: 5px 0; color: #38a169; font-weight: bold;\">{{ $json.summary.lead_conversions }}</p>\n      </div>\n      <div>\n        <p style=\"margin: 0; color: #666;\">Transactions Closed</p>\n        <p style=\"font-size: 28px; margin: 5px 0; color: #3182ce; font-weight: bold;\">{{ $json.summary.transactions_closed }}</p>\n      </div>\n      <div>\n        <p style=\"margin: 0; color: #666;\">New Listings</p>\n        <p style=\"font-size: 28px; margin: 5px 0; color: #805ad5; font-weight: bold;\">{{ $json.summary.new_listings }}</p>\n      </div>\n    </div>\n  </div>\n  \n  <h2>Total Cross-Agent Events: {{ $json.total_events }}</h2>\n  \n  <h3>Events by Type</h3>\n  <ul>\n  {{ Object.entries($json.events_by_type).map(([type, count]) => '<li>' + type + ': <strong>' + count + '</strong></li>').join('') }}\n  </ul>\n  \n  <h3>Events by Agent</h3>\n  <ul>\n  {{ Object.entries($json.events_by_agent).map(([agent, count]) => '<li>' + agent + ': <strong>' + count + '</strong></li>').join('') }}\n  </ul>\n  \n  <hr style=\"margin: 30px 0; border: none; border-top: 1px solid #eee;\">\n  <p style=\"color: #666; font-size: 12px;\">Generated by RE Transaction Orchestrator</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [960, 1000],
+      "id": "send-weekly-report",
+      "name": "Send Weekly Report",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1440, 620],
+      "id": "no-matches",
+      "name": "No Matches"
+    }
+  ],
+  "connections": {
+    "Lead Converted to Transaction": {
+      "main": [
+        [
+          {
+            "node": "Prepare Conversion Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Conversion Data": {
+      "main": [
+        [
+          {
+            "node": "Trigger Transaction Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Transaction Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Log Conversion Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transaction Closed": {
+      "main": [
+        [
+          {
+            "node": "Prepare Close Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Close Data": {
+      "main": [
+        [
+          {
+            "node": "Trigger Client Success Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Marketing (Just Sold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Client Success Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Transaction Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Transaction Status": {
+      "main": [
+        [
+          {
+            "node": "Log Close Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Listing Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Listing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Listing Data": {
+      "main": [
+        [
+          {
+            "node": "Trigger Marketing Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Buyer Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Buyer Leads": {
+      "main": [
+        [
+          {
+            "node": "Match Buyer Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Buyer Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Matches?": {
+      "main": [
+        [
+          {
+            "node": "Notify Agent of Matches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Dashboard (7am)": {
+      "main": [
+        [
+          {
+            "node": "Get All Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All Transactions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Leads": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Transactions": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Clients": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Metrics": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Report (Fri 4pm)": {
+      "main": [
+        [
+          {
+            "node": "Get Weekly Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weekly Events": {
+      "main": [
+        [
+          {
+            "node": "Build Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "re-transaction-orchestrator",
+  "meta": {
+    "instanceId": "aasani-re-automation"
+  },
+  "tags": [
+    {"name": "Real Estate", "id": "real-estate"},
+    {"name": "Orchestrator", "id": "orchestrator"},
+    {"name": "Multi-Agent", "id": "multi-agent"},
+    {"name": "Automation", "id": "automation"}
+  ]
+}

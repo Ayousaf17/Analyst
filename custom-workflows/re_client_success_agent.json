@@ -1,0 +1,1246 @@
+{
+  "name": "RE Client Success Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Client Success Agent\n\n**TENEX Equivalent:** Documentation/QA Agent ensuring quality and completeness\n\n**Core Function:** Maintains relationships post-close for referrals (66% of sellers use referral agents). Automates the \"stay in touch\" activities that agents neglect when busy with active transactions.\n\n## Trigger Events\n- Closing date\n- Move-in anniversary\n- Home purchase anniversary\n- Birthday\n- Market milestone\n\n## Success Metrics\n- Review generation rate\n- Referral transactions\n- Repeat client rate\n- Sphere engagement",
+        "height": 400,
+        "width": 400,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -200],
+      "id": "sticky-overview",
+      "name": "Agent Overview"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials to Configure\n\n1. `GOOGLE_SHEETS_CREDENTIAL_ID` → Client database\n2. `GMAIL_CREDENTIAL_ID` → Email outreach\n3. `OPENROUTER_CREDENTIAL_ID` → AI personalization\n4. `TWILIO_CREDENTIAL_ID` → SMS touchpoints\n\n## Client Database Columns\n- Name, Email, Phone, Address\n- Close Date, Purchase Price\n- Birthday, Anniversary Dates\n- Review Status, Referral Count\n- Last Contact, Next Touchpoint",
+        "height": 320,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 220],
+      "id": "sticky-credentials",
+      "name": "Credentials Setup"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-client",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 100],
+      "id": "webhook-new-client",
+      "name": "New Closed Client Webhook",
+      "webhookId": "re-client-success-new"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 350],
+      "id": "schedule-daily-check",
+      "name": "Daily Anniversary Check"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 550],
+      "id": "schedule-review-follow-up",
+      "name": "Daily Review Follow-up"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 750],
+      "id": "schedule-sphere-nurture",
+      "name": "Weekly Sphere Nurture"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "client-id",
+              "name": "client_id",
+              "value": "={{ $json.client_id || 'CL-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "name",
+              "name": "client_name",
+              "value": "={{ $json.name || $json.client_name }}",
+              "type": "string"
+            },
+            {
+              "id": "first-name",
+              "name": "first_name",
+              "value": "={{ ($json.name || $json.client_name || '').split(' ')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "email",
+              "name": "client_email",
+              "value": "={{ $json.email || $json.client_email }}",
+              "type": "string"
+            },
+            {
+              "id": "phone",
+              "name": "client_phone",
+              "value": "={{ $json.phone || $json.client_phone }}",
+              "type": "string"
+            },
+            {
+              "id": "address",
+              "name": "property_address",
+              "value": "={{ $json.address || $json.property_address }}",
+              "type": "string"
+            },
+            {
+              "id": "close-date",
+              "name": "close_date",
+              "value": "={{ $json.close_date || $now.toISODate() }}",
+              "type": "string"
+            },
+            {
+              "id": "purchase-price",
+              "name": "purchase_price",
+              "value": "={{ $json.purchase_price || $json.sale_price || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "birthday",
+              "name": "birthday",
+              "value": "={{ $json.birthday || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "type",
+              "name": "client_type",
+              "value": "={{ $json.type || 'buyer' }}",
+              "type": "string"
+            },
+            {
+              "id": "agent",
+              "name": "agent_name",
+              "value": "=YOUR_AGENT_NAME",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 100],
+      "id": "set-client-data",
+      "name": "Normalize Client Data"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client ID": "={{ $json.client_id }}",
+            "Name": "={{ $json.client_name }}",
+            "Email": "={{ $json.client_email }}",
+            "Phone": "={{ $json.client_phone }}",
+            "Property Address": "={{ $json.property_address }}",
+            "Close Date": "={{ $json.close_date }}",
+            "Purchase Price": "={{ $json.purchase_price }}",
+            "Birthday": "={{ $json.birthday }}",
+            "Client Type": "={{ $json.client_type }}",
+            "Review Status": "=pending",
+            "Review Requested At": "=",
+            "Referral Count": "=0",
+            "Last Contact": "={{ $now.toISO() }}",
+            "Next Touchpoint": "={{ $now.plus({days: 7}).toISODate() }}",
+            "Touchpoint Stage": "=1",
+            "Created At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 100],
+      "id": "add-client",
+      "name": "Add to Client Database",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client_email }}",
+        "subject": "=Congratulations on Your New Home, {{ $json.first_name }}!",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <h1 style=\"color: #2c5282;\">Congratulations!</h1>\n  \n  <p>Dear {{ $json.first_name }},</p>\n  \n  <p>It was an absolute pleasure helping you {{ $json.client_type === 'buyer' ? 'find your perfect home' : 'sell your property' }} at <strong>{{ $json.property_address }}</strong>!</p>\n  \n  <p>This is such an exciting milestone, and I'm honored that you trusted me to be part of this journey.</p>\n  \n  <h3>What's Next?</h3>\n  <ul>\n    <li>I'll be checking in over the coming weeks to make sure everything is going smoothly</li>\n    <li>If you have any questions about your new home or the area, I'm always here to help</li>\n    <li>Keep my number handy for any recommendations you might need (contractors, restaurants, services, etc.)</li>\n  </ul>\n  \n  <p>Once again, congratulations! Here's to new beginnings! </p>\n  \n  <p>Warm regards,<br><strong>{{ $json.agent_name }}</strong><br>YOUR_AGENT_PHONE<br>YOUR_AGENT_EMAIL</p>\n  \n  <hr style=\"margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;\">\n  \n  <p style=\"font-size: 12px; color: #718096;\">P.S. If you know anyone looking to buy or sell, I'd be grateful for the referral. I promise to take great care of them!</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [960, 100],
+      "id": "send-congrats-email",
+      "name": "Send Congratulations Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Touchpoints",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client ID": "={{ $('Normalize Client Data').item.json.client_id }}",
+            "Touchpoint Type": "=Close Day Congratulations",
+            "Channel": "=Email",
+            "Date": "={{ $now.toISO() }}",
+            "Notes": "=Initial congratulations email sent"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 100],
+      "id": "log-touchpoint-close",
+      "name": "Log Touchpoint",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 350],
+      "id": "get-all-clients",
+      "name": "Get All Clients",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for anniversaries and birthdays\nconst clients = $input.all();\nconst today = new Date();\nconst todayMMDD = (today.getMonth() + 1).toString().padStart(2, '0') + '-' + today.getDate().toString().padStart(2, '0');\n\nconst celebrations = [];\n\nfor (const client of clients) {\n  const data = client.json;\n  \n  // Check close date anniversary (home anniversary)\n  if (data['Close Date']) {\n    const closeDate = new Date(data['Close Date']);\n    const closeMMDD = (closeDate.getMonth() + 1).toString().padStart(2, '0') + '-' + closeDate.getDate().toString().padStart(2, '0');\n    \n    if (closeMMDD === todayMMDD && closeDate.getFullYear() !== today.getFullYear()) {\n      const years = today.getFullYear() - closeDate.getFullYear();\n      celebrations.push({\n        ...data,\n        celebration_type: 'home_anniversary',\n        years: years,\n        message_context: `${years} year${years > 1 ? 's' : ''} in their home at ${data['Property Address']}`\n      });\n    }\n  }\n  \n  // Check birthday\n  if (data.Birthday) {\n    const birthday = new Date(data.Birthday);\n    const bdayMMDD = (birthday.getMonth() + 1).toString().padStart(2, '0') + '-' + birthday.getDate().toString().padStart(2, '0');\n    \n    if (bdayMMDD === todayMMDD) {\n      celebrations.push({\n        ...data,\n        celebration_type: 'birthday',\n        message_context: 'Birthday celebration'\n      });\n    }\n  }\n}\n\nreturn celebrations.map(c => ({ json: c }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 350],
+      "id": "check-anniversaries",
+      "name": "Check Anniversaries & Birthdays"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-celebrations",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 350],
+      "id": "has-celebrations",
+      "name": "Has Celebrations?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 320],
+      "id": "loop-celebrations",
+      "name": "Loop Celebrations"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-anniversary",
+              "leftValue": "={{ $json.celebration_type }}",
+              "rightValue": "home_anniversary",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1440, 320],
+      "id": "check-celebration-type",
+      "name": "Anniversary or Birthday?"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a warm, personable real estate agent assistant. Generate a heartfelt home anniversary email. Mention the milestone, reminisce briefly about helping them find their home, and express genuine happiness for them. Keep it personal and warm, not salesy. End with a soft referral ask.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate home anniversary email for:\\n- Name: {{ $json.Name }}\\n- First Name: {{ $json.Name.split(' ')[0] }}\\n- Property: {{ $json['Property Address'] }}\\n- Years: {{ $json.years }}\\n- Agent: YOUR_AGENT_NAME\\n\\nKeep warm and personal.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 280],
+      "id": "generate-anniversary-email",
+      "name": "Generate Anniversary Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a warm, personable real estate agent assistant. Generate a brief, heartfelt birthday email. Keep it short and genuine - this is a personal touch, not a sales pitch. Just wish them well.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate birthday email for:\\n- Name: {{ $json.Name }}\\n- First Name: {{ $json.Name.split(' ')[0] }}\\n- Agent: YOUR_AGENT_NAME\\n\\nKeep brief and genuine.\"\n    }\n  ],\n  \"max_tokens\": 300\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 400],
+      "id": "generate-birthday-email",
+      "name": "Generate Birthday Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Celebrations').item.json.Email }}",
+        "subject": "=Happy {{ $('Loop Celebrations').item.json.years }}-Year Home Anniversary, {{ $('Loop Celebrations').item.json.Name.split(' ')[0] }}!",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1920, 280],
+      "id": "send-anniversary-email",
+      "name": "Send Anniversary Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Celebrations').item.json.Email }}",
+        "subject": "=Happy Birthday, {{ $('Loop Celebrations').item.json.Name.split(' ')[0] }}!",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1920, 400],
+      "id": "send-birthday-email",
+      "name": "Send Birthday Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Touchpoints",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client ID": "={{ $('Loop Celebrations').item.json['Client ID'] }}",
+            "Touchpoint Type": "={{ $('Loop Celebrations').item.json.celebration_type === 'home_anniversary' ? 'Home Anniversary' : 'Birthday' }}",
+            "Channel": "=Email",
+            "Date": "={{ $now.toISO() }}",
+            "Notes": "=Automated celebration email"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2160, 340],
+      "id": "log-celebration",
+      "name": "Log Celebration Touchpoint",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 550],
+      "id": "get-clients-review",
+      "name": "Get Clients for Review",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find clients due for review request (30 days post-close, no review yet)\nconst clients = $input.all();\nconst now = new Date();\nconst reviewRequests = [];\n\nfor (const client of clients) {\n  const data = client.json;\n  \n  // Skip if already has review\n  if (data['Review Status'] === 'received') continue;\n  \n  const closeDate = new Date(data['Close Date']);\n  const daysSinceClose = Math.floor((now - closeDate) / (1000 * 60 * 60 * 24));\n  \n  // Request review at 30 days if not already requested\n  if (daysSinceClose >= 30 && daysSinceClose <= 35 && data['Review Status'] === 'pending') {\n    reviewRequests.push({\n      ...data,\n      request_type: 'initial',\n      days_since_close: daysSinceClose\n    });\n  }\n  \n  // Follow up at 45 days if still pending\n  else if (daysSinceClose >= 45 && daysSinceClose <= 50 && data['Review Status'] === 'requested') {\n    reviewRequests.push({\n      ...data,\n      request_type: 'follow_up',\n      days_since_close: daysSinceClose\n    });\n  }\n}\n\nreturn reviewRequests.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 550],
+      "id": "filter-review-candidates",
+      "name": "Filter Review Candidates"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-candidates",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 550],
+      "id": "has-review-candidates",
+      "name": "Has Candidates?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 520],
+      "id": "loop-reviews",
+      "name": "Loop Review Requests"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate agent assistant. Generate a warm, non-pushy email requesting a review. {{ $json.request_type === 'follow_up' ? 'This is a gentle follow-up to a previous request.' : 'This is the first request.' }} Include specific links for Google and Zillow reviews. Make it easy and express genuine appreciation.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate review request for:\\n- Name: {{ $json.Name }}\\n- Property: {{ $json['Property Address'] }}\\n- Days since close: {{ $json.days_since_close }}\\n- Request type: {{ $json.request_type }}\\n- Agent: YOUR_AGENT_NAME\\n- Google Review Link: YOUR_GOOGLE_REVIEW_LINK\\n- Zillow Review Link: YOUR_ZILLOW_REVIEW_LINK\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 520],
+      "id": "generate-review-request",
+      "name": "Generate Review Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Review Requests').item.json.Email }}",
+        "subject": "={{ $('Loop Review Requests').item.json.request_type === 'follow_up' ? 'Quick follow-up' : 'Would you share your experience' }}, {{ $('Loop Review Requests').item.json.Name.split(' ')[0] }}?",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 520],
+      "id": "send-review-request",
+      "name": "Send Review Request",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client ID": "={{ $('Loop Review Requests').item.json['Client ID'] }}",
+            "Review Status": "=requested",
+            "Review Requested At": "={{ $now.toISO() }}",
+            "Last Contact": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["Client ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1920, 520],
+      "id": "update-review-status",
+      "name": "Update Review Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 750],
+      "id": "get-sphere",
+      "name": "Get Sphere",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find clients due for sphere nurture (90+ days since last contact)\nconst clients = $input.all();\nconst now = new Date();\nconst needsNurture = [];\n\nfor (const client of clients) {\n  const data = client.json;\n  \n  const lastContact = data['Last Contact'] ? new Date(data['Last Contact']) : new Date(data['Close Date']);\n  const daysSinceContact = Math.floor((now - lastContact) / (1000 * 60 * 60 * 24));\n  \n  // Nurture if 90+ days since last contact\n  if (daysSinceContact >= 90) {\n    needsNurture.push({\n      ...data,\n      days_since_contact: daysSinceContact,\n      nurture_type: daysSinceContact >= 180 ? 'long_absence' : 'regular'\n    });\n  }\n}\n\n// Limit to 5 per week to keep it manageable\nreturn needsNurture.slice(0, 5).map(n => ({ json: n }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 750],
+      "id": "filter-sphere-nurture",
+      "name": "Filter Sphere for Nurture"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-nurture",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 750],
+      "id": "has-sphere-nurture",
+      "name": "Has Nurture?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 720],
+      "id": "loop-sphere",
+      "name": "Loop Sphere Nurture"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate agent assistant. Generate a warm check-in email for a past client. Don't be salesy - just genuinely check in on them. Maybe share a quick market update for their neighborhood or ask how they're enjoying their home. Include a subtle reminder that you're there for referrals.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate sphere nurture email for:\\n- Name: {{ $json.Name }}\\n- Property: {{ $json['Property Address'] }}\\n- Days since last contact: {{ $json.days_since_contact }}\\n- Nurture type: {{ $json.nurture_type }}\\n- Agent: YOUR_AGENT_NAME\"\n    }\n  ],\n  \"max_tokens\": 400\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 720],
+      "id": "generate-nurture-email",
+      "name": "Generate Nurture Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Sphere Nurture').item.json.Email }}",
+        "subject": "=Checking in, {{ $('Loop Sphere Nurture').item.json.Name.split(' ')[0] }}!",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 720],
+      "id": "send-nurture-email",
+      "name": "Send Nurture Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CLIENTS_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client ID": "={{ $('Loop Sphere Nurture').item.json['Client ID'] }}",
+            "Last Contact": "={{ $now.toISO() }}",
+            "Next Touchpoint": "={{ $now.plus({days: 90}).toISODate() }}"
+          },
+          "matchingColumns": ["Client ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1920, 720],
+      "id": "update-sphere-contact",
+      "name": "Update Last Contact",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 400],
+      "id": "no-celebrations",
+      "name": "No Celebrations"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 600],
+      "id": "no-reviews",
+      "name": "No Reviews Due"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 800],
+      "id": "no-nurture",
+      "name": "No Nurture Due"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2400, 340],
+      "id": "celebrations-done",
+      "name": "Celebrations Done"
+    }
+  ],
+  "connections": {
+    "New Closed Client Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Client Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Client Data": {
+      "main": [
+        [
+          {
+            "node": "Add to Client Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Client Database": {
+      "main": [
+        [
+          {
+            "node": "Send Congratulations Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Congratulations Email": {
+      "main": [
+        [
+          {
+            "node": "Log Touchpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Anniversary Check": {
+      "main": [
+        [
+          {
+            "node": "Get All Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Clients": {
+      "main": [
+        [
+          {
+            "node": "Check Anniversaries & Birthdays",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Anniversaries & Birthdays": {
+      "main": [
+        [
+          {
+            "node": "Has Celebrations?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Celebrations?": {
+      "main": [
+        [
+          {
+            "node": "Loop Celebrations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Celebrations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Celebrations": {
+      "main": [
+        [
+          {
+            "node": "Anniversary or Birthday?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Celebrations Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anniversary or Birthday?": {
+      "main": [
+        [
+          {
+            "node": "Generate Anniversary Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Birthday Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Anniversary Email": {
+      "main": [
+        [
+          {
+            "node": "Send Anniversary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Birthday Email": {
+      "main": [
+        [
+          {
+            "node": "Send Birthday Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Anniversary Email": {
+      "main": [
+        [
+          {
+            "node": "Log Celebration Touchpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Birthday Email": {
+      "main": [
+        [
+          {
+            "node": "Log Celebration Touchpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Celebration Touchpoint": {
+      "main": [
+        [
+          {
+            "node": "Loop Celebrations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Review Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Get Clients for Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Clients for Review": {
+      "main": [
+        [
+          {
+            "node": "Filter Review Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Review Candidates": {
+      "main": [
+        [
+          {
+            "node": "Has Candidates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Candidates?": {
+      "main": [
+        [
+          {
+            "node": "Loop Review Requests",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reviews Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Review Requests": {
+      "main": [
+        [
+          {
+            "node": "Generate Review Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Review Request": {
+      "main": [
+        [
+          {
+            "node": "Send Review Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Review Request": {
+      "main": [
+        [
+          {
+            "node": "Update Review Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Review Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Review Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Sphere Nurture": {
+      "main": [
+        [
+          {
+            "node": "Get Sphere",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sphere": {
+      "main": [
+        [
+          {
+            "node": "Filter Sphere for Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Sphere for Nurture": {
+      "main": [
+        [
+          {
+            "node": "Has Nurture?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Nurture?": {
+      "main": [
+        [
+          {
+            "node": "Loop Sphere Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Nurture Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Sphere Nurture": {
+      "main": [
+        [
+          {
+            "node": "Generate Nurture Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Nurture Email": {
+      "main": [
+        [
+          {
+            "node": "Send Nurture Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Nurture Email": {
+      "main": [
+        [
+          {
+            "node": "Update Last Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Last Contact": {
+      "main": [
+        [
+          {
+            "node": "Loop Sphere Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "re-client-success-agent",
+  "meta": {
+    "instanceId": "aasani-re-automation"
+  },
+  "tags": [
+    {"name": "Real Estate", "id": "real-estate"},
+    {"name": "Client Success", "id": "client-success"},
+    {"name": "Referrals", "id": "referrals"},
+    {"name": "Automation", "id": "automation"}
+  ]
+}

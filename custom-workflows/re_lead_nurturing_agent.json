@@ -1,0 +1,1140 @@
+{
+  "name": "RE Lead Nurturing Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Lead Nurturing Agent\n\n**TENEX Equivalent:** Coder Agent implementing features in isolated branch\n\n**Core Function:** Maintains engagement throughout the 6+ month typical lead nurturing cycle. Responds within 5 minutes (100x conversion improvement) and executes personalized drip campaigns based on lead behavior.\n\n## Trigger Events\n- New inquiry\n- Website visit\n- Open house signup\n- Property save\n\n## Success Metrics\n- Response time (<5 min target)\n- Engagement rate\n- Lead-to-appointment conversion\n- Nurture duration",
+        "height": 380,
+        "width": 400,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -200],
+      "id": "sticky-overview",
+      "name": "Agent Overview"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials to Configure\n\n1. `CRM_CREDENTIAL_ID` → Your CRM API (Follow Up Boss, kvCORE, etc.)\n2. `TWILIO_CREDENTIAL_ID` → Twilio for SMS\n3. `GMAIL_CREDENTIAL_ID` → Gmail OAuth2\n4. `OPENROUTER_CREDENTIAL_ID` → AI for personalization\n5. `GOOGLE_SHEETS_CREDENTIAL_ID` → Lead tracking sheet\n\n## Variables to Set\n- `AGENT_NAME` → Your name\n- `AGENT_PHONE` → Your phone number\n- `AGENT_EMAIL` → Your email\n- `CRM_BASE_URL` → Your CRM API endpoint",
+        "height": 320,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 200],
+      "id": "sticky-credentials",
+      "name": "Credentials Setup"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 100],
+      "id": "webhook-new-lead",
+      "name": "New Lead Webhook",
+      "webhookId": "re-lead-nurturing-new-lead"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-drip-check",
+      "name": "Hourly Drip Check"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 500],
+      "id": "schedule-cold-reengagement",
+      "name": "Daily Cold Lead Check"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "lead-id",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id || $json.id || $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-name",
+              "name": "lead_name",
+              "value": "={{ $json.first_name || $json.name?.split(' ')[0] || 'there' }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-full-name",
+              "name": "lead_full_name",
+              "value": "={{ $json.name || ($json.first_name + ' ' + ($json.last_name || '')) }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-email",
+              "name": "lead_email",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-phone",
+              "name": "lead_phone",
+              "value": "={{ $json.phone || $json.mobile }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-source",
+              "name": "lead_source",
+              "value": "={{ $json.source || 'website' }}",
+              "type": "string"
+            },
+            {
+              "id": "inquiry-type",
+              "name": "inquiry_type",
+              "value": "={{ $json.inquiry_type || 'general' }}",
+              "type": "string"
+            },
+            {
+              "id": "property-interest",
+              "name": "property_interest",
+              "value": "={{ $json.property_address || $json.listing_id || 'Not specified' }}",
+              "type": "string"
+            },
+            {
+              "id": "buyer-seller",
+              "name": "buyer_or_seller",
+              "value": "={{ $json.type || 'buyer' }}",
+              "type": "string"
+            },
+            {
+              "id": "timestamp",
+              "name": "received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "agent-name",
+              "name": "agent_name",
+              "value": "YOUR_AGENT_NAME",
+              "type": "string"
+            },
+            {
+              "id": "agent-phone",
+              "name": "agent_phone",
+              "value": "+1XXXXXXXXXX",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 100],
+      "id": "set-lead-data",
+      "name": "Normalize Lead Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-phone",
+              "leftValue": "={{ $json.lead_phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 100],
+      "id": "check-has-phone",
+      "name": "Has Phone Number?"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful real estate assistant. Generate a warm, personalized SMS message (max 160 chars) for a new lead. Be friendly but professional. Include a question to encourage response. Sign with the agent's first name only.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate an instant response SMS for:\\n- Lead Name: {{ $json.lead_name }}\\n- Inquiry Type: {{ $json.inquiry_type }}\\n- Property Interest: {{ $json.property_interest }}\\n- Buyer/Seller: {{ $json.buyer_or_seller }}\\n- Agent Name: {{ $json.agent_name }}\\n\\nKeep under 160 characters.\"\n    }\n  ],\n  \"max_tokens\": 100\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 0],
+      "id": "generate-sms",
+      "name": "Generate Personalized SMS",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful real estate assistant. Generate a warm, personalized email for a new lead. Be friendly and professional. Include:\\n1. Acknowledge their inquiry\\n2. Brief intro of yourself\\n3. Next step suggestion (call or property details)\\n4. Professional signature\\n\\nKeep concise - 3-4 short paragraphs max.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate an instant response email for:\\n- Lead Name: {{ $json.lead_name }}\\n- Full Name: {{ $json.lead_full_name }}\\n- Inquiry Type: {{ $json.inquiry_type }}\\n- Property Interest: {{ $json.property_interest }}\\n- Buyer/Seller: {{ $json.buyer_or_seller }}\\n- Lead Source: {{ $json.lead_source }}\\n- Agent Name: {{ $json.agent_name }}\\n- Agent Phone: {{ $json.agent_phone }}\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "id": "generate-email",
+      "name": "Generate Personalized Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sms-message",
+              "name": "sms_message",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1200, 0],
+      "id": "parse-sms",
+      "name": "Parse SMS Response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "email-body",
+              "name": "email_body",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1200, 200],
+      "id": "parse-email",
+      "name": "Parse Email Response"
+    },
+    {
+      "parameters": {
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $('Normalize Lead Data').item.json.lead_phone }}"
+            },
+            {
+              "name": "From",
+              "value": "+1YOUR_TWILIO_NUMBER"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.sms_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 0],
+      "id": "send-sms",
+      "name": "Send SMS via Twilio",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "TWILIO_CREDENTIAL_ID",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalize Lead Data').item.json.lead_email }}",
+        "subject": "=Thanks for reaching out, {{ $('Normalize Lead Data').item.json.lead_name }}!",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1440, 200],
+      "id": "send-email",
+      "name": "Send Email via Gmail",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Normalize Lead Data').item.json.lead_id }}",
+            "Name": "={{ $('Normalize Lead Data').item.json.lead_full_name }}",
+            "Email": "={{ $('Normalize Lead Data').item.json.lead_email }}",
+            "Phone": "={{ $('Normalize Lead Data').item.json.lead_phone }}",
+            "Source": "={{ $('Normalize Lead Data').item.json.lead_source }}",
+            "Type": "={{ $('Normalize Lead Data').item.json.buyer_or_seller }}",
+            "Property Interest": "={{ $('Normalize Lead Data').item.json.property_interest }}",
+            "Received At": "={{ $('Normalize Lead Data').item.json.received_at }}",
+            "Initial SMS Sent": "={{ $now.toISO() }}",
+            "Initial Email Sent": "={{ $now.toISO() }}",
+            "Lead Score": "=50",
+            "Drip Stage": "=1",
+            "Last Contact": "={{ $now.toISO() }}",
+            "Next Touchpoint": "={{ $now.plus({days: 1}).toISO() }}",
+            "Status": "=New"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1680, 100],
+      "id": "log-to-sheet",
+      "name": "Log Lead to Tracking Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "message",
+              "name": "message",
+              "value": "=Lead {{ $('Normalize Lead Data').item.json.lead_full_name }} processed in under 5 minutes. SMS and Email sent.",
+              "type": "string"
+            },
+            {
+              "id": "response-time",
+              "name": "response_time_seconds",
+              "value": "={{ Math.floor(($now.toMillis() - new Date($('Normalize Lead Data').item.json.received_at).getTime()) / 1000) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1920, 100],
+      "id": "set-success",
+      "name": "Set Success Response"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "generalFormatting": "values"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "id": "get-leads-drip",
+      "name": "Get Leads for Drip",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "due-for-touchpoint",
+              "leftValue": "={{ new Date($json['Next Touchpoint']) <= new Date() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "not-converted",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Converted",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [720, 300],
+      "id": "filter-due-leads",
+      "name": "Filter Due Leads"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [960, 300],
+      "id": "loop-drip-leads",
+      "name": "Loop Through Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "stage-1",
+              "leftValue": "={{ $json['Drip Stage'] }}",
+              "rightValue": "1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 300],
+      "id": "check-drip-stage",
+      "name": "Stage 1 (Day 1)?"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate assistant. Generate a Day 1 follow-up email. This is 24 hours after initial contact. Be helpful, share a useful resource or market insight. Keep it brief and end with a soft call-to-action.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate Day 1 follow-up for:\\n- Lead: {{ $json.Name }}\\n- Interest: {{ $json['Property Interest'] }}\\n- Type: {{ $json.Type }}\\n- Agent: YOUR_AGENT_NAME\"\n    }\n  ],\n  \"max_tokens\": 400\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 260],
+      "id": "generate-day1-email",
+      "name": "Generate Day 1 Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate assistant. Generate a Day 3/7/14/30 follow-up email based on the drip stage. Be progressively more value-focused and less salesy as stages progress. Include market updates, helpful tips, or success stories.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate follow-up for:\\n- Lead: {{ $json.Name }}\\n- Interest: {{ $json['Property Interest'] }}\\n- Type: {{ $json.Type }}\\n- Current Stage: {{ $json['Drip Stage'] }}\\n- Days in funnel: {{ Math.floor((Date.now() - new Date($json['Received At']).getTime()) / (1000*60*60*24)) }}\\n- Agent: YOUR_AGENT_NAME\"\n    }\n  ],\n  \"max_tokens\": 400\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 380],
+      "id": "generate-drip-email",
+      "name": "Generate Drip Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Through Leads').item.json.Email }}",
+        "subject": "=Quick update for you, {{ $('Loop Through Leads').item.json.Name.split(' ')[0] }}",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 300],
+      "id": "send-drip-email",
+      "name": "Send Drip Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Loop Through Leads').item.json['Lead ID'] }}",
+            "Drip Stage": "={{ parseInt($('Loop Through Leads').item.json['Drip Stage']) + 1 }}",
+            "Last Contact": "={{ $now.toISO() }}",
+            "Next Touchpoint": "={{ parseInt($('Loop Through Leads').item.json['Drip Stage']) == 1 ? $now.plus({days: 2}).toISO() : parseInt($('Loop Through Leads').item.json['Drip Stage']) == 2 ? $now.plus({days: 4}).toISO() : parseInt($('Loop Through Leads').item.json['Drip Stage']) == 3 ? $now.plus({days: 7}).toISO() : $now.plus({days: 14}).toISO() }}"
+          },
+          "matchingColumns": ["Lead ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1920, 300],
+      "id": "update-drip-stage",
+      "name": "Update Lead Stage",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 500],
+      "id": "get-cold-leads",
+      "name": "Get All Leads",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-cold",
+              "leftValue": "={{ (Date.now() - new Date($json['Last Contact']).getTime()) / (1000*60*60*24) }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "not-converted",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Converted",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "not-lost",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Lost",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [720, 500],
+      "id": "filter-cold-leads",
+      "name": "Filter Cold Leads (30+ days)"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [960, 500],
+      "id": "loop-cold-leads",
+      "name": "Loop Cold Leads"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a real estate assistant. Generate a re-engagement email for a lead who has gone cold (30+ days no contact). Be warm, not pushy. Reference that it's been a while. Offer something valuable - market update, new listings, helpful resource. Include a simple yes/no question to get a response.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate re-engagement email for:\\n- Lead: {{ $json.Name }}\\n- Original Interest: {{ $json['Property Interest'] }}\\n- Type: {{ $json.Type }}\\n- Days since contact: {{ Math.floor((Date.now() - new Date($json['Last Contact']).getTime()) / (1000*60*60*24)) }}\\n- Agent: YOUR_AGENT_NAME\"\n    }\n  ],\n  \"max_tokens\": 400\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 500],
+      "id": "generate-reengagement",
+      "name": "Generate Re-engagement Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Cold Leads').item.json.Email }}",
+        "subject": "=Still looking, {{ $('Loop Cold Leads').item.json.Name.split(' ')[0] }}?",
+        "emailType": "text",
+        "message": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1440, 500],
+      "id": "send-reengagement",
+      "name": "Send Re-engagement Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Loop Cold Leads').item.json['Lead ID'] }}",
+            "Last Contact": "={{ $now.toISO() }}",
+            "Status": "=Re-engaged"
+          },
+          "matchingColumns": ["Lead ID"]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1680, 500],
+      "id": "update-reengaged",
+      "name": "Mark Re-engaged",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2160, 300],
+      "id": "done-drip",
+      "name": "Drip Complete"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1920, 500],
+      "id": "done-reengage",
+      "name": "Re-engagement Complete"
+    }
+  ],
+  "connections": {
+    "New Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Has Phone Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Phone Number?": {
+      "main": [
+        [
+          {
+            "node": "Generate Personalized SMS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Personalized Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Personalized Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Personalized SMS": {
+      "main": [
+        [
+          {
+            "node": "Parse SMS Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Personalized Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SMS Response": {
+      "main": [
+        [
+          {
+            "node": "Send SMS via Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email Response": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS via Twilio": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Tracking Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Gmail": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Tracking Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead to Tracking Sheet": {
+      "main": [
+        [
+          {
+            "node": "Set Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly Drip Check": {
+      "main": [
+        [
+          {
+            "node": "Get Leads for Drip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leads for Drip": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Leads": {
+      "main": [
+        [
+          {
+            "node": "Check Drip Stage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drip Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Drip Stage": {
+      "main": [
+        [
+          {
+            "node": "Generate Day 1 Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Drip Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Day 1 Email": {
+      "main": [
+        [
+          {
+            "node": "Send Drip Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Drip Email": {
+      "main": [
+        [
+          {
+            "node": "Send Drip Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Drip Email": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Stage": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cold Lead Check": {
+      "main": [
+        [
+          {
+            "node": "Get All Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Cold Leads (30+ days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Cold Leads (30+ days)": {
+      "main": [
+        [
+          {
+            "node": "Loop Cold Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Cold Leads": {
+      "main": [
+        [
+          {
+            "node": "Generate Re-engagement Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-engagement Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Re-engagement Email": {
+      "main": [
+        [
+          {
+            "node": "Send Re-engagement Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Re-engagement Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Re-engaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Re-engaged": {
+      "main": [
+        [
+          {
+            "node": "Loop Cold Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "re-lead-nurturing-agent",
+  "meta": {
+    "instanceId": "aasani-re-automation"
+  },
+  "tags": [
+    {"name": "Real Estate", "id": "real-estate"},
+    {"name": "Lead Nurturing", "id": "lead-nurturing"},
+    {"name": "AI", "id": "ai"},
+    {"name": "Automation", "id": "automation"}
+  ]
+}
