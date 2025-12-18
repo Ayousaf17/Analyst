@@ -1,13 +1,13 @@
 {
-  "name": "FB Marketplace Scraper",
+  "name": "FB Marketplace Scraper (Apify)",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hoursInterval": 6
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
             }
           ]
         }
@@ -47,59 +47,84 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse cities and create search URLs\n// Note: FB Marketplace requires authentication - use browser automation or third-party API\nconst settings = $input.first()?.json?.fields || {};\nlet cities = ['Austin'];\n\nif (settings.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\n// FB Marketplace search parameters\nconst searches = cities.map(city => ({\n  city: city,\n  search_query: 'house for sale by owner',\n  // In production, use a marketplace scraping service like:\n  // - Apify (apify.com/actors)\n  // - ScrapingBee\n  // - BrightData\n  // Direct FB scraping is against ToS\n  api_url: `https://api.apify.com/v2/acts/YOUR_ACTOR_ID/runs`\n}));\n\nreturn searches.map(s => ({ json: s }));"
+        "jsCode": "// Parse cities for FB Marketplace search\nconst settings = $input.first()?.json?.fields || {};\nlet cities = ['Austin, TX', 'San Antonio, TX', 'Houston, TX'];\n\nif (settings.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn [{ json: { locations: cities } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [680, 300],
-      "id": "prepare-searches",
-      "name": "Prepare Search Queries"
+      "id": "prepare-locations",
+      "name": "Prepare Locations"
     },
     {
       "parameters": {
-        "batchSize": 1,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [900, 300],
-      "id": "loop-cities",
-      "name": "Loop Cities"
-    },
-    {
-      "parameters": {
+        "method": "POST",
         "url": "https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/runs",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"searchQuery\": \"{{ $json.search_query }}\",\n  \"location\": \"{{ $json.city }}, TX\",\n  \"maxItems\": 50,\n  \"categoryId\": \"propertyrentals\"\n}",
+        "jsonBody": "={\n  \"searchQuery\": \"house for sale by owner\",\n  \"location\": {{ JSON.stringify($json.locations) }},\n  \"maxItems\": 100,\n  \"categoryId\": \"propertyrentals\",\n  \"proxy\": {\n    \"useApifyProxy\": true,\n    \"apifyProxyGroups\": [\"RESIDENTIAL\"]\n  }\n}",
         "options": {
-          "timeout": 120000
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1120, 260],
-      "id": "scrape-fb",
-      "name": "Scrape FB Marketplace (Apify)",
+      "position": [900, 300],
+      "id": "run-apify-actor",
+      "name": "Run Apify FB Actor",
       "credentials": {
         "httpHeaderAuth": {
           "id": "apify-auth",
           "name": "Apify"
         }
-      },
-      "continueOnFail": true
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Parse FB Marketplace results\n// This assumes using Apify or similar service\nconst response = $input.first().json;\nconst city = $('Loop Cities').item.json.city;\n\nlet listings = [];\n\nif (response && Array.isArray(response)) {\n  listings = response.map(item => ({\n    title: item.title || item.name,\n    price: parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0,\n    location: item.location || city,\n    city: city,\n    description: item.description || '',\n    listing_url: item.url || item.link,\n    photos: item.images || item.photos || [],\n    posted_date: item.postedDate || item.date,\n    source: 'FB Marketplace',\n    scraped_at: new Date().toISOString()\n  }));\n} else if (response?.data) {\n  // Alternative response format\n  listings = response.data.map(item => ({\n    title: item.title,\n    price: parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0,\n    city: city,\n    listing_url: item.url,\n    source: 'FB Marketplace',\n    scraped_at: new Date().toISOString()\n  }));\n}\n\n// Filter for property sales (not rentals)\nlistings = listings.filter(l => {\n  const title = (l.title || '').toLowerCase();\n  const desc = (l.description || '').toLowerCase();\n  const combined = title + ' ' + desc;\n  \n  // Must look like a sale, not rental\n  const saleKeywords = ['for sale', 'selling', 'fsbo', 'by owner', 'must sell', 'price reduced'];\n  const rentalKeywords = ['for rent', 'rental', 'lease', '/month', 'per month'];\n  \n  const isSale = saleKeywords.some(kw => combined.includes(kw)) || l.price > 50000;\n  const isRental = rentalKeywords.some(kw => combined.includes(kw));\n  \n  return isSale && !isRental;\n});\n\nreturn listings.map(l => ({ json: l }));"
+        "jsCode": "// Extract the run ID from Apify response\nconst response = $input.first().json;\nconst runId = response.body?.data?.id || response.data?.id;\n\nif (!runId) {\n  throw new Error('Failed to start Apify actor - no run ID returned');\n}\n\nreturn [{ json: { runId: runId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 260],
-      "id": "parse-listings",
-      "name": "Parse FB Listings"
+      "position": [1120, 300],
+      "id": "extract-run-id",
+      "name": "Extract Run ID"
+    },
+    {
+      "parameters": {
+        "amount": 4,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 300],
+      "id": "wait-for-actor",
+      "name": "Wait for Actor (4 min)",
+      "webhookId": "fb-apify-wait"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "id": "check-run-status",
+      "name": "Check Run Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
     },
     {
       "parameters": {
@@ -111,21 +136,12 @@
           },
           "conditions": [
             {
-              "id": "has-title",
-              "leftValue": "={{ $json.title }}",
-              "rightValue": "",
+              "id": "is-running",
+              "leftValue": "={{ $json.data?.status }}",
+              "rightValue": "RUNNING",
               "operator": {
                 "type": "string",
-                "operation": "notEmpty"
-              }
-            },
-            {
-              "id": "reasonable-price",
-              "leftValue": "={{ $json.price }}",
-              "rightValue": 20000,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
+                "operation": "equals"
               }
             }
           ],
@@ -133,11 +149,53 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.filter",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1560, 260],
-      "id": "filter-valid",
-      "name": "Filter Valid (Price > $20K)"
+      "position": [1780, 300],
+      "id": "still-running",
+      "name": "Still Running?"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2000, 240],
+      "id": "wait-more",
+      "name": "Wait 2 More Min",
+      "webhookId": "fb-wait-more"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}/dataset/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 380],
+      "id": "get-results",
+      "name": "Get Apify Results",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse FB Marketplace results from Apify\nconst results = $input.first().json;\nconst items = Array.isArray(results) ? results : (results.items || results.data || []);\n\n// Filter for property sales (not rentals)\nconst filteredItems = items.filter(item => {\n  const title = (item.title || item.name || '').toLowerCase();\n  const desc = (item.description || '').toLowerCase();\n  const combined = title + ' ' + desc;\n  const price = parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0;\n  \n  // Must look like a sale, not rental\n  const saleKeywords = ['for sale', 'selling', 'fsbo', 'by owner', 'must sell', 'price reduced', 'obo'];\n  const rentalKeywords = ['for rent', 'rental', 'lease', '/month', 'per month', '/mo'];\n  \n  const isSale = saleKeywords.some(kw => combined.includes(kw)) || price > 50000;\n  const isRental = rentalKeywords.some(kw => combined.includes(kw));\n  \n  return isSale && !isRental;\n});\n\nreturn filteredItems.map(item => ({\n  json: {\n    title: item.title || item.name || '',\n    price: parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0,\n    address: item.location?.address || item.address || '',\n    city: item.location?.city || '',\n    state: item.location?.state || 'TX',\n    zip: item.location?.zipcode || '',\n    description: item.description || '',\n    listing_url: item.url || item.link || '',\n    photo_url: (item.images && item.images[0]) || (item.photos && item.photos[0]) || '',\n    posted_date: item.postedDate || item.date || '',\n    seller_name: item.seller?.name || '',\n    source: 'FB Marketplace',\n    scraped_at: new Date().toISOString()\n  }\n})).filter(item => item.json.title || item.json.address);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 380],
+      "id": "parse-results",
+      "name": "Parse & Filter (Sales Only)"
     },
     {
       "parameters": {
@@ -146,13 +204,13 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this Facebook Marketplace real estate listing for legitimacy:\\n\\nTitle: {{ $json.title }}\\nPrice: ${{ $json.price }}\\nLocation: {{ $json.location || $json.city }}\\nDescription: {{ ($json.description || '').substring(0, 500) }}\\n\\nDetermine if this is a legitimate FSBO property listing or spam/scam.\\n\\nRed flags to check:\\n- Price too good to be true for the area\\n- Generic or stock-looking photos mentioned\\n- Requests for deposits/money upfront\\n- No specific address\\n- Rental disguised as sale\\n- Obvious scam patterns\\n- Too vague to be real\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"is_legitimate\\\": true or false,\\n  \\\"confidence\\\": 0-100,\\n  \\\"red_flags\\\": [\\\"flag1\\\", \\\"flag2\\\"],\\n  \\\"property_type\\\": \\\"house\\\" or \\\"condo\\\" or \\\"land\\\" or \\\"mobile_home\\\" or \\\"unknown\\\",\\n  \\\"is_fsbo\\\": true or false,\\n  \\\"estimated_condition\\\": \\\"good\\\" or \\\"fair\\\" or \\\"poor\\\" or \\\"unknown\\\",\\n  \\\"reason\\\": \\\"Brief explanation\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 400,\n  \"temperature\": 0.2\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this FB Marketplace listing for legitimacy as a real property sale:\\n\\nTitle: {{ $json.title }}\\nPrice: ${{ $json.price }}\\nDescription: {{ $json.description }}\\nLocation: {{ $json.city }}, {{ $json.state }}\\n\\nDetermine:\\n1. Is this a legitimate property for sale (not a scam, not a rental, not spam)?\\n2. Does it appear to be FSBO or owner-selling?\\n3. Extract the property address if mentioned\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"is_legitimate\\\": true/false,\\n  \\\"is_fsbo\\\": true/false,\\n  \\\"confidence\\\": 0.0-1.0,\\n  \\\"extracted_address\\\": \\\"Address if found or empty string\\\",\\n  \\\"red_flags\\\": [\\\"list any red flags\\\"],\\n  \\\"reason\\\": \\\"Brief explanation\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 300,\n  \"temperature\": 0.3\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1780, 260],
-      "id": "ai-legitimacy",
+      "position": [2440, 380],
+      "id": "ai-legitimacy-check",
       "name": "AI Legitimacy Check",
       "credentials": {
         "httpHeaderAuth": {
@@ -163,13 +221,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI response\nconst aiResponse = $input.first().json;\nconst listing = $('Filter Valid (Price > $20K)').item.json;\n\nlet analysis = {\n  is_legitimate: false,\n  confidence: 0,\n  red_flags: ['Could not analyze'],\n  reason: 'Analysis failed'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\nreturn [{\n  json: {\n    ...listing,\n    ai_analysis: analysis,\n    is_legitimate: analysis.is_legitimate,\n    legitimacy_confidence: analysis.confidence\n  }\n}];"
+        "jsCode": "// Parse AI legitimacy check results\nconst aiResponse = $input.first().json;\nconst listing = $('Parse & Filter (Sales Only)').item.json;\n\nlet analysis = {\n  is_legitimate: false,\n  is_fsbo: false,\n  confidence: 0,\n  extracted_address: '',\n  red_flags: [],\n  reason: 'Analysis failed'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\n// Use extracted address if we didn't have one\nconst address = listing.address || analysis.extracted_address || listing.title;\n\nreturn [{\n  json: {\n    ...listing,\n    address: address,\n    is_legitimate: analysis.is_legitimate,\n    is_fsbo: analysis.is_fsbo,\n    ai_confidence: analysis.confidence,\n    ai_red_flags: analysis.red_flags,\n    ai_reason: analysis.reason\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2000, 260],
-      "id": "parse-ai",
-      "name": "Parse AI Response"
+      "position": [2660, 380],
+      "id": "parse-analysis",
+      "name": "Parse AI Analysis"
     },
     {
       "parameters": {
@@ -190,9 +248,9 @@
               }
             },
             {
-              "id": "confidence",
-              "leftValue": "={{ $json.legitimacy_confidence }}",
-              "rightValue": 50,
+              "id": "high-confidence",
+              "leftValue": "={{ $json.ai_confidence }}",
+              "rightValue": 0.6,
               "operator": {
                 "type": "number",
                 "operation": "gte"
@@ -205,8 +263,8 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2220, 260],
-      "id": "filter-legit",
+      "position": [2880, 380],
+      "id": "is-legitimate",
       "name": "Is Legitimate?"
     },
     {
@@ -222,13 +280,13 @@
           "value": "Leads",
           "mode": "name"
         },
-        "filterByFormula": "=OR({Listing URL} = '{{ $json.listing_url }}', AND({Address} = '{{ $json.title }}', {City} = '{{ $json.city }}'))"
+        "filterByFormula": "=OR({Listing URL} = '{{ $json.listing_url }}', AND({Address} = '{{ $json.address }}', {City} = '{{ $json.city }}'))"
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [2440, 220],
-      "id": "check-dup",
-      "name": "Check Duplicate",
+      "position": [3100, 340],
+      "id": "check-duplicate",
+      "name": "Check If Exists",
       "credentials": {
         "airtableTokenApi": {
           "id": "airtable-creds",
@@ -247,7 +305,7 @@
           "conditions": [
             {
               "id": "is-new",
-              "leftValue": "={{ $json.records?.length }}",
+              "leftValue": "={{ $input.all().length }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -261,9 +319,9 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2660, 220],
-      "id": "is-new",
-      "name": "Is New?"
+      "position": [3320, 340],
+      "id": "is-new-lead",
+      "name": "Is New Lead?"
     },
     {
       "parameters": {
@@ -282,15 +340,19 @@
           "fieldMapping": [
             {
               "fieldName": "Address",
-              "fieldValue": "={{ $('Parse AI Response').item.json.title }}"
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.address }}"
             },
             {
               "fieldName": "City",
-              "fieldValue": "={{ $('Parse AI Response').item.json.city }}"
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.city }}"
+            },
+            {
+              "fieldName": "State",
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.state }}"
             },
             {
               "fieldName": "Asking Price",
-              "fieldValue": "={{ $('Parse AI Response').item.json.price }}"
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.price }}"
             },
             {
               "fieldName": "Source",
@@ -302,28 +364,36 @@
             },
             {
               "fieldName": "Listing URL",
-              "fieldValue": "={{ $('Parse AI Response').item.json.listing_url }}"
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.listing_url }}"
+            },
+            {
+              "fieldName": "Photo URL",
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.photo_url }}"
+            },
+            {
+              "fieldName": "Description",
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.description }}"
+            },
+            {
+              "fieldName": "Owner Name",
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.seller_name }}"
             },
             {
               "fieldName": "Priority",
-              "fieldValue": "Medium"
-            },
-            {
-              "fieldName": "AI Analysis",
-              "fieldValue": "={{ JSON.stringify($('Parse AI Response').item.json.ai_analysis) }}"
+              "fieldValue": "={{ $('Parse AI Analysis').item.json.is_fsbo ? 'High' : 'Medium' }}"
             },
             {
               "fieldName": "Notes",
-              "fieldValue": "={{ $('Parse AI Response').item.json.description?.substring(0, 500) || '' }}"
+              "fieldValue": "=FB Marketplace listing. AI Confidence: {{ Math.round($('Parse AI Analysis').item.json.ai_confidence * 100) }}%. {{ $('Parse AI Analysis').item.json.ai_red_flags?.length > 0 ? 'Red flags: ' + $('Parse AI Analysis').item.json.ai_red_flags.join(', ') : '' }}"
             }
           ]
         }
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [2880, 180],
+      "position": [3540, 300],
       "id": "create-lead",
-      "name": "Create Lead",
+      "name": "Create Lead in Airtable",
       "credentials": {
         "airtableTokenApi": {
           "id": "airtable-creds",
@@ -332,53 +402,41 @@
       }
     },
     {
-      "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 5) + 3 }}",
-        "unit": "seconds"
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [3100, 220],
-      "id": "delay",
-      "name": "Random Delay",
-      "webhookId": "fb-scraper-delay"
-    },
-    {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2440, 340],
+      "position": [3100, 480],
       "id": "skip-scam",
-      "name": "Skip Scam"
+      "name": "Skip (Likely Scam)"
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2880, 300],
-      "id": "skip-dup",
+      "position": [3540, 420],
+      "id": "skip-duplicate",
       "name": "Skip Duplicate"
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [3320, 300],
+      "position": [3760, 380],
       "id": "done",
       "name": "Done"
     },
     {
       "parameters": {
-        "content": "## FB Marketplace Scraper\n\n**Note:** Facebook blocks direct scraping.\n\nRecommended approach:\n1. Use Apify (apify.com) FB Marketplace actor\n2. Use BrightData or ScrapingBee\n3. Use browser automation with Puppeteer\n\nThis workflow assumes Apify integration.\nReplace with your preferred scraping service.",
-        "height": 220,
-        "width": 380,
-        "color": 5
+        "content": "## FB Marketplace Scraper (Apify)\n\n**Trigger:** Every 6 hours\n\n**Why FB Marketplace:**\n- Many motivated sellers\n- Less competition than MLS\n- Often FSBO (For Sale By Owner)\n\n**Using Apify because:**\n- FB blocks direct scraping\n- Requires residential proxies\n- Complex authentication\n- ToS violations if DIY\n\n**AI Legitimacy Check:**\n- Filters out scams/spam\n- Verifies real property sales\n- Extracts addresses from descriptions\n- Confidence scoring\n\n**Cost:** ~$1-2 per 100 listings",
+        "height": 400,
+        "width": 400,
+        "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [200, 60],
-      "id": "sticky-note",
-      "name": "Implementation Note"
+      "position": [200, 40],
+      "id": "sticky-overview",
+      "name": "Overview"
     }
   ],
   "connections": {
@@ -397,65 +455,109 @@
       "main": [
         [
           {
-            "node": "Prepare Search Queries",
+            "node": "Prepare Locations",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Search Queries": {
+    "Prepare Locations": {
       "main": [
         [
           {
-            "node": "Loop Cities",
+            "node": "Run Apify FB Actor",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Loop Cities": {
+    "Run Apify FB Actor": {
       "main": [
         [
           {
-            "node": "Scrape FB Marketplace (Apify)",
+            "node": "Extract Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Run ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Actor (4 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Actor (4 min)": {
+      "main": [
+        [
+          {
+            "node": "Check Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Run Status": {
+      "main": [
+        [
+          {
+            "node": "Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 More Min",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Done",
+            "node": "Get Apify Results",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Scrape FB Marketplace (Apify)": {
+    "Wait 2 More Min": {
       "main": [
         [
           {
-            "node": "Parse FB Listings",
+            "node": "Check Run Status",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse FB Listings": {
+    "Get Apify Results": {
       "main": [
         [
           {
-            "node": "Filter Valid (Price > $20K)",
+            "node": "Parse & Filter (Sales Only)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter Valid (Price > $20K)": {
+    "Parse & Filter (Sales Only)": {
       "main": [
         [
           {
@@ -470,14 +572,14 @@
       "main": [
         [
           {
-            "node": "Parse AI Response",
+            "node": "Parse AI Analysis",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse AI Response": {
+    "Parse AI Analysis": {
       "main": [
         [
           {
@@ -492,36 +594,36 @@
       "main": [
         [
           {
-            "node": "Check Duplicate",
+            "node": "Check If Exists",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Skip Scam",
+            "node": "Skip (Likely Scam)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Duplicate": {
+    "Check If Exists": {
       "main": [
         [
           {
-            "node": "Is New?",
+            "node": "Is New Lead?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Is New?": {
+    "Is New Lead?": {
       "main": [
         [
           {
-            "node": "Create Lead",
+            "node": "Create Lead in Airtable",
             "type": "main",
             "index": 0
           }
@@ -535,33 +637,22 @@
         ]
       ]
     },
-    "Create Lead": {
+    "Create Lead in Airtable": {
       "main": [
         [
           {
-            "node": "Random Delay",
+            "node": "Done",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Random Delay": {
+    "Skip (Likely Scam)": {
       "main": [
         [
           {
-            "node": "Loop Cities",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Skip Scam": {
-      "main": [
-        [
-          {
-            "node": "Loop Cities",
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -572,7 +663,7 @@
       "main": [
         [
           {
-            "node": "Loop Cities",
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -592,6 +683,7 @@
   "tags": [
     {"name": "Engine 1", "id": "engine1"},
     {"name": "Sourcing", "id": "sourcing"},
-    {"name": "Facebook", "id": "facebook"}
+    {"name": "FB Marketplace", "id": "fb"},
+    {"name": "Apify", "id": "apify"}
   ]
 }

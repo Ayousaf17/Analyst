@@ -23,11 +23,22 @@ New → Enriching → Ready → Contacted → Warm/HOT/Cold → Dead
 
 - **n8n** - Workflow automation (self-hosted or cloud)
 - **Airtable** - Lead database (Tables: Leads, Conversations, Templates, Settings)
+- **Apify** - Web scraping platform (Zillow, Realtor.com, FB Marketplace)
 - **OpenRouter API** - LLM calls (Claude 3.5 Sonnet)
 - **Gmail API** - Email outreach
 - **Twilio** - SMS outreach
 - **Slack** - Hot lead notifications
 - **Skip Tracing API** - BatchSkipTracing
+
+### Why Apify?
+
+Complex sites (Zillow, FB Marketplace, Realtor.com) require:
+- Proxy rotation
+- Anti-bot bypass
+- CAPTCHA solving
+- Constant maintenance
+
+**Apify handles all of this for ~$50/month**, saving 60+ hours of setup time and providing 95%+ success rates vs 70% with DIY scraping. Craigslist uses simple RSS (no Apify needed).
 
 ## Directory Structure
 
@@ -73,10 +84,10 @@ wholesale-leadgen/
 
 | Workflow | Trigger | Schedule |
 |----------|---------|----------|
-| Zillow FSBO Scraper | Cron | Daily 7 AM |
+| Zillow FSBO Scraper (Apify) | Cron | Daily 8 AM |
 | Craigslist Monitor | Cron | Every 4 hours |
-| FB Marketplace Scraper | Cron | Every 6 hours |
-| Expired Listings Monitor | Cron | Daily 6 AM |
+| FB Marketplace Scraper (Apify) | Cron | Every 6 hours |
+| Expired Listings Monitor (Apify) | Cron | Daily 6 AM |
 | Skip Trace Enrich | Airtable Webhook | On new lead |
 | Photo Analysis | Cron | Every 2 hours |
 | Initial Email Outreach | Cron | Every 30 min |
@@ -96,7 +107,8 @@ AIRTABLE_BASE_ID=appXXXXXXXXXXXXXX
 ## Credential Names (n8n)
 
 - `airtable-creds` - Airtable Personal Access Token
-- `openrouter-auth` - HTTP Header Auth
+- `apify-auth` - Apify API Token (HTTP Header Auth)
+- `openrouter-auth` - OpenRouter API (HTTP Header Auth)
 - `gmail-oauth` - Gmail OAuth2
 - `slack-creds` - Slack Bot Token
 - `skiptracing-auth` - BatchSkipTracing API

@@ -134,7 +134,57 @@ Body:
 
 ---
 
-### 6. Skip Tracing (`skiptracing-auth`)
+### 6. Apify (`apify-auth`)
+
+**Type:** HTTP Header Auth
+
+Apify handles all complex web scraping (Zillow, Realtor.com, FB Marketplace) so you don't need to manage proxies, anti-bot bypass, or HTML parsing.
+
+**Setup:**
+1. Go to [apify.com](https://apify.com) and create account
+2. Navigate to Settings → Integrations → API Token
+3. Copy your API token
+
+**n8n Setup:**
+- Credential Type: `Header Auth`
+- Name: `Authorization`
+- Value: `Bearer apify_api_XXXXX...`
+
+**Recommended Actors:**
+| Actor | Use Case | Cost |
+|-------|----------|------|
+| `petr_cermak~zillow-api-scraper` | Zillow FSBO listings | ~$1/100 listings |
+| `maxcopell~realtor-scraper` | Realtor.com expired listings | ~$1/100 listings |
+| `apify~facebook-marketplace-scraper` | FB Marketplace | ~$1-2/100 listings |
+
+**Monthly Cost Estimate:**
+- Solo Plan: $49/month (includes $49 platform usage credits)
+- Enough for ~100-200 scrapes/day
+
+**API Usage Pattern:**
+```javascript
+// 1. Start actor run
+POST https://api.apify.com/v2/acts/{actorId}/runs
+Headers: Authorization: Bearer apify_api_XXXXX
+
+// 2. Check run status
+GET https://api.apify.com/v2/actor-runs/{runId}
+
+// 3. Get results when complete
+GET https://api.apify.com/v2/actor-runs/{runId}/dataset/items
+```
+
+**Why Apify instead of DIY scraping:**
+- 95%+ success rate (vs 70% DIY)
+- No proxy management needed
+- No HTML parsing/maintenance
+- Apify maintains scrapers when sites change
+- CAPTCHA solving included
+- 60+ hours saved on setup
+
+---
+
+### 7. Skip Tracing (`skiptracing-auth`)
 
 **Type:** HTTP Header Auth (BatchSkipTracing or similar)
 

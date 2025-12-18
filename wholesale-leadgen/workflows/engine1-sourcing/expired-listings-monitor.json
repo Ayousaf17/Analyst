@@ -1,13 +1,13 @@
 {
-  "name": "Expired Listings Monitor",
+  "name": "Expired Listings Monitor (Apify)",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hour": 6
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
             }
           ]
         }
@@ -47,62 +47,84 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse cities for expired listing search\n// Note: Expired listings are best sourced from:\n// 1. MLS API (if you have access)\n// 2. Zillow 'Off Market' with recent price history\n// 3. Realtor.com 'Off Market'\n// 4. Third-party data providers (PropStream, BatchLeads)\n\nconst settings = $input.first()?.json?.fields || {};\nlet cities = ['Austin'];\n\nif (settings.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn cities.map(city => ({\n  json: {\n    city: city,\n    state: 'TX',\n    // Zillow off-market search\n    zillow_url: `https://www.zillow.com/${city.toLowerCase().replace(/ /g, '-')}-tx/recently-sold/`,\n    // Days to look back\n    days_back: 7\n  }\n}));"
+        "jsCode": "// Parse cities for expired listing search via Apify\nconst settings = $input.first()?.json?.fields || {};\nlet cities = ['Austin, TX', 'San Antonio, TX', 'Houston, TX'];\n\nif (settings.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn [{ json: { locations: cities } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [680, 300],
-      "id": "prepare-searches",
-      "name": "Prepare Searches"
+      "id": "prepare-locations",
+      "name": "Prepare Locations"
     },
     {
       "parameters": {
-        "batchSize": 1,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [900, 300],
-      "id": "loop-cities",
-      "name": "Loop Cities"
-    },
-    {
-      "parameters": {
-        "url": "={{ $json.zillow_url }}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          ]
-        },
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/maxcopell~realtor-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"location\": {{ JSON.stringify($json.locations) }},\n  \"status\": [\"off_market\", \"sold\"],\n  \"soldWithinDays\": 30,\n  \"maxItems\": 100,\n  \"includeOffMarket\": true,\n  \"proxy\": {\n    \"useApifyProxy\": true,\n    \"apifyProxyGroups\": [\"RESIDENTIAL\"]\n  }\n}",
         "options": {
           "response": {
             "response": {
-              "responseFormat": "text"
+              "fullResponse": true
             }
           }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1120, 260],
-      "id": "scrape-zillow",
-      "name": "Scrape Zillow Off-Market",
-      "continueOnFail": true
+      "position": [900, 300],
+      "id": "run-apify-actor",
+      "name": "Run Apify Realtor Actor",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Parse expired/withdrawn listings from Zillow\nconst html = $input.first().json.data || $input.first().json.body || '';\nconst cityData = $('Loop Cities').item.json;\n\nlet listings = [];\n\ntry {\n  // Look for properties that were listed but didn't sell (withdrawn/expired)\n  // Zillow shows these in 'Off Market' or 'Recently Sold' sections\n  \n  // Try to find embedded JSON data\n  const jsonMatch = html.match(/\"listResults\"\\s*:\\s*(\\[[\\s\\S]*?\\])/);\n  if (jsonMatch) {\n    const data = JSON.parse(jsonMatch[1]);\n    listings = data\n      .filter(item => {\n        // Look for expired indicators\n        const status = (item.statusType || item.listingStatus || '').toLowerCase();\n        const statusText = (item.statusText || '').toLowerCase();\n        return status.includes('off market') || \n               status.includes('withdrawn') ||\n               status.includes('expired') ||\n               statusText.includes('off market');\n      })\n      .map(item => ({\n        address: item.address || item.streetAddress,\n        city: item.city || cityData.city,\n        state: item.state || cityData.state,\n        zip: item.zipcode,\n        price: item.price || item.unformattedPrice,\n        original_list_price: item.price,\n        bedrooms: item.beds,\n        bathrooms: item.baths,\n        sqft: item.area,\n        listing_url: item.detailUrl ? `https://www.zillow.com${item.detailUrl}` : '',\n        zestimate: item.zestimate,\n        days_on_market: item.daysOnZillow || 0,\n        status_reason: 'Expired/Withdrawn',\n        source: 'Expired MLS',\n        scraped_at: new Date().toISOString()\n      }));\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\n// If direct parsing fails, try alternative approach\nif (listings.length === 0) {\n  // Create placeholder entries that can be enriched\n  // In production, use MLS API or data provider\n  const addressMatches = html.match(/\"streetAddress\"\\s*:\\s*\"([^\"]+)\"/g) || [];\n  \n  for (let i = 0; i < Math.min(addressMatches.length, 20); i++) {\n    const address = addressMatches[i]?.match(/\"([^\"]+)\"$/)?.[1];\n    if (address) {\n      listings.push({\n        address: address,\n        city: cityData.city,\n        state: cityData.state,\n        source: 'Expired MLS',\n        status_reason: 'Potential Expired',\n        scraped_at: new Date().toISOString()\n      });\n    }\n  }\n}\n\nreturn listings.map(l => ({ json: l }));"
+        "jsCode": "// Extract the run ID from Apify response\nconst response = $input.first().json;\nconst runId = response.body?.data?.id || response.data?.id;\n\nif (!runId) {\n  throw new Error('Failed to start Apify actor - no run ID returned');\n}\n\nreturn [{ json: { runId: runId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 260],
-      "id": "parse-expired",
-      "name": "Parse Expired Listings"
+      "position": [1120, 300],
+      "id": "extract-run-id",
+      "name": "Extract Run ID"
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 300],
+      "id": "wait-for-actor",
+      "name": "Wait for Actor (3 min)",
+      "webhookId": "realtor-apify-wait"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "id": "check-run-status",
+      "name": "Check Run Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
     },
     {
       "parameters": {
@@ -114,12 +136,12 @@
           },
           "conditions": [
             {
-              "id": "has-address",
-              "leftValue": "={{ $json.address }}",
-              "rightValue": "",
+              "id": "is-running",
+              "leftValue": "={{ $json.data?.status }}",
+              "rightValue": "RUNNING",
               "operator": {
                 "type": "string",
-                "operation": "notEmpty"
+                "operation": "equals"
               }
             }
           ],
@@ -127,11 +149,64 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.filter",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1560, 260],
-      "id": "filter-valid",
-      "name": "Filter Valid Addresses"
+      "position": [1780, 300],
+      "id": "still-running",
+      "name": "Still Running?"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2000, 240],
+      "id": "wait-more",
+      "name": "Wait 2 More Min",
+      "webhookId": "realtor-wait-more"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}/dataset/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 380],
+      "id": "get-results",
+      "name": "Get Apify Results",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apify Realtor results - filter for expired/withdrawn only\nconst results = $input.first().json;\nconst items = Array.isArray(results) ? results : (results.items || results.data || []);\n\n// Filter for listings that are expired, withdrawn, or recently off-market\nconst expiredListings = items.filter(item => {\n  const status = (item.status || item.listingStatus || '').toLowerCase();\n  const lastStatus = (item.last_status || '').toLowerCase();\n  \n  // Look for expired, withdrawn, or off-market indicators\n  return status.includes('off') || \n         status.includes('withdrawn') ||\n         status.includes('expired') ||\n         status.includes('cancelled') ||\n         lastStatus.includes('expired') ||\n         lastStatus.includes('withdrawn') ||\n         // Also include recently sold that failed (back on market potential)\n         (item.daysOnMarket > 180 && status.includes('sold'));\n});\n\nreturn expiredListings.map(item => ({\n  json: {\n    address: item.streetAddress || item.address || item.location?.address || '',\n    city: item.city || item.location?.city || '',\n    state: item.state || item.location?.state || 'TX',\n    zip: item.zipcode || item.postalCode || item.location?.postalCode || '',\n    price: item.listPrice || item.price || 0,\n    original_list_price: item.listPrice || item.price || 0,\n    bedrooms: item.beds || item.bedrooms || 0,\n    bathrooms: item.baths || item.bathrooms || 0,\n    sqft: item.sqft || item.livingArea || 0,\n    lot_size: item.lotSize || '',\n    year_built: item.yearBuilt || '',\n    property_type: item.propertyType || '',\n    listing_url: item.url || item.propertyUrl || '',\n    photo_url: item.primaryPhoto || (item.photos && item.photos[0]) || '',\n    days_on_market: item.daysOnMarket || item.dom || 0,\n    status_reason: item.status || item.last_status || 'Expired/Withdrawn',\n    mls_number: item.mlsId || item.listingId || '',\n    source: 'Expired MLS',\n    scraped_at: new Date().toISOString()\n  }\n})).filter(item => item.json.address);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 380],
+      "id": "parse-expired",
+      "name": "Parse Expired Listings"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2440, 380],
+      "id": "loop-leads",
+      "name": "Loop Through Leads"
     },
     {
       "parameters": {
@@ -150,7 +225,7 @@
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [1780, 260],
+      "position": [2660, 340],
       "id": "check-dup",
       "name": "Check Duplicate",
       "credentials": {
@@ -171,7 +246,7 @@
           "conditions": [
             {
               "id": "is-new",
-              "leftValue": "={{ $json.records?.length }}",
+              "leftValue": "={{ $input.all().length }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -185,7 +260,7 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2000, 260],
+      "position": [2880, 340],
       "id": "is-new",
       "name": "Is New?"
     },
@@ -206,27 +281,43 @@
           "fieldMapping": [
             {
               "fieldName": "Address",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.address }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.address }}"
             },
             {
               "fieldName": "City",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.city }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.city }}"
             },
             {
               "fieldName": "State",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.state }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.state }}"
             },
             {
               "fieldName": "ZIP",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.zip }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.zip }}"
             },
             {
               "fieldName": "Asking Price",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.price || $('Filter Valid Addresses').item.json.original_list_price }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.price }}"
             },
             {
               "fieldName": "Estimated Value",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.zestimate || $('Filter Valid Addresses').item.json.price }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.price }}"
+            },
+            {
+              "fieldName": "Beds",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.bedrooms }}"
+            },
+            {
+              "fieldName": "Baths",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.bathrooms }}"
+            },
+            {
+              "fieldName": "Sq Ft",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.sqft }}"
+            },
+            {
+              "fieldName": "Property Type",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.property_type }}"
             },
             {
               "fieldName": "Source",
@@ -238,7 +329,15 @@
             },
             {
               "fieldName": "Listing URL",
-              "fieldValue": "={{ $('Filter Valid Addresses').item.json.listing_url }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.listing_url }}"
+            },
+            {
+              "fieldName": "Photo URL",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.photo_url }}"
+            },
+            {
+              "fieldName": "Days on Market",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.days_on_market }}"
             },
             {
               "fieldName": "Priority",
@@ -246,14 +345,14 @@
             },
             {
               "fieldName": "Notes",
-              "fieldValue": "=Expired/Withdrawn listing - HIGH MOTIVATION. Original DOM: {{ $('Filter Valid Addresses').item.json.days_on_market || 'Unknown' }}"
+              "fieldValue": "=EXPIRED LISTING - HIGH MOTIVATION! Status: {{ $('Loop Through Leads').item.json.status_reason }}. DOM: {{ $('Loop Through Leads').item.json.days_on_market || 'Unknown' }}. MLS#: {{ $('Loop Through Leads').item.json.mls_number || 'N/A' }}"
             }
           ]
         }
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [2220, 220],
+      "position": [3100, 300],
       "id": "create-lead",
       "name": "Create Lead (Priority: High)",
       "credentials": {
@@ -266,12 +365,12 @@
     {
       "parameters": {
         "channel": "#hot-leads",
-        "text": "=:rotating_light: *Expired Listing Found!*\n\n*Property:* {{ $('Filter Valid Addresses').item.json.address }}, {{ $('Filter Valid Addresses').item.json.city }}\n*Original Price:* ${{ $('Filter Valid Addresses').item.json.price?.toLocaleString() || 'Unknown' }}\n*Days on Market:* {{ $('Filter Valid Addresses').item.json.days_on_market || 'Unknown' }}\n\n:fire: *High motivation seller - listing expired/withdrawn!*\n\nThis lead has been added with HIGH priority for immediate enrichment.",
+        "text": "=:rotating_light: *Expired Listing Found!*\n\n*Property:* {{ $('Loop Through Leads').item.json.address }}, {{ $('Loop Through Leads').item.json.city }}\n*Original Price:* ${{ $('Loop Through Leads').item.json.price?.toLocaleString() || 'Unknown' }}\n*Days on Market:* {{ $('Loop Through Leads').item.json.days_on_market || 'Unknown' }}\n*Status:* {{ $('Loop Through Leads').item.json.status_reason }}\n*MLS#:* {{ $('Loop Through Leads').item.json.mls_number || 'N/A' }}\n\n:fire: *High motivation seller - listing expired/withdrawn!*\n:chart_with_upwards_trend: *15-25% conversion rate on expired listings*\n\nThis lead has been added with HIGH priority.",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [2440, 220],
+      "position": [3320, 300],
       "id": "slack-alert",
       "name": "Slack Alert (Expired = Gold)",
       "credentials": {
@@ -282,22 +381,10 @@
       }
     },
     {
-      "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 3) + 1 }}",
-        "unit": "seconds"
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [2660, 260],
-      "id": "delay",
-      "name": "Random Delay",
-      "webhookId": "expired-delay"
-    },
-    {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2220, 340],
+      "position": [3100, 420],
       "id": "skip-dup",
       "name": "Skip Duplicate"
     },
@@ -305,15 +392,15 @@
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2880, 300],
+      "position": [3540, 380],
       "id": "done",
       "name": "Done"
     },
     {
       "parameters": {
-        "content": "## Expired Listings Monitor\n\n**Why Expired = GOLD:**\n- Owner already tried to sell (proven motivation)\n- Frustrated with previous agent\n- Ready to try again\n- 15-25% conversion rate!\n\n**Best Sources:**\n1. MLS API (if licensed)\n2. PropStream or BatchLeads\n3. Zillow 'Off Market'\n4. Realtor.com status changes\n\n**This workflow sets Priority = High**",
-        "height": 280,
-        "width": 380,
+        "content": "## Expired Listings Monitor (Apify)\n\n**Why Expired = GOLD:**\n- Owner already tried to sell (proven motivation)\n- Frustrated with previous agent\n- Ready to try again\n- **15-25% conversion rate!**\n\n**Using Apify for:**\n- Realtor.com off-market listings\n- Recently expired/withdrawn\n- Cancelled listings\n\n**Benefits:**\n- 95%+ success rate\n- No proxy management\n- Clean JSON data\n- Apify maintains scraper\n\n**Priority = HIGH** for all expired leads",
+        "height": 380,
+        "width": 400,
         "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
@@ -339,43 +426,98 @@
       "main": [
         [
           {
-            "node": "Prepare Searches",
+            "node": "Prepare Locations",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Searches": {
+    "Prepare Locations": {
       "main": [
         [
           {
-            "node": "Loop Cities",
+            "node": "Run Apify Realtor Actor",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Loop Cities": {
+    "Run Apify Realtor Actor": {
       "main": [
         [
           {
-            "node": "Scrape Zillow Off-Market",
+            "node": "Extract Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Run ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Actor (3 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Actor (3 min)": {
+      "main": [
+        [
+          {
+            "node": "Check Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Run Status": {
+      "main": [
+        [
+          {
+            "node": "Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 More Min",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Done",
+            "node": "Get Apify Results",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Scrape Zillow Off-Market": {
+    "Wait 2 More Min": {
+      "main": [
+        [
+          {
+            "node": "Check Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Apify Results": {
       "main": [
         [
           {
@@ -390,18 +532,25 @@
       "main": [
         [
           {
-            "node": "Filter Valid Addresses",
+            "node": "Loop Through Leads",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter Valid Addresses": {
+    "Loop Through Leads": {
       "main": [
         [
           {
             "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -452,18 +601,7 @@
       "main": [
         [
           {
-            "node": "Random Delay",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Random Delay": {
-      "main": [
-        [
-          {
-            "node": "Loop Cities",
+            "node": "Loop Through Leads",
             "type": "main",
             "index": 0
           }
@@ -474,7 +612,7 @@
       "main": [
         [
           {
-            "node": "Loop Cities",
+            "node": "Loop Through Leads",
             "type": "main",
             "index": 0
           }
@@ -495,6 +633,7 @@
     {"name": "Engine 1", "id": "engine1"},
     {"name": "Sourcing", "id": "sourcing"},
     {"name": "Expired", "id": "expired"},
-    {"name": "High Priority", "id": "high-priority"}
+    {"name": "High Priority", "id": "high-priority"},
+    {"name": "Apify", "id": "apify"}
   ]
 }

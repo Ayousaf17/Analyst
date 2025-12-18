@@ -1,13 +1,13 @@
 {
-  "name": "Zillow FSBO Scraper",
+  "name": "Zillow FSBO Scraper (Apify)",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hour": 7
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
             }
           ]
         }
@@ -16,31 +16,22 @@
       "typeVersion": 1.2,
       "position": [240, 300],
       "id": "schedule-daily",
-      "name": "Daily 7 AM"
+      "name": "Daily 8 AM"
     },
     {
       "parameters": {
-        "operation": "read",
-        "documentId": {
+        "operation": "search",
+        "base": {
           "__rl": true,
           "value": "={{ $env.AIRTABLE_BASE_ID }}",
           "mode": "id"
         },
-        "sheetName": {
+        "table": {
           "__rl": true,
           "value": "Settings",
           "mode": "name"
         },
-        "options": {
-          "filters": {
-            "conditions": [
-              {
-                "field": "Key",
-                "value": "target_cities"
-              }
-            ]
-          }
-        }
+        "filterByFormula": "={Key} = 'target_cities'"
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -56,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse target cities from Airtable settings\nconst settings = $input.first()?.json;\nlet cities = ['Austin', 'San Antonio', 'Houston']; // defaults\n\nif (settings?.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn cities.map(city => ({ json: { city, state: 'TX' } }));"
+        "jsCode": "// Parse target cities from Airtable settings\nconst settings = $input.first()?.json?.fields;\nlet cities = ['Austin, TX', 'San Antonio, TX', 'Houston, TX']; // defaults\n\nif (settings?.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\n// Format for Apify: \"City, State\"\nreturn [{ json: { locations: cities } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -66,55 +57,74 @@
     },
     {
       "parameters": {
-        "batchSize": 1,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [900, 300],
-      "id": "loop-cities",
-      "name": "Loop Through Cities"
-    },
-    {
-      "parameters": {
-        "url": "=https://www.zillow.com/{{ $json.city.toLowerCase().replace(/ /g, '-') }}-{{ $json.state.toLowerCase() }}/fsbo/",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            },
-            {
-              "name": "Accept",
-              "value": "text/html,application/xhtml+xml"
-            }
-          ]
-        },
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/petr_cermak~zillow-api-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchType\": \"sale\",\n  \"listingType\": \"fsbo\",\n  \"location\": {{ JSON.stringify($json.locations) }},\n  \"maxItems\": 100,\n  \"proxy\": {\n    \"useApifyProxy\": true,\n    \"apifyProxyGroups\": [\"RESIDENTIAL\"]\n  }\n}",
         "options": {
           "response": {
             "response": {
-              "responseFormat": "text"
+              "fullResponse": true
             }
           }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1120, 260],
-      "id": "scrape-zillow",
-      "name": "Scrape Zillow FSBO Page"
+      "position": [900, 300],
+      "id": "run-apify-actor",
+      "name": "Run Apify Zillow Actor",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Parse Zillow FSBO listings from HTML\n// Note: In production, use a proper scraping service or Zillow API\nconst html = $input.first().json.data || $input.first().json.body || '';\nconst city = $('Loop Through Cities').item.json.city;\nconst state = $('Loop Through Cities').item.json.state;\n\n// Extract listing data from Zillow's JSON data embedded in page\nlet listings = [];\n\ntry {\n  // Zillow embeds property data as JSON in script tags\n  const jsonMatch = html.match(/\"listResults\":\\s*(\\[.*?\\])(?=,\")/s);\n  if (jsonMatch) {\n    const listData = JSON.parse(jsonMatch[1]);\n    listings = listData.map(item => ({\n      address: item.address || item.streetAddress,\n      city: item.city || city,\n      state: item.state || state,\n      zip: item.zipcode || item.zip,\n      price: item.price || item.unformattedPrice,\n      bedrooms: item.beds,\n      bathrooms: item.baths,\n      sqft: item.area,\n      listing_url: item.detailUrl ? `https://www.zillow.com${item.detailUrl}` : '',\n      zestimate: item.zestimate,\n      days_on_market: item.daysOnZillow || 0,\n      source: 'Zillow FSBO',\n      scraped_at: new Date().toISOString()\n    }));\n  }\n} catch (e) {\n  // Fallback: return empty if parsing fails\n  console.log('Parse error:', e.message);\n}\n\n// If no listings found from JSON, try basic HTML parsing\nif (listings.length === 0) {\n  // This is a simplified fallback - in production use proper selectors\n  const addressMatches = html.match(/data-test=\"property-card-addr\"[^>]*>([^<]+)/g) || [];\n  const priceMatches = html.match(/data-test=\"property-card-price\"[^>]*>([^<]+)/g) || [];\n  \n  for (let i = 0; i < Math.min(addressMatches.length, 20); i++) {\n    listings.push({\n      address: addressMatches[i]?.replace(/.*>/, '') || `Listing ${i + 1}`,\n      city: city,\n      state: state,\n      price: priceMatches[i]?.replace(/.*>/, '').replace(/[^0-9]/g, '') || 0,\n      source: 'Zillow FSBO',\n      scraped_at: new Date().toISOString()\n    });\n  }\n}\n\nreturn listings.slice(0, 50).map(l => ({ json: l }));"
+        "jsCode": "// Extract the run ID from Apify response\nconst response = $input.first().json;\nconst runId = response.body?.data?.id || response.data?.id;\n\nif (!runId) {\n  throw new Error('Failed to start Apify actor - no run ID returned');\n}\n\nreturn [{ json: { runId: runId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 260],
-      "id": "parse-listings",
-      "name": "Parse Listings"
+      "position": [1120, 300],
+      "id": "extract-run-id",
+      "name": "Extract Run ID"
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 300],
+      "id": "wait-for-actor",
+      "name": "Wait for Actor (3 min)",
+      "webhookId": "zillow-apify-wait"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "id": "check-run-status",
+      "name": "Check Run Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
     },
     {
       "parameters": {
@@ -126,12 +136,12 @@
           },
           "conditions": [
             {
-              "id": "has-address",
-              "leftValue": "={{ $json.address }}",
-              "rightValue": "",
+              "id": "is-running",
+              "leftValue": "={{ $json.data?.status }}",
+              "rightValue": "RUNNING",
               "operator": {
                 "type": "string",
-                "operation": "notEmpty"
+                "operation": "equals"
               }
             }
           ],
@@ -139,11 +149,64 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.filter",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1560, 260],
-      "id": "filter-valid",
-      "name": "Filter Valid Listings"
+      "position": [1780, 300],
+      "id": "still-running",
+      "name": "Still Running?"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2000, 240],
+      "id": "wait-more",
+      "name": "Wait 2 More Min",
+      "webhookId": "zillow-wait-more"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Extract Run ID').item.json.runId }}/dataset/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 380],
+      "id": "get-results",
+      "name": "Get Apify Results",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-auth",
+          "name": "Apify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apify results into our lead format\nconst results = $input.first().json;\n\n// Handle both array and object with items\nconst items = Array.isArray(results) ? results : (results.items || results.data || []);\n\nreturn items.map(item => ({\n  json: {\n    address: item.streetAddress || item.address || '',\n    city: item.city || '',\n    state: item.state || 'TX',\n    zip: item.zipcode || item.postalCode || '',\n    price: item.price || item.unformattedPrice || 0,\n    bedrooms: item.bedrooms || item.beds || 0,\n    bathrooms: item.bathrooms || item.baths || 0,\n    sqft: item.livingArea || item.sqft || 0,\n    lot_size: item.lotSize || '',\n    year_built: item.yearBuilt || '',\n    property_type: item.propertyType || item.homeType || '',\n    listing_url: item.url || item.detailUrl || '',\n    photo_url: item.imgSrc || (item.photos && item.photos[0]) || '',\n    description: item.description || '',\n    zestimate: item.zestimate || item.price || 0,\n    days_on_market: item.daysOnZillow || 0,\n    source: 'Zillow FSBO',\n    scraped_at: new Date().toISOString()\n  }\n})).filter(item => item.json.address);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 380],
+      "id": "parse-results",
+      "name": "Parse to Lead Format"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2440, 380],
+      "id": "loop-leads",
+      "name": "Loop Through Leads"
     },
     {
       "parameters": {
@@ -162,7 +225,7 @@
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [1780, 260],
+      "position": [2660, 340],
       "id": "check-duplicate",
       "name": "Check If Exists",
       "credentials": {
@@ -183,7 +246,7 @@
           "conditions": [
             {
               "id": "is-new",
-              "leftValue": "={{ $json.records?.length }}",
+              "leftValue": "={{ $input.all().length }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -197,7 +260,7 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2000, 260],
+      "position": [2880, 340],
       "id": "is-new-lead",
       "name": "Is New Lead?"
     },
@@ -218,27 +281,43 @@
           "fieldMapping": [
             {
               "fieldName": "Address",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.address }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.address }}"
             },
             {
               "fieldName": "City",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.city }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.city }}"
             },
             {
               "fieldName": "State",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.state }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.state }}"
             },
             {
               "fieldName": "ZIP",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.zip }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.zip }}"
             },
             {
               "fieldName": "Asking Price",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.price }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.price }}"
             },
             {
               "fieldName": "Estimated Value",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.zestimate || $('Filter Valid Listings').item.json.price }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.zestimate }}"
+            },
+            {
+              "fieldName": "Beds",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.bedrooms }}"
+            },
+            {
+              "fieldName": "Baths",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.bathrooms }}"
+            },
+            {
+              "fieldName": "Sq Ft",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.sqft }}"
+            },
+            {
+              "fieldName": "Property Type",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.property_type }}"
             },
             {
               "fieldName": "Source",
@@ -250,7 +329,15 @@
             },
             {
               "fieldName": "Listing URL",
-              "fieldValue": "={{ $('Filter Valid Listings').item.json.listing_url }}"
+              "fieldValue": "={{ $('Loop Through Leads').item.json.listing_url }}"
+            },
+            {
+              "fieldName": "Photo URL",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.photo_url }}"
+            },
+            {
+              "fieldName": "Days on Market",
+              "fieldValue": "={{ $('Loop Through Leads').item.json.days_on_market }}"
             },
             {
               "fieldName": "Priority",
@@ -261,7 +348,7 @@
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [2220, 220],
+      "position": [3100, 300],
       "id": "create-lead",
       "name": "Create Lead in Airtable",
       "credentials": {
@@ -272,22 +359,10 @@
       }
     },
     {
-      "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 3) + 1 }}",
-        "unit": "seconds"
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [2440, 260],
-      "id": "random-delay",
-      "name": "Random Delay",
-      "webhookId": "zillow-scraper-delay"
-    },
-    {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2220, 340],
+      "position": [3100, 420],
       "id": "skip-duplicate",
       "name": "Skip Duplicate"
     },
@@ -295,15 +370,15 @@
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2660, 300],
-      "id": "city-done",
-      "name": "City Done"
+      "position": [3320, 380],
+      "id": "done",
+      "name": "Done"
     },
     {
       "parameters": {
-        "content": "## Zillow FSBO Scraper\n\n**Trigger:** Daily at 7 AM\n\n**Flow:**\n1. Get target cities from Airtable Settings\n2. Loop through each city\n3. Scrape Zillow FSBO page\n4. Parse listings from HTML/JSON\n5. Check for duplicates\n6. Create new leads in Airtable\n\n**Notes:**\n- Uses random delays to avoid rate limiting\n- In production, consider using a scraping API\n- Zillow may block IPs - use proxy rotation",
-        "height": 320,
-        "width": 380,
+        "content": "## Zillow FSBO Scraper (Apify)\n\n**Trigger:** Daily at 8 AM\n\n**Flow:**\n1. Get target cities from Airtable Settings\n2. Call Apify Zillow Actor with cities\n3. Wait for actor to complete (3-5 min)\n4. Get clean JSON results\n5. Check for duplicates\n6. Create new leads in Airtable\n\n**Benefits of Apify:**\n- 95%+ success rate (vs 70% DIY)\n- No proxy management\n- No HTML parsing\n- Apify maintains the scraper\n- Clean JSON output\n\n**Cost:** ~$0.50-1.00 per 100 listings",
+        "height": 380,
+        "width": 400,
         "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
@@ -314,7 +389,7 @@
     }
   ],
   "connections": {
-    "Daily 7 AM": {
+    "Daily 8 AM": {
       "main": [
         [
           {
@@ -340,58 +415,120 @@
       "main": [
         [
           {
-            "node": "Loop Through Cities",
+            "node": "Run Apify Zillow Actor",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Loop Through Cities": {
+    "Run Apify Zillow Actor": {
       "main": [
         [
           {
-            "node": "Scrape Zillow FSBO Page",
+            "node": "Extract Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Run ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Actor (3 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Actor (3 min)": {
+      "main": [
+        [
+          {
+            "node": "Check Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Run Status": {
+      "main": [
+        [
+          {
+            "node": "Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 More Min",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "City Done",
+            "node": "Get Apify Results",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Scrape Zillow FSBO Page": {
+    "Wait 2 More Min": {
       "main": [
         [
           {
-            "node": "Parse Listings",
+            "node": "Check Run Status",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse Listings": {
+    "Get Apify Results": {
       "main": [
         [
           {
-            "node": "Filter Valid Listings",
+            "node": "Parse to Lead Format",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter Valid Listings": {
+    "Parse to Lead Format": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Leads": {
       "main": [
         [
           {
             "node": "Check If Exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -431,18 +568,7 @@
       "main": [
         [
           {
-            "node": "Random Delay",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Random Delay": {
-      "main": [
-        [
-          {
-            "node": "Loop Through Cities",
+            "node": "Loop Through Leads",
             "type": "main",
             "index": 0
           }
@@ -453,7 +579,7 @@
       "main": [
         [
           {
-            "node": "Loop Through Cities",
+            "node": "Loop Through Leads",
             "type": "main",
             "index": 0
           }
@@ -473,6 +599,7 @@
   "tags": [
     {"name": "Engine 1", "id": "engine1"},
     {"name": "Sourcing", "id": "sourcing"},
-    {"name": "Zillow", "id": "zillow"}
+    {"name": "Zillow", "id": "zillow"},
+    {"name": "Apify", "id": "apify"}
   ]
 }
