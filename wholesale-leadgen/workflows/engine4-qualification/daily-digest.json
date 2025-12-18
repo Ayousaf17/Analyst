@@ -1,0 +1,358 @@
+{
+  "name": "Daily Digest Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "daily-8pm",
+      "name": "Daily 8 PM"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=IS_AFTER({Created}, DATEADD(NOW(), -1, 'days'))",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 180],
+      "id": "get-new-leads",
+      "name": "Get New Leads (24h)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "={Status} = 'HOT'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-hot-leads",
+      "name": "Get All HOT Leads",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Direction} = 'Inbound', IS_AFTER({Timestamp}, DATEADD(NOW(), -1, 'days')))",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 420],
+      "id": "get-responses",
+      "name": "Get Responses (24h)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Direction} = 'Outbound', IS_AFTER({Timestamp}, DATEADD(NOW(), -1, 'days')))",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 540],
+      "id": "get-outreach",
+      "name": "Get Outreach (24h)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=NOT({Status} = 'Dead')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 660],
+      "id": "get-all-active",
+      "name": "Get All Active Leads",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile all stats\nconst newLeads = $('Get New Leads (24h)').all();\nconst hotLeads = $('Get All HOT Leads').all();\nconst responses = $('Get Responses (24h)').all();\nconst outreach = $('Get Outreach (24h)').all();\nconst activeLeads = $('Get All Active Leads').all();\n\n// Count by status\nconst statusCounts = {};\nfor (const lead of activeLeads) {\n  const status = lead.json.fields?.Status || 'Unknown';\n  statusCounts[status] = (statusCounts[status] || 0) + 1;\n}\n\n// Count outreach by channel\nconst emailsSent = outreach.filter(o => o.json.fields?.Channel === 'Email').length;\nconst smsSent = outreach.filter(o => o.json.fields?.Channel === 'SMS').length;\n\n// Count responses by channel\nconst emailResponses = responses.filter(r => r.json.fields?.Channel === 'Email').length;\nconst smsResponses = responses.filter(r => r.json.fields?.Channel === 'SMS').length;\n\n// Calculate response rate (if we have outreach history)\nconst responseRate = outreach.length > 0 ? \n  ((responses.length / outreach.length) * 100).toFixed(1) : 0;\n\n// Average AI score of new leads\nconst avgScore = newLeads.length > 0 ? \n  (newLeads.reduce((sum, l) => sum + (l.json.fields?.['AI Score'] || 0), 0) / newLeads.length).toFixed(0) : 0;\n\n// Top sources today\nconst sourceCounts = {};\nfor (const lead of newLeads) {\n  const source = lead.json.fields?.Source || 'Unknown';\n  sourceCounts[source] = (sourceCounts[source] || 0) + 1;\n}\nconst topSources = Object.entries(sourceCounts)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 3)\n  .map(([source, count]) => `${source}: ${count}`)\n  .join(', ');\n\n// HOT leads needing follow-up (contacted > 24h ago)\nconst hotNeedingFollowup = hotLeads.filter(l => {\n  const lastContact = new Date(l.json.fields?.['Last Contact Date'] || 0);\n  const hoursSince = (Date.now() - lastContact) / (1000 * 60 * 60);\n  return hoursSince > 24;\n}).length;\n\nreturn [{\n  json: {\n    stats: {\n      newLeads: newLeads.length,\n      hotLeads: hotLeads.length,\n      hotNeedingFollowup: hotNeedingFollowup,\n      totalActive: activeLeads.length,\n      emailsSent: emailsSent,\n      smsSent: smsSent,\n      emailResponses: emailResponses,\n      smsResponses: smsResponses,\n      totalResponses: responses.length,\n      responseRate: responseRate,\n      avgNewLeadScore: avgScore,\n      topSources: topSources || 'None'\n    },\n    statusCounts: statusCounts,\n    hotLeadsList: hotLeads.slice(0, 5).map(l => ({\n      address: l.json.fields?.Address,\n      city: l.json.fields?.City,\n      owner: l.json.fields?.['Owner Name'],\n      score: l.json.fields?.['AI Score']\n    }))\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 400],
+      "id": "compile-stats",
+      "name": "Compile Statistics"
+    },
+    {
+      "parameters": {
+        "channel": "#daily-digest",
+        "text": "=:chart_with_upwards_trend: *Daily Lead Gen Digest*\n_{{ $now.format('MMMM d, yyyy') }}_\n\n*TODAY'S ACTIVITY*\n━━━━━━━━━━━━━━━━━━━━\n:inbox_tray: New Leads: *{{ $json.stats.newLeads }}* (Avg Score: {{ $json.stats.avgNewLeadScore }})\n:email: Emails Sent: *{{ $json.stats.emailsSent }}*\n:speech_balloon: SMS Sent: *{{ $json.stats.smsSent }}*\n:wave: Responses: *{{ $json.stats.totalResponses }}* ({{ $json.stats.responseRate }}% rate)\n   └ Email: {{ $json.stats.emailResponses }} | SMS: {{ $json.stats.smsResponses }}\n\n*PIPELINE STATUS*\n━━━━━━━━━━━━━━━━━━━━\n:fire: HOT Leads: *{{ $json.stats.hotLeads }}* {{ $json.stats.hotNeedingFollowup > 0 ? '(:warning: ' + $json.stats.hotNeedingFollowup + ' need follow-up!)' : '' }}\n:thermometer: Total Active: *{{ $json.stats.totalActive }}*\n\n*STATUS BREAKDOWN*\n{{ Object.entries($json.statusCounts).map(([status, count]) => '• ' + status + ': ' + count).join('\\n') }}\n\n*TOP SOURCES TODAY*\n{{ $json.stats.topSources }}\n\n{{ $json.stats.hotLeads > 0 ? '*:fire: HOT LEADS TO CALL*\\n' + $json.hotLeadsList.map(l => '• ' + l.address + ', ' + l.city + ' (' + l.owner + ') - Score: ' + l.score).join('\\n') : '' }}\n\n━━━━━━━━━━━━━━━━━━━━\n_Generated {{ $now.format('h:mm a') }}_",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [960, 400],
+      "id": "send-slack",
+      "name": "Send Digest to Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.DIGEST_EMAIL || 'your@email.com' }}",
+        "subject": "=Daily Lead Gen Digest - {{ $now.format('MMM d, yyyy') }}",
+        "emailType": "html",
+        "message": "=<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;\">\n<h1 style=\"color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px;\">📊 Daily Lead Gen Digest</h1>\n<p style=\"color: #666;\">{{ $now.format('MMMM d, yyyy') }}</p>\n\n<h2 style=\"color: #4CAF50;\">Today's Activity</h2>\n<table style=\"width: 100%; border-collapse: collapse;\">\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">📥 New Leads</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;\">{{ $json.stats.newLeads }}</td></tr>\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">📧 Emails Sent</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;\">{{ $json.stats.emailsSent }}</td></tr>\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">💬 SMS Sent</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;\">{{ $json.stats.smsSent }}</td></tr>\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">👋 Total Responses</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;\">{{ $json.stats.totalResponses }} ({{ $json.stats.responseRate }}%)</td></tr>\n</table>\n\n<h2 style=\"color: #4CAF50;\">Pipeline Status</h2>\n<table style=\"width: 100%; border-collapse: collapse;\">\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">🔥 HOT Leads</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; color: #f44336;\">{{ $json.stats.hotLeads }}</td></tr>\n<tr><td style=\"padding: 8px; border-bottom: 1px solid #eee;\">🌡️ Total Active</td><td style=\"padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;\">{{ $json.stats.totalActive }}</td></tr>\n</table>\n\n<h2 style=\"color: #4CAF50;\">Status Breakdown</h2>\n<ul style=\"list-style-type: none; padding: 0;\">\n{{ Object.entries($json.statusCounts).map(([status, count]) => '<li style=\"padding: 5px 0;\">• ' + status + ': <strong>' + count + '</strong></li>').join('') }}\n</ul>\n\n{{ $json.stats.hotLeads > 0 ? '<h2 style=\"color: #f44336;\">🔥 HOT Leads to Call</h2><ul>' + $json.hotLeadsList.map(l => '<li style=\"padding: 5px 0;\"><strong>' + l.address + '</strong>, ' + l.city + ' (' + l.owner + ') - Score: ' + l.score + '</li>').join('') + '</ul>' : '' }}\n\n<hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\">\n<p style=\"color: #999; font-size: 12px;\">Generated {{ $now.format('h:mm a') }}</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [960, 560],
+      "id": "send-email",
+      "name": "Send Digest Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1180, 480],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "Daily 8 PM": {
+      "main": [
+        [
+          {
+            "node": "Get New Leads (24h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All HOT Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Responses (24h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Outreach (24h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All Active Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Leads (24h)": {
+      "main": [
+        [
+          {
+            "node": "Compile Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All HOT Leads": {
+      "main": [
+        [
+          {
+            "node": "Compile Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Responses (24h)": {
+      "main": [
+        [
+          {
+            "node": "Compile Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Outreach (24h)": {
+      "main": [
+        [
+          {
+            "node": "Compile Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Active Leads": {
+      "main": [
+        [
+          {
+            "node": "Compile Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Statistics": {
+      "main": [
+        [
+          {
+            "node": "Send Digest to Slack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Digest to Slack": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "daily-digest",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 4", "id": "engine4"},
+    {"name": "Reports", "id": "reports"},
+    {"name": "Daily", "id": "daily"}
+  ]
+}

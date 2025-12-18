@@ -1,0 +1,561 @@
+{
+  "name": "Email Response Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread",
+          "receivedAfter": "={{ $now.minus({hours: 24}).toISO() }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "gmail-trigger",
+      "name": "New Email Received",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract sender email and match to lead\nconst email = $input.first().json;\n\nconst senderEmail = email.from?.match(/<([^>]+)>/)?.[1] || email.from || '';\nconst subject = email.subject || '';\nconst body = email.snippet || email.text || '';\nconst messageId = email.id || '';\n\nreturn [{\n  json: {\n    sender_email: senderEmail.toLowerCase(),\n    subject: subject,\n    body: body,\n    message_id: messageId,\n    received_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "extract-email-data",
+      "name": "Extract Email Data"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=OR(LOWER({Owner Email}) = '{{ $json.sender_email }}', LOWER({Owner Email 2}) = '{{ $json.sender_email }}')"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "id": "find-lead",
+      "name": "Find Lead by Email",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "found-lead",
+              "leftValue": "={{ $json.records?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 300],
+      "id": "lead-found",
+      "name": "Lead Found?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge lead data with email\nconst leadResponse = $input.first().json;\nconst emailData = $('Extract Email Data').item.json;\nconst lead = leadResponse.records[0];\n\nreturn [{\n  json: {\n    lead_id: lead.id,\n    lead_fields: lead.fields,\n    email: emailData\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 260],
+      "id": "merge-data",
+      "name": "Merge Lead & Email"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this response from a property owner:\\n\\nTheir Response Subject: {{ $json.email.subject }}\\nTheir Response Body: {{ $json.email.body }}\\n\\nProperty: {{ $json.lead_fields.Address }}, {{ $json.lead_fields.City }}\\nCurrent Status: {{ $json.lead_fields.Status }}\\n\\nClassify the response and determine next action.\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"sentiment\\\": \\\"positive\\\" or \\\"neutral\\\" or \\\"negative\\\",\\n  \\\"classification\\\": \\\"interested\\\" or \\\"question\\\" or \\\"objection\\\" or \\\"rejection\\\" or \\\"spam\\\" or \\\"unsubscribe\\\",\\n  \\\"motivation_level\\\": \\\"high\\\" or \\\"medium\\\" or \\\"low\\\" or \\\"none\\\",\\n  \\\"key_points\\\": [\\\"point1\\\", \\\"point2\\\"],\\n  \\\"suggested_response\\\": \\\"Brief suggested reply\\\",\\n  \\\"recommended_status\\\": \\\"Warm\\\" or \\\"HOT\\\" or \\\"Cold\\\" or \\\"Dead\\\",\\n  \\\"urgency\\\": \\\"high\\\" or \\\"medium\\\" or \\\"low\\\",\\n  \\\"summary\\\": \\\"1-2 sentence summary\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 600,\n  \"temperature\": 0.3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 260],
+      "id": "analyze-response",
+      "name": "AI Response Analysis",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI analysis\nconst aiResponse = $input.first().json;\nconst prevData = $('Merge Lead & Email').item.json;\n\nlet analysis = {\n  sentiment: 'neutral',\n  classification: 'question',\n  motivation_level: 'medium',\n  key_points: [],\n  suggested_response: '',\n  recommended_status: 'Warm',\n  urgency: 'medium',\n  summary: 'Response received'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    analysis: analysis\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 260],
+      "id": "parse-analysis",
+      "name": "Parse Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Lead",
+              "fieldValue": "={{ [$json.lead_id] }}"
+            },
+            {
+              "fieldName": "Type",
+              "fieldValue": "Email Received"
+            },
+            {
+              "fieldName": "Direction",
+              "fieldValue": "Inbound"
+            },
+            {
+              "fieldName": "Subject",
+              "fieldValue": "={{ $json.email.subject }}"
+            },
+            {
+              "fieldName": "Body",
+              "fieldValue": "={{ $json.email.body }}"
+            },
+            {
+              "fieldName": "Channel",
+              "fieldValue": "Email"
+            },
+            {
+              "fieldName": "Sentiment",
+              "fieldValue": "={{ $json.analysis.sentiment.charAt(0).toUpperCase() + $json.analysis.sentiment.slice(1) }}"
+            },
+            {
+              "fieldName": "AI Classification",
+              "fieldValue": "={{ $json.analysis.classification.charAt(0).toUpperCase() + $json.analysis.classification.slice(1) }}"
+            },
+            {
+              "fieldName": "Timestamp",
+              "fieldValue": "={{ $json.email.received_at }}"
+            },
+            {
+              "fieldName": "Message ID",
+              "fieldValue": "={{ $json.email.message_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "id": "log-conversation",
+      "name": "Log to Conversations",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $('Parse Analysis').item.json.lead_id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Status",
+              "fieldValue": "={{ $('Parse Analysis').item.json.analysis.recommended_status }}"
+            },
+            {
+              "fieldName": "Response Analysis",
+              "fieldValue": "={{ JSON.stringify($('Parse Analysis').item.json.analysis) }}"
+            },
+            {
+              "fieldName": "Last Contact Date",
+              "fieldValue": "={{ $now.toISODate() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2000, 260],
+      "id": "update-lead",
+      "name": "Update Lead Status",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-hot",
+              "leftValue": "={{ $('Parse Analysis').item.json.analysis.recommended_status }}",
+              "rightValue": "HOT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2220, 260],
+      "id": "is-hot",
+      "name": "Is HOT Lead?"
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:fire::fire::fire: *HOT LEAD RESPONSE!* :fire::fire::fire:\n\n*Property:* {{ $('Parse Analysis').item.json.lead_fields.Address }}, {{ $('Parse Analysis').item.json.lead_fields.City }}\n*Owner:* {{ $('Parse Analysis').item.json.lead_fields['Owner Name'] }}\n*Phone:* {{ $('Parse Analysis').item.json.lead_fields['Owner Phone'] }}\n\n*Their Response:*\n> {{ $('Parse Analysis').item.json.email.body.substring(0, 300) }}{{ $('Parse Analysis').item.json.email.body.length > 300 ? '...' : '' }}\n\n*AI Analysis:*\n- Sentiment: {{ $('Parse Analysis').item.json.analysis.sentiment }}\n- Motivation: {{ $('Parse Analysis').item.json.analysis.motivation_level }}\n- Urgency: {{ $('Parse Analysis').item.json.analysis.urgency }}\n\n*Suggested Response:*\n{{ $('Parse Analysis').item.json.analysis.suggested_response }}\n\n:telephone_receiver: *Call them NOW!*",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2440, 220],
+      "id": "slack-hot-alert",
+      "name": "Slack HOT Alert",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-warm",
+              "leftValue": "={{ $('Parse Analysis').item.json.analysis.recommended_status }}",
+              "rightValue": "Warm",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2440, 340],
+      "id": "is-warm",
+      "name": "Is Warm?"
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:thermometer: *Warm Lead Response*\n\n*Property:* {{ $('Parse Analysis').item.json.lead_fields.Address }}\n*Summary:* {{ $('Parse Analysis').item.json.analysis.summary }}\n*Sentiment:* {{ $('Parse Analysis').item.json.analysis.sentiment }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2660, 300],
+      "id": "slack-warm-alert",
+      "name": "Slack Warm Alert",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1120, 380],
+      "id": "not-a-lead",
+      "name": "Not a Lead (Ignore)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2660, 420],
+      "id": "cold-dead",
+      "name": "Cold/Dead - No Alert"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2880, 300],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "New Email Received": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Data": {
+      "main": [
+        [
+          {
+            "node": "Find Lead by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead by Email": {
+      "main": [
+        [
+          {
+            "node": "Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead & Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a Lead (Ignore)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Lead & Email": {
+      "main": [
+        [
+          {
+            "node": "AI Response Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Response Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Log to Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Conversations": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Is HOT Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is HOT Lead?": {
+      "main": [
+        [
+          {
+            "node": "Slack HOT Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Warm?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack HOT Alert": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Warm?": {
+      "main": [
+        [
+          {
+            "node": "Slack Warm Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cold/Dead - No Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Warm Alert": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cold/Dead - No Alert": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "email-response-monitor",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 4", "id": "engine4"},
+    {"name": "Qualification", "id": "qualification"},
+    {"name": "Email", "id": "email"}
+  ]
+}

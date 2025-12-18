@@ -1,0 +1,631 @@
+{
+  "name": "SMS Response Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio-sms-webhook",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "twilio-webhook",
+      "name": "Twilio SMS Webhook",
+      "webhookId": "sms-response-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Twilio webhook data\nconst body = $input.first().json.body;\n\n// Twilio sends form-encoded data\nconst from = body.From || '';\nconst to = body.To || '';\nconst message = body.Body || '';\nconst messageSid = body.MessageSid || '';\n\n// Normalize phone number (remove +1 prefix for lookup)\nconst normalizedPhone = from.replace(/^\\+1/, '').replace(/\\D/g, '');\n\nreturn [{\n  json: {\n    from: from,\n    to: to,\n    message: message,\n    messageSid: messageSid,\n    normalizedPhone: normalizedPhone,\n    isOptOut: /^(stop|unsubscribe|cancel|quit|end)$/i.test(message.trim())\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "parse-webhook",
+      "name": "Parse Twilio Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-opt-out",
+              "leftValue": "={{ $json.isOptOut }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "id": "check-opt-out",
+      "name": "Is Opt-Out?"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=SEARCH('{{ $('Parse Twilio Data').item.json.normalizedPhone }}', SUBSTITUTE(SUBSTITUTE({Phone}, '-', ''), ' ', ''))"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [900, 200],
+      "id": "find-lead-optout",
+      "name": "Find Lead (Opt-Out)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $json.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "SMS Opt Out",
+              "fieldValue": true
+            },
+            {
+              "fieldName": "Notes",
+              "fieldValue": "=SMS Opt-out received {{ $now.toISODate() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1120, 200],
+      "id": "mark-opt-out",
+      "name": "Mark SMS Opt-Out",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=SEARCH('{{ $('Parse Twilio Data').item.json.normalizedPhone }}', SUBSTITUTE(SUBSTITUTE({Phone}, '-', ''), ' ', ''))"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [900, 400],
+      "id": "find-lead-response",
+      "name": "Find Lead (Response)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "found-lead",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 400],
+      "id": "lead-found",
+      "name": "Lead Found?"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this SMS response from a property owner we contacted about buying their house.\\n\\nTheir Response: {{ $('Parse Twilio Data').item.json.message }}\\n\\nProperty Info:\\n- Address: {{ $('Find Lead (Response)').item.json.fields.Address }}\\n- City: {{ $('Find Lead (Response)').item.json.fields.City }}\\n- AI Score: {{ $('Find Lead (Response)').item.json.fields['AI Score'] }}\\n\\nClassify the response and determine next steps.\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"sentiment\\\": \\\"positive|neutral|negative\\\",\\n  \\\"interest_level\\\": \\\"HOT|Warm|Cold\\\",\\n  \\\"intent\\\": \\\"wants_call|wants_info|asking_price|not_interested|spam|unclear\\\",\\n  \\\"suggested_action\\\": \\\"call_immediately|send_more_info|follow_up_later|remove_from_list\\\",\\n  \\\"reply_suggestion\\\": \\\"Brief suggested SMS reply if appropriate\\\",\\n  \\\"summary\\\": \\\"1-sentence summary of their response\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 400,\n  \"temperature\": 0.3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 360],
+      "id": "analyze-response",
+      "name": "AI Analyze Response",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI analysis\nconst aiResponse = $input.first().json;\nconst lead = $('Find Lead (Response)').item.json;\nconst smsData = $('Parse Twilio Data').item.json;\n\nlet analysis = {\n  sentiment: 'neutral',\n  interest_level: 'Warm',\n  intent: 'unclear',\n  suggested_action: 'follow_up_later',\n  reply_suggestion: '',\n  summary: 'Response received'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\nreturn [{\n  json: {\n    lead: lead,\n    smsData: smsData,\n    analysis: analysis\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 360],
+      "id": "parse-analysis",
+      "name": "Parse Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Lead",
+              "fieldValue": "={{ [$json.lead.id] }}"
+            },
+            {
+              "fieldName": "Type",
+              "fieldValue": "SMS Response"
+            },
+            {
+              "fieldName": "Direction",
+              "fieldValue": "Inbound"
+            },
+            {
+              "fieldName": "Body",
+              "fieldValue": "={{ $json.smsData.message }}"
+            },
+            {
+              "fieldName": "Channel",
+              "fieldValue": "SMS"
+            },
+            {
+              "fieldName": "Timestamp",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldName": "Message ID",
+              "fieldValue": "={{ $json.smsData.messageSid }}"
+            },
+            {
+              "fieldName": "AI Analysis",
+              "fieldValue": "={{ JSON.stringify($json.analysis) }}"
+            },
+            {
+              "fieldName": "Notes",
+              "fieldValue": "={{ $json.analysis.summary }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1780, 360],
+      "id": "log-conversation",
+      "name": "Log to Conversations",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $('Parse Analysis').item.json.lead.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Status",
+              "fieldValue": "={{ $('Parse Analysis').item.json.analysis.interest_level }}"
+            },
+            {
+              "fieldName": "Last Response Date",
+              "fieldValue": "={{ $now.toISODate() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2000, 360],
+      "id": "update-lead",
+      "name": "Update Lead Status",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-hot",
+              "leftValue": "={{ $('Parse Analysis').item.json.analysis.interest_level }}",
+              "rightValue": "HOT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2220, 360],
+      "id": "is-hot",
+      "name": "Is HOT Lead?"
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:fire: *HOT SMS RESPONSE!*\n\n*Property:* {{ $('Parse Analysis').item.json.lead.fields.Address }}, {{ $('Parse Analysis').item.json.lead.fields.City }}\n*Owner:* {{ $('Parse Analysis').item.json.lead.fields['Owner Name'] || 'Unknown' }}\n*Phone:* {{ $('Parse Analysis').item.json.lead.fields.Phone }}\n\n*Their Message:*\n> {{ $('Parse Analysis').item.json.smsData.message }}\n\n*AI Analysis:*\n- Intent: {{ $('Parse Analysis').item.json.analysis.intent }}\n- Suggested Action: {{ $('Parse Analysis').item.json.analysis.suggested_action }}\n\n*Suggested Reply:*\n{{ $('Parse Analysis').item.json.analysis.reply_suggestion }}\n\n:phone: *CALL NOW!*",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2440, 320],
+      "id": "slack-alert",
+      "name": "Slack HOT Alert",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1340, 200],
+      "id": "opt-out-done",
+      "name": "Opt-Out Processed"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1340, 500],
+      "id": "lead-not-found",
+      "name": "Lead Not Found (Unknown Number)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2440, 420],
+      "id": "not-hot",
+      "name": "Not HOT"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2660, 360],
+      "id": "done",
+      "name": "Done"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>"
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2880, 300],
+      "id": "respond",
+      "name": "Respond to Twilio"
+    }
+  ],
+  "connections": {
+    "Twilio SMS Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Twilio Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Twilio Data": {
+      "main": [
+        [
+          {
+            "node": "Check Opt-Out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Opt-Out?": {
+      "main": [
+        [
+          {
+            "node": "Find Lead (Opt-Out)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Lead (Response)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead (Opt-Out)": {
+      "main": [
+        [
+          {
+            "node": "Mark SMS Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark SMS Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Opt-Out Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead (Response)": {
+      "main": [
+        [
+          {
+            "node": "Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "AI Analyze Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lead Not Found (Unknown Number)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyze Response": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Log to Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Conversations": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Is HOT Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is HOT Lead?": {
+      "main": [
+        [
+          {
+            "node": "Slack HOT Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not HOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack HOT Alert": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not HOT": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opt-Out Processed": {
+      "main": [
+        [
+          {
+            "node": "Respond to Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Not Found (Unknown Number)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done": {
+      "main": [
+        [
+          {
+            "node": "Respond to Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "sms-response-monitor",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 4", "id": "engine4"},
+    {"name": "Qualification", "id": "qualification"},
+    {"name": "SMS", "id": "sms"},
+    {"name": "Webhook", "id": "webhook"}
+  ]
+}

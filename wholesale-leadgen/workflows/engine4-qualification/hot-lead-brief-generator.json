@@ -1,0 +1,346 @@
+{
+  "name": "Hot Lead Brief Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "event": "newOrUpdatedRecord",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "additionalOptions": {
+          "view": {
+            "__rl": true,
+            "value": "HOT Leads",
+            "mode": "name"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.airtableTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "airtable-trigger",
+      "name": "New HOT Lead",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-hot",
+              "leftValue": "={{ $json.fields.Status }}",
+              "rightValue": "HOT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "no-brief",
+              "leftValue": "={{ $json.fields['Call Brief'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [460, 300],
+      "id": "needs-brief",
+      "name": "Needs Call Brief?"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "filterByFormula": "=FIND('{{ $json.id }}', ARRAYJOIN({Lead}))",
+        "options": {
+          "sort": [
+            {
+              "field": "Timestamp",
+              "direction": "desc"
+            }
+          ],
+          "maxRecords": 10
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 260],
+      "id": "get-conversations",
+      "name": "Get Conversation History",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile lead data and conversation history\nconst lead = $('New HOT Lead').item.json;\nconst conversations = $input.all();\n\n// Format conversation history\nconst conversationHistory = conversations.map(c => {\n  const fields = c.json.fields || {};\n  return `[${fields.Timestamp || 'Unknown'}] ${fields.Direction || ''} ${fields.Type || ''}: ${fields.Body || fields.Subject || 'No content'}`;\n}).join('\\n\\n');\n\n// Parse AI Analysis if available\nlet aiAnalysis = {};\ntry {\n  if (lead.fields['AI Analysis']) {\n    aiAnalysis = JSON.parse(lead.fields['AI Analysis']);\n  }\n} catch (e) {}\n\nreturn [{\n  json: {\n    lead: lead,\n    conversationHistory: conversationHistory || 'No prior conversations',\n    aiAnalysis: aiAnalysis,\n    conversationCount: conversations.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 260],
+      "id": "compile-data",
+      "name": "Compile Lead Data"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a comprehensive call brief for a HOT real estate lead. This owner has shown strong interest - I need to be prepared for this call.\\n\\n## LEAD INFORMATION\\n\\n**Property Details:**\\n- Address: {{ $json.lead.fields.Address }}, {{ $json.lead.fields.City }}, {{ $json.lead.fields.State }} {{ $json.lead.fields.Zip }}\\n- Asking Price: ${{ $json.lead.fields['Asking Price'] || 'Not listed' }}\\n- Property Type: {{ $json.lead.fields['Property Type'] || 'Unknown' }}\\n- Bedrooms/Baths: {{ $json.lead.fields.Beds || '?' }}/{{ $json.lead.fields.Baths || '?' }}\\n- Square Footage: {{ $json.lead.fields['Sq Ft'] || 'Unknown' }}\\n- Lot Size: {{ $json.lead.fields['Lot Size'] || 'Unknown' }}\\n\\n**Owner Details:**\\n- Name: {{ $json.lead.fields['Owner Name'] || 'Unknown' }}\\n- Phone: {{ $json.lead.fields.Phone || 'N/A' }}\\n- Email: {{ $json.lead.fields['Owner Email'] || 'N/A' }}\\n\\n**Lead Source & Context:**\\n- Source: {{ $json.lead.fields.Source }}\\n- AI Score: {{ $json.lead.fields['AI Score'] }}/100\\n- Days on Market: {{ $json.lead.fields['Days on Market'] || 'Unknown' }}\\n\\n**AI Analysis Summary:**\\n{{ JSON.stringify($json.aiAnalysis, null, 2) }}\\n\\n**Conversation History ({{ $json.conversationCount }} messages):**\\n{{ $json.conversationHistory }}\\n\\n## GENERATE CALL BRIEF\\n\\nCreate a detailed call preparation document with:\\n\\n1. **OPENING STRATEGY** - How to start the conversation warmly\\n2. **KEY TALKING POINTS** - 3-4 main points to cover based on their situation\\n3. **MOTIVATION INDICATORS** - What signals suggest they're ready to sell\\n4. **POTENTIAL OBJECTIONS** - Common objections and responses\\n5. **QUESTIONS TO ASK** - 5-7 discovery questions to understand their timeline/needs\\n6. **OFFER STRATEGY** - Suggested approach and starting offer range\\n7. **NEXT STEPS** - What to accomplish on this call\\n\\nFormat as clean markdown for easy reading on a phone.\"\n    }\n  ],\n  \"max_tokens\": 1500,\n  \"temperature\": 0.5\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 260],
+      "id": "generate-brief",
+      "name": "Generate Call Brief",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the call brief content\nconst aiResponse = $input.first().json;\nconst lead = $('Compile Lead Data').item.json.lead;\n\nlet callBrief = 'Call brief generation failed - please review lead manually.';\n\ntry {\n  callBrief = aiResponse.choices[0].message.content;\n} catch (e) {\n  // Use default\n}\n\nreturn [{\n  json: {\n    lead: lead,\n    callBrief: callBrief\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 260],
+      "id": "parse-brief",
+      "name": "Parse Brief"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $json.lead.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Call Brief",
+              "fieldValue": "={{ $json.callBrief }}"
+            },
+            {
+              "fieldName": "Brief Generated",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1560, 260],
+      "id": "save-brief",
+      "name": "Save Brief to Lead",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:memo: *Call Brief Ready!*\n\n*Property:* {{ $('Parse Brief').item.json.lead.fields.Address }}, {{ $('Parse Brief').item.json.lead.fields.City }}\n*Owner:* {{ $('Parse Brief').item.json.lead.fields['Owner Name'] || 'Unknown' }}\n*Phone:* {{ $('Parse Brief').item.json.lead.fields.Phone }}\n*AI Score:* {{ $('Parse Brief').item.json.lead.fields['AI Score'] }}/100\n\n_Call brief has been generated and saved to the lead record. Review it in Airtable before calling._\n\n:phone: Ready to call!",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1780, 260],
+      "id": "slack-notify",
+      "name": "Slack - Brief Ready",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 380],
+      "id": "already-has-brief",
+      "name": "Already Has Brief"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2000, 300],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "New HOT Lead": {
+      "main": [
+        [
+          {
+            "node": "Needs Call Brief?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Call Brief?": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation History",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already Has Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation History": {
+      "main": [
+        [
+          {
+            "node": "Compile Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Call Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Call Brief": {
+      "main": [
+        [
+          {
+            "node": "Parse Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Brief": {
+      "main": [
+        [
+          {
+            "node": "Save Brief to Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Brief to Lead": {
+      "main": [
+        [
+          {
+            "node": "Slack - Brief Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Brief Ready": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "hot-lead-brief-generator",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 4", "id": "engine4"},
+    {"name": "Qualification", "id": "qualification"},
+    {"name": "AI", "id": "ai"},
+    {"name": "Call Prep", "id": "call-prep"}
+  ]
+}

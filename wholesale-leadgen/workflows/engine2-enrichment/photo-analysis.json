@@ -1,0 +1,422 @@
+{
+  "name": "Photo Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "every-2-hours",
+      "name": "Every 2 Hours"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Photo URL} != '', {Photo Analysis} = '', NOT({Status} = 'Dead'))",
+        "options": {
+          "maxRecords": 10
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-leads-with-photos",
+      "name": "Get Leads with Photos (No Analysis)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-leads",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "id": "has-leads",
+      "name": "Has Leads?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 260],
+      "id": "loop-leads",
+      "name": "Loop Leads"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"{{ $json.fields['Photo URL'] }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Analyze this property photo for a real estate investor. Assess the property's condition and potential for wholesale/flip opportunity.\\n\\nProperty Context:\\n- Address: {{ $json.fields.Address }}, {{ $json.fields.City }}\\n- Listed Price: ${{ $json.fields['Asking Price'] || 'Unknown' }}\\n- Source: {{ $json.fields.Source }}\\n\\nAnalyze and provide:\\n\\n1. **Condition Score (1-10)**: Overall property condition\\n2. **Curb Appeal Score (1-10)**: First impression/exterior appeal\\n3. **Visible Issues**: List any visible problems (roof, siding, windows, foundation, landscaping, etc.)\\n4. **Estimated Repair Categories**: \\n   - Cosmetic only (paint, landscaping) = $5-15k\\n   - Minor repairs = $15-30k  \\n   - Moderate rehab = $30-60k\\n   - Major rehab = $60-100k+\\n5. **Flip Potential**: Low/Medium/High based on visible condition\\n6. **Red Flags**: Any major concerns (structural, water damage, etc.)\\n7. **Positive Features**: Any notable positives\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"condition_score\\\": 7,\\n  \\\"curb_appeal_score\\\": 6,\\n  \\\"visible_issues\\\": [\\\"issue1\\\", \\\"issue2\\\"],\\n  \\\"repair_estimate_category\\\": \\\"Minor repairs\\\",\\n  \\\"repair_estimate_range\\\": \\\"$15-30k\\\",\\n  \\\"flip_potential\\\": \\\"Medium\\\",\\n  \\\"red_flags\\\": [\\\"flag1\\\"] or [],\\n  \\\"positive_features\\\": [\\\"feature1\\\", \\\"feature2\\\"],\\n  \\\"summary\\\": \\\"1-2 sentence overall assessment\\\"\\n}\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 800,\n  \"temperature\": 0.3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 260],
+      "id": "analyze-photo",
+      "name": "AI Photo Analysis",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI photo analysis\nconst aiResponse = $input.first().json;\nconst lead = $('Loop Leads').item.json;\n\nlet analysis = {\n  condition_score: 5,\n  curb_appeal_score: 5,\n  visible_issues: ['Unable to analyze'],\n  repair_estimate_category: 'Unknown',\n  repair_estimate_range: 'Unknown',\n  flip_potential: 'Unknown',\n  red_flags: [],\n  positive_features: [],\n  summary: 'Photo analysis failed'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\n// Calculate investment score adjustment based on condition\nlet scoreAdjustment = 0;\nif (analysis.condition_score <= 4) scoreAdjustment = 10; // Distressed = opportunity\nif (analysis.condition_score >= 8) scoreAdjustment = -5; // Too nice = less margin\nif (analysis.flip_potential === 'High') scoreAdjustment += 5;\nif (analysis.red_flags.length > 2) scoreAdjustment -= 10;\n\nreturn [{\n  json: {\n    lead: lead,\n    analysis: analysis,\n    scoreAdjustment: scoreAdjustment\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 260],
+      "id": "parse-analysis",
+      "name": "Parse Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $json.lead.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Photo Analysis",
+              "fieldValue": "={{ JSON.stringify($json.analysis) }}"
+            },
+            {
+              "fieldName": "Condition Score",
+              "fieldValue": "={{ $json.analysis.condition_score }}"
+            },
+            {
+              "fieldName": "Repair Estimate",
+              "fieldValue": "={{ $json.analysis.repair_estimate_range }}"
+            },
+            {
+              "fieldName": "AI Score",
+              "fieldValue": "={{ Math.min(100, Math.max(0, ($json.lead.fields['AI Score'] || 50) + $json.scoreAdjustment)) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1560, 260],
+      "id": "update-lead",
+      "name": "Update Lead with Analysis",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-potential",
+              "leftValue": "={{ $('Parse Analysis').item.json.analysis.flip_potential }}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "distressed",
+              "leftValue": "={{ $('Parse Analysis').item.json.analysis.condition_score }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1780, 260],
+      "id": "is-opportunity",
+      "name": "High Flip Potential?"
+    },
+    {
+      "parameters": {
+        "channel": "#opportunities",
+        "text": "=:camera: *Photo Analysis Complete - Potential Opportunity!*\n\n*Property:* {{ $('Parse Analysis').item.json.lead.fields.Address }}, {{ $('Parse Analysis').item.json.lead.fields.City }}\n*Listed:* ${{ $('Parse Analysis').item.json.lead.fields['Asking Price'] || 'N/A' }}\n\n*Condition Scores:*\n• Overall: {{ $('Parse Analysis').item.json.analysis.condition_score }}/10\n• Curb Appeal: {{ $('Parse Analysis').item.json.analysis.curb_appeal_score }}/10\n\n*Repair Estimate:* {{ $('Parse Analysis').item.json.analysis.repair_estimate_range }}\n*Flip Potential:* {{ $('Parse Analysis').item.json.analysis.flip_potential }}\n\n*Visible Issues:*\n{{ $('Parse Analysis').item.json.analysis.visible_issues.map(i => '• ' + i).join('\\n') }}\n\n{{ $('Parse Analysis').item.json.analysis.red_flags.length > 0 ? '*Red Flags:*\\n' + $('Parse Analysis').item.json.analysis.red_flags.map(f => '🚩 ' + f).join('\\n') : '' }}\n\n*Summary:* {{ $('Parse Analysis').item.json.analysis.summary }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2000, 220],
+      "id": "slack-alert",
+      "name": "Slack Opportunity Alert",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2220, 260],
+      "id": "rate-limit",
+      "name": "Rate Limit (5s)",
+      "webhookId": "photo-rate-limit"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 380],
+      "id": "no-leads",
+      "name": "No Photos to Analyze"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2000, 340],
+      "id": "not-opportunity",
+      "name": "Standard Analysis"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2440, 300],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "Every 2 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Leads with Photos (No Analysis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leads with Photos (No Analysis)": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Photos to Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads": {
+      "main": [
+        [
+          {
+            "node": "AI Photo Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Photo Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Update Lead with Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead with Analysis": {
+      "main": [
+        [
+          {
+            "node": "High Flip Potential?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Flip Potential?": {
+      "main": [
+        [
+          {
+            "node": "Slack Opportunity Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Standard Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Opportunity Alert": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit (5s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standard Analysis": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit (5s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit (5s)": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "photo-analysis",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 2", "id": "engine2"},
+    {"name": "Enrichment", "id": "enrichment"},
+    {"name": "AI Vision", "id": "ai-vision"},
+    {"name": "Photos", "id": "photos"}
+  ]
+}

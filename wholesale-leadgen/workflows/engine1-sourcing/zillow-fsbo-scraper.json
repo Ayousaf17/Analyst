@@ -1,0 +1,478 @@
+{
+  "name": "Zillow FSBO Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-daily",
+      "name": "Daily 7 AM"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Settings",
+          "mode": "name"
+        },
+        "options": {
+          "filters": {
+            "conditions": [
+              {
+                "field": "Key",
+                "value": "target_cities"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-target-cities",
+      "name": "Get Target Cities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse target cities from Airtable settings\nconst settings = $input.first()?.json;\nlet cities = ['Austin', 'San Antonio', 'Houston']; // defaults\n\nif (settings?.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn cities.map(city => ({ json: { city, state: 'TX' } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "id": "parse-cities",
+      "name": "Parse Cities"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 300],
+      "id": "loop-cities",
+      "name": "Loop Through Cities"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.zillow.com/{{ $json.city.toLowerCase().replace(/ /g, '-') }}-{{ $json.state.toLowerCase() }}/fsbo/",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 260],
+      "id": "scrape-zillow",
+      "name": "Scrape Zillow FSBO Page"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Zillow FSBO listings from HTML\n// Note: In production, use a proper scraping service or Zillow API\nconst html = $input.first().json.data || $input.first().json.body || '';\nconst city = $('Loop Through Cities').item.json.city;\nconst state = $('Loop Through Cities').item.json.state;\n\n// Extract listing data from Zillow's JSON data embedded in page\nlet listings = [];\n\ntry {\n  // Zillow embeds property data as JSON in script tags\n  const jsonMatch = html.match(/\"listResults\":\\s*(\\[.*?\\])(?=,\")/s);\n  if (jsonMatch) {\n    const listData = JSON.parse(jsonMatch[1]);\n    listings = listData.map(item => ({\n      address: item.address || item.streetAddress,\n      city: item.city || city,\n      state: item.state || state,\n      zip: item.zipcode || item.zip,\n      price: item.price || item.unformattedPrice,\n      bedrooms: item.beds,\n      bathrooms: item.baths,\n      sqft: item.area,\n      listing_url: item.detailUrl ? `https://www.zillow.com${item.detailUrl}` : '',\n      zestimate: item.zestimate,\n      days_on_market: item.daysOnZillow || 0,\n      source: 'Zillow FSBO',\n      scraped_at: new Date().toISOString()\n    }));\n  }\n} catch (e) {\n  // Fallback: return empty if parsing fails\n  console.log('Parse error:', e.message);\n}\n\n// If no listings found from JSON, try basic HTML parsing\nif (listings.length === 0) {\n  // This is a simplified fallback - in production use proper selectors\n  const addressMatches = html.match(/data-test=\"property-card-addr\"[^>]*>([^<]+)/g) || [];\n  const priceMatches = html.match(/data-test=\"property-card-price\"[^>]*>([^<]+)/g) || [];\n  \n  for (let i = 0; i < Math.min(addressMatches.length, 20); i++) {\n    listings.push({\n      address: addressMatches[i]?.replace(/.*>/, '') || `Listing ${i + 1}`,\n      city: city,\n      state: state,\n      price: priceMatches[i]?.replace(/.*>/, '').replace(/[^0-9]/g, '') || 0,\n      source: 'Zillow FSBO',\n      scraped_at: new Date().toISOString()\n    });\n  }\n}\n\nreturn listings.slice(0, 50).map(l => ({ json: l }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 260],
+      "id": "parse-listings",
+      "name": "Parse Listings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-address",
+              "leftValue": "={{ $json.address }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [1560, 260],
+      "id": "filter-valid",
+      "name": "Filter Valid Listings"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Address} = '{{ $json.address }}', {City} = '{{ $json.city }}')"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "id": "check-duplicate",
+      "name": "Check If Exists",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-new",
+              "leftValue": "={{ $json.records?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2000, 260],
+      "id": "is-new-lead",
+      "name": "Is New Lead?"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Address",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.address }}"
+            },
+            {
+              "fieldName": "City",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.city }}"
+            },
+            {
+              "fieldName": "State",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.state }}"
+            },
+            {
+              "fieldName": "ZIP",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.zip }}"
+            },
+            {
+              "fieldName": "Asking Price",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.price }}"
+            },
+            {
+              "fieldName": "Estimated Value",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.zestimate || $('Filter Valid Listings').item.json.price }}"
+            },
+            {
+              "fieldName": "Source",
+              "fieldValue": "Zillow FSBO"
+            },
+            {
+              "fieldName": "Status",
+              "fieldValue": "New"
+            },
+            {
+              "fieldName": "Listing URL",
+              "fieldValue": "={{ $('Filter Valid Listings').item.json.listing_url }}"
+            },
+            {
+              "fieldName": "Priority",
+              "fieldValue": "Medium"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2220, 220],
+      "id": "create-lead",
+      "name": "Create Lead in Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 1 }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2440, 260],
+      "id": "random-delay",
+      "name": "Random Delay",
+      "webhookId": "zillow-scraper-delay"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2220, 340],
+      "id": "skip-duplicate",
+      "name": "Skip Duplicate"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2660, 300],
+      "id": "city-done",
+      "name": "City Done"
+    },
+    {
+      "parameters": {
+        "content": "## Zillow FSBO Scraper\n\n**Trigger:** Daily at 7 AM\n\n**Flow:**\n1. Get target cities from Airtable Settings\n2. Loop through each city\n3. Scrape Zillow FSBO page\n4. Parse listings from HTML/JSON\n5. Check for duplicates\n6. Create new leads in Airtable\n\n**Notes:**\n- Uses random delays to avoid rate limiting\n- In production, consider using a scraping API\n- Zillow may block IPs - use proxy rotation",
+        "height": 320,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 40],
+      "id": "sticky-overview",
+      "name": "Overview"
+    }
+  ],
+  "connections": {
+    "Daily 7 AM": {
+      "main": [
+        [
+          {
+            "node": "Get Target Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Target Cities": {
+      "main": [
+        [
+          {
+            "node": "Parse Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Cities": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Cities": {
+      "main": [
+        [
+          {
+            "node": "Scrape Zillow FSBO Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "City Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Zillow FSBO Page": {
+      "main": [
+        [
+          {
+            "node": "Parse Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Listings": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Listings": {
+      "main": [
+        [
+          {
+            "node": "Check If Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Exists": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead in Airtable": {
+      "main": [
+        [
+          {
+            "node": "Random Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Random Delay": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "zillow-fsbo-scraper",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 1", "id": "engine1"},
+    {"name": "Sourcing", "id": "sourcing"},
+    {"name": "Zillow", "id": "zillow"}
+  ]
+}

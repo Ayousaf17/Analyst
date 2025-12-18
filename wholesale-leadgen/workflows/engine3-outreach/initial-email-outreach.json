@@ -1,0 +1,478 @@
+{
+  "name": "Initial Email Outreach",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-30min",
+      "name": "Every 30 Minutes"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Status} = 'Ready', {Emails Sent} = 0, {Owner Email} != '', {AI Score} >= 40)",
+        "options": {
+          "maxRecords": 10
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-ready-leads",
+      "name": "Get Ready Leads (No Email Sent)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-leads",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "id": "has-leads",
+      "name": "Has Leads?"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Settings",
+          "mode": "name"
+        },
+        "filterByFormula": "=OR({Key} = 'your_name', {Key} = 'your_phone', {Key} = 'your_company', {Key} = 'your_email')"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [900, 260],
+      "id": "get-settings",
+      "name": "Get Sender Settings",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse settings into object\nconst settings = $input.all();\nconst leads = $('Get Ready Leads (No Email Sent)').all();\n\nconst config = {\n  your_name: 'Your Name',\n  your_phone: '(555) 555-5555',\n  your_company: 'Your Company',\n  your_email: 'your@email.com'\n};\n\nfor (const setting of settings) {\n  const key = setting.json.fields?.Key;\n  const value = setting.json.fields?.Value;\n  if (key && value) {\n    config[key] = value;\n  }\n}\n\n// Return leads with config attached\nreturn leads.map(lead => ({\n  json: {\n    ...lead.json,\n    config: config\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 260],
+      "id": "merge-config",
+      "name": "Merge Config with Leads"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1340, 260],
+      "id": "loop-leads",
+      "name": "Loop Leads"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a personalized cold email to a property owner about buying their house.\\n\\nOwner Name: {{ $json.fields['Owner Name'] || 'Homeowner' }}\\nProperty Address: {{ $json.fields.Address }}, {{ $json.fields.City }}\\nAsking Price: ${{ $json.fields['Asking Price'] || 'Not listed' }}\\nSource: {{ $json.fields.Source }}\\nMotivation Signals: {{ $json.fields['AI Analysis'] ? JSON.parse($json.fields['AI Analysis']).motivation_signals?.join(', ') : 'Unknown' }}\\n\\nMy Info:\\n- Name: {{ $json.config.your_name }}\\n- Company: {{ $json.config.your_company }}\\n- Phone: {{ $json.config.your_phone }}\\n\\nGuidelines:\\n- Warm, conversational tone\\n- Reference specific property details\\n- Acknowledge their situation without being pushy\\n- Clear call to action (call or reply)\\n- Short - under 150 words\\n- No aggressive \\\"CASH OFFER\\\" language\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"subject\\\": \\\"Email subject line\\\",\\n  \\\"body\\\": \\\"Email body text\\\",\\n  \\\"personalization_notes\\\": \\\"What was personalized\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 600,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 260],
+      "id": "generate-email",
+      "name": "Generate Personalized Email",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI-generated email\nconst aiResponse = $input.first().json;\nconst lead = $('Loop Leads').item.json;\n\nlet email = {\n  subject: `Quick question about ${lead.fields.Address}`,\n  body: 'I noticed your property and wanted to reach out...',\n  personalization_notes: 'Default template'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    email = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\nreturn [{\n  json: {\n    lead: lead,\n    email: email\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "id": "parse-email",
+      "name": "Parse Email Response"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.lead.fields['Owner Email'] }}",
+        "subject": "={{ $json.email.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email.body }}",
+        "options": {
+          "replyTo": "={{ $json.lead.config.your_email }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2000, 260],
+      "id": "send-email",
+      "name": "Send Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Lead",
+              "fieldValue": "={{ [$('Parse Email Response').item.json.lead.id] }}"
+            },
+            {
+              "fieldName": "Type",
+              "fieldValue": "Email Sent"
+            },
+            {
+              "fieldName": "Direction",
+              "fieldValue": "Outbound"
+            },
+            {
+              "fieldName": "Subject",
+              "fieldValue": "={{ $('Parse Email Response').item.json.email.subject }}"
+            },
+            {
+              "fieldName": "Body",
+              "fieldValue": "={{ $('Parse Email Response').item.json.email.body }}"
+            },
+            {
+              "fieldName": "Channel",
+              "fieldValue": "Email"
+            },
+            {
+              "fieldName": "Timestamp",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldName": "Message ID",
+              "fieldValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2220, 260],
+      "id": "log-conversation",
+      "name": "Log to Conversations",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $('Parse Email Response').item.json.lead.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Status",
+              "fieldValue": "Contacted"
+            },
+            {
+              "fieldName": "Emails Sent",
+              "fieldValue": 1
+            },
+            {
+              "fieldName": "Last Contact Date",
+              "fieldValue": "={{ $now.toISODate() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2440, 260],
+      "id": "update-lead",
+      "name": "Update Lead Status",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 120) + 60 }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2660, 260],
+      "id": "human-delay",
+      "name": "Human-Like Delay (1-3 min)",
+      "webhookId": "outreach-delay"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 380],
+      "id": "no-leads",
+      "name": "No Leads Ready"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2880, 300],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads (No Email Sent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ready Leads (No Email Sent)": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Get Sender Settings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sender Settings": {
+      "main": [
+        [
+          {
+            "node": "Merge Config with Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Config with Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads": {
+      "main": [
+        [
+          {
+            "node": "Generate Personalized Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Personalized Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email Response": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Conversations": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Human-Like Delay (1-3 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human-Like Delay (1-3 min)": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "initial-email-outreach",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 3", "id": "engine3"},
+    {"name": "Outreach", "id": "outreach"},
+    {"name": "Email", "id": "email"}
+  ]
+}

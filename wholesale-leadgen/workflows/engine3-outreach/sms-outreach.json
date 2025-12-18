@@ -1,0 +1,537 @@
+{
+  "name": "SMS Outreach",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10,14 * * 1-5"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "weekday-schedule",
+      "name": "Weekdays 10 AM & 2 PM"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({AI Score} >= 80, {Phone} != '', {SMS Sent} = 0, {SMS Opt Out} = FALSE(), OR({Status} = 'Ready', {Status} = 'Contacted'))",
+        "options": {
+          "maxRecords": 10
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-high-score-leads",
+      "name": "Get High-Score Leads (No SMS)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-leads",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "id": "has-leads",
+      "name": "Has Leads?"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Settings",
+          "mode": "name"
+        },
+        "filterByFormula": "=OR({Key} = 'your_name', {Key} = 'your_phone', {Key} = 'your_company', {Key} = 'sms_opt_out_keyword')"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [900, 260],
+      "id": "get-settings",
+      "name": "Get SMS Settings",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse settings and attach to leads\nconst settings = $input.all();\nconst leads = $('Get High-Score Leads (No SMS)').all();\n\nconst config = {\n  your_name: 'Your Name',\n  your_phone: '(555) 555-5555',\n  your_company: 'Your Company',\n  sms_opt_out_keyword: 'STOP'\n};\n\nfor (const setting of settings) {\n  const key = setting.json.fields?.Key;\n  const value = setting.json.fields?.Value;\n  if (key && value) {\n    config[key] = value;\n  }\n}\n\nreturn leads.map(lead => ({\n  json: {\n    ...lead.json,\n    config: config\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 260],
+      "id": "merge-config",
+      "name": "Merge Config with Leads"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1340, 260],
+      "id": "loop-leads",
+      "name": "Loop Leads"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a brief, personalized SMS to a property owner about buying their house.\\n\\nOwner Name: {{ $json.fields['Owner Name'] || 'there' }}\\nProperty Address: {{ $json.fields.Address }}, {{ $json.fields.City }}\\nAI Score: {{ $json.fields['AI Score'] }} (high motivation)\\nSource: {{ $json.fields.Source }}\\n\\nMy Info:\\n- Name: {{ $json.config.your_name }}\\n- Company: {{ $json.config.your_company }}\\n\\nGuidelines:\\n- Maximum 160 characters (single SMS)\\n- Casual, text-like tone\\n- Reference property or situation\\n- Simple question or offer\\n- DO NOT include opt-out (added automatically)\\n- Examples of good SMS:\\n  \\\"Hi [Name], saw your place on [Street]. Still looking to sell? I buy houses quickly - [Name]\\\"\\n  \\\"Hey, interested in a quick cash offer on [Address]? No repairs needed. - [Name]\\\"\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"message\\\": \\\"SMS text under 160 chars\\\",\\n  \\\"personalization\\\": \\\"What was personalized\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 200,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 260],
+      "id": "generate-sms",
+      "name": "Generate SMS Message",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI-generated SMS and add TCPA compliance\nconst aiResponse = $input.first().json;\nconst lead = $('Loop Leads').item.json;\n\nlet sms = {\n  message: `Hi! Interested in a quick offer on ${lead.fields.Address}? - ${lead.config.your_name}`,\n  personalization: 'Default template'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    sms = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\n// Add TCPA-compliant opt-out\nconst optOutKeyword = lead.config.sms_opt_out_keyword || 'STOP';\nconst fullMessage = `${sms.message}\\n\\nReply ${optOutKeyword} to opt out`;\n\n// Format phone number (strip non-digits, add +1 if US)\nlet phone = lead.fields.Phone?.replace(/\\D/g, '') || '';\nif (phone.length === 10) {\n  phone = '+1' + phone;\n} else if (phone.length === 11 && phone.startsWith('1')) {\n  phone = '+' + phone;\n}\n\nreturn [{\n  json: {\n    lead: lead,\n    sms: {\n      ...sms,\n      fullMessage: fullMessage\n    },\n    formattedPhone: phone\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "id": "parse-sms",
+      "name": "Parse & Add Opt-Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "valid-phone",
+              "leftValue": "={{ $json.formattedPhone.length }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2000, 260],
+      "id": "valid-phone",
+      "name": "Valid Phone?"
+    },
+    {
+      "parameters": {
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "to": "={{ $json.formattedPhone }}",
+        "message": "={{ $json.sms.fullMessage }}"
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [2220, 220],
+      "id": "send-sms",
+      "name": "Send SMS via Twilio",
+      "credentials": {
+        "twilioApi": {
+          "id": "twilio-creds",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Lead",
+              "fieldValue": "={{ [$('Parse & Add Opt-Out').item.json.lead.id] }}"
+            },
+            {
+              "fieldName": "Type",
+              "fieldValue": "SMS Sent"
+            },
+            {
+              "fieldName": "Direction",
+              "fieldValue": "Outbound"
+            },
+            {
+              "fieldName": "Body",
+              "fieldValue": "={{ $('Parse & Add Opt-Out').item.json.sms.fullMessage }}"
+            },
+            {
+              "fieldName": "Channel",
+              "fieldValue": "SMS"
+            },
+            {
+              "fieldName": "Timestamp",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldName": "Message ID",
+              "fieldValue": "={{ $json.sid }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2440, 220],
+      "id": "log-conversation",
+      "name": "Log to Conversations",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $('Parse & Add Opt-Out').item.json.lead.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "SMS Sent",
+              "fieldValue": 1
+            },
+            {
+              "fieldName": "Last Contact Date",
+              "fieldValue": "={{ $now.toISODate() }}"
+            },
+            {
+              "fieldName": "Status",
+              "fieldValue": "Contacted"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2660, 220],
+      "id": "update-lead",
+      "name": "Update Lead (SMS Sent)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 60) + 30 }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2880, 220],
+      "id": "rate-limit-delay",
+      "name": "Rate Limit Delay (30-90s)",
+      "webhookId": "sms-delay"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 380],
+      "id": "no-leads",
+      "name": "No High-Score Leads"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2220, 340],
+      "id": "invalid-phone",
+      "name": "Invalid Phone - Skip"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3100, 260],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "Weekdays 10 AM & 2 PM": {
+      "main": [
+        [
+          {
+            "node": "Get High-Score Leads (No SMS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get High-Score Leads (No SMS)": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Get SMS Settings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No High-Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get SMS Settings": {
+      "main": [
+        [
+          {
+            "node": "Merge Config with Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Config with Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads": {
+      "main": [
+        [
+          {
+            "node": "Generate SMS Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate SMS Message": {
+      "main": [
+        [
+          {
+            "node": "Parse & Add Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Add Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Valid Phone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Phone?": {
+      "main": [
+        [
+          {
+            "node": "Send SMS via Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Phone - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS via Twilio": {
+      "main": [
+        [
+          {
+            "node": "Log to Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Conversations": {
+      "main": [
+        [
+          {
+            "node": "Update Lead (SMS Sent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead (SMS Sent)": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Delay (30-90s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Delay (30-90s)": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invalid Phone - Skip": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "sms-outreach",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 3", "id": "engine3"},
+    {"name": "Outreach", "id": "outreach"},
+    {"name": "SMS", "id": "sms"},
+    {"name": "Twilio", "id": "twilio"}
+  ]
+}

@@ -1,0 +1,500 @@
+{
+  "name": "Expired Listings Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-6am",
+      "name": "Daily 6 AM"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Settings",
+          "mode": "name"
+        },
+        "filterByFormula": "={Key} = 'target_cities'"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-cities",
+      "name": "Get Target Cities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse cities for expired listing search\n// Note: Expired listings are best sourced from:\n// 1. MLS API (if you have access)\n// 2. Zillow 'Off Market' with recent price history\n// 3. Realtor.com 'Off Market'\n// 4. Third-party data providers (PropStream, BatchLeads)\n\nconst settings = $input.first()?.json?.fields || {};\nlet cities = ['Austin'];\n\nif (settings.Value) {\n  try {\n    cities = JSON.parse(settings.Value);\n  } catch (e) {\n    cities = settings.Value.split(',').map(c => c.trim());\n  }\n}\n\nreturn cities.map(city => ({\n  json: {\n    city: city,\n    state: 'TX',\n    // Zillow off-market search\n    zillow_url: `https://www.zillow.com/${city.toLowerCase().replace(/ /g, '-')}-tx/recently-sold/`,\n    // Days to look back\n    days_back: 7\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "id": "prepare-searches",
+      "name": "Prepare Searches"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 300],
+      "id": "loop-cities",
+      "name": "Loop Cities"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.zillow_url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 260],
+      "id": "scrape-zillow",
+      "name": "Scrape Zillow Off-Market",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse expired/withdrawn listings from Zillow\nconst html = $input.first().json.data || $input.first().json.body || '';\nconst cityData = $('Loop Cities').item.json;\n\nlet listings = [];\n\ntry {\n  // Look for properties that were listed but didn't sell (withdrawn/expired)\n  // Zillow shows these in 'Off Market' or 'Recently Sold' sections\n  \n  // Try to find embedded JSON data\n  const jsonMatch = html.match(/\"listResults\"\\s*:\\s*(\\[[\\s\\S]*?\\])/);\n  if (jsonMatch) {\n    const data = JSON.parse(jsonMatch[1]);\n    listings = data\n      .filter(item => {\n        // Look for expired indicators\n        const status = (item.statusType || item.listingStatus || '').toLowerCase();\n        const statusText = (item.statusText || '').toLowerCase();\n        return status.includes('off market') || \n               status.includes('withdrawn') ||\n               status.includes('expired') ||\n               statusText.includes('off market');\n      })\n      .map(item => ({\n        address: item.address || item.streetAddress,\n        city: item.city || cityData.city,\n        state: item.state || cityData.state,\n        zip: item.zipcode,\n        price: item.price || item.unformattedPrice,\n        original_list_price: item.price,\n        bedrooms: item.beds,\n        bathrooms: item.baths,\n        sqft: item.area,\n        listing_url: item.detailUrl ? `https://www.zillow.com${item.detailUrl}` : '',\n        zestimate: item.zestimate,\n        days_on_market: item.daysOnZillow || 0,\n        status_reason: 'Expired/Withdrawn',\n        source: 'Expired MLS',\n        scraped_at: new Date().toISOString()\n      }));\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\n// If direct parsing fails, try alternative approach\nif (listings.length === 0) {\n  // Create placeholder entries that can be enriched\n  // In production, use MLS API or data provider\n  const addressMatches = html.match(/\"streetAddress\"\\s*:\\s*\"([^\"]+)\"/g) || [];\n  \n  for (let i = 0; i < Math.min(addressMatches.length, 20); i++) {\n    const address = addressMatches[i]?.match(/\"([^\"]+)\"$/)?.[1];\n    if (address) {\n      listings.push({\n        address: address,\n        city: cityData.city,\n        state: cityData.state,\n        source: 'Expired MLS',\n        status_reason: 'Potential Expired',\n        scraped_at: new Date().toISOString()\n      });\n    }\n  }\n}\n\nreturn listings.map(l => ({ json: l }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 260],
+      "id": "parse-expired",
+      "name": "Parse Expired Listings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-address",
+              "leftValue": "={{ $json.address }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [1560, 260],
+      "id": "filter-valid",
+      "name": "Filter Valid Addresses"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Address} = '{{ $json.address }}', {City} = '{{ $json.city }}')"
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "id": "check-dup",
+      "name": "Check Duplicate",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-new",
+              "leftValue": "={{ $json.records?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2000, 260],
+      "id": "is-new",
+      "name": "Is New?"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Address",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.address }}"
+            },
+            {
+              "fieldName": "City",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.city }}"
+            },
+            {
+              "fieldName": "State",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.state }}"
+            },
+            {
+              "fieldName": "ZIP",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.zip }}"
+            },
+            {
+              "fieldName": "Asking Price",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.price || $('Filter Valid Addresses').item.json.original_list_price }}"
+            },
+            {
+              "fieldName": "Estimated Value",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.zestimate || $('Filter Valid Addresses').item.json.price }}"
+            },
+            {
+              "fieldName": "Source",
+              "fieldValue": "Expired MLS"
+            },
+            {
+              "fieldName": "Status",
+              "fieldValue": "New"
+            },
+            {
+              "fieldName": "Listing URL",
+              "fieldValue": "={{ $('Filter Valid Addresses').item.json.listing_url }}"
+            },
+            {
+              "fieldName": "Priority",
+              "fieldValue": "High"
+            },
+            {
+              "fieldName": "Notes",
+              "fieldValue": "=Expired/Withdrawn listing - HIGH MOTIVATION. Original DOM: {{ $('Filter Valid Addresses').item.json.days_on_market || 'Unknown' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2220, 220],
+      "id": "create-lead",
+      "name": "Create Lead (Priority: High)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:rotating_light: *Expired Listing Found!*\n\n*Property:* {{ $('Filter Valid Addresses').item.json.address }}, {{ $('Filter Valid Addresses').item.json.city }}\n*Original Price:* ${{ $('Filter Valid Addresses').item.json.price?.toLocaleString() || 'Unknown' }}\n*Days on Market:* {{ $('Filter Valid Addresses').item.json.days_on_market || 'Unknown' }}\n\n:fire: *High motivation seller - listing expired/withdrawn!*\n\nThis lead has been added with HIGH priority for immediate enrichment.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2440, 220],
+      "id": "slack-alert",
+      "name": "Slack Alert (Expired = Gold)",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 1 }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2660, 260],
+      "id": "delay",
+      "name": "Random Delay",
+      "webhookId": "expired-delay"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2220, 340],
+      "id": "skip-dup",
+      "name": "Skip Duplicate"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2880, 300],
+      "id": "done",
+      "name": "Done"
+    },
+    {
+      "parameters": {
+        "content": "## Expired Listings Monitor\n\n**Why Expired = GOLD:**\n- Owner already tried to sell (proven motivation)\n- Frustrated with previous agent\n- Ready to try again\n- 15-25% conversion rate!\n\n**Best Sources:**\n1. MLS API (if licensed)\n2. PropStream or BatchLeads\n3. Zillow 'Off Market'\n4. Realtor.com status changes\n\n**This workflow sets Priority = High**",
+        "height": 280,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 40],
+      "id": "sticky-note",
+      "name": "Why Expired Listings"
+    }
+  ],
+  "connections": {
+    "Daily 6 AM": {
+      "main": [
+        [
+          {
+            "node": "Get Target Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Target Cities": {
+      "main": [
+        [
+          {
+            "node": "Prepare Searches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Searches": {
+      "main": [
+        [
+          {
+            "node": "Loop Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Cities": {
+      "main": [
+        [
+          {
+            "node": "Scrape Zillow Off-Market",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Zillow Off-Market": {
+      "main": [
+        [
+          {
+            "node": "Parse Expired Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Expired Listings": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Addresses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Addresses": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New?": {
+      "main": [
+        [
+          {
+            "node": "Create Lead (Priority: High)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead (Priority: High)": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert (Expired = Gold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert (Expired = Gold)": {
+      "main": [
+        [
+          {
+            "node": "Random Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Random Delay": {
+      "main": [
+        [
+          {
+            "node": "Loop Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Loop Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "expired-listings-monitor",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 1", "id": "engine1"},
+    {"name": "Sourcing", "id": "sourcing"},
+    {"name": "Expired", "id": "expired"},
+    {"name": "High Priority", "id": "high-priority"}
+  ]
+}

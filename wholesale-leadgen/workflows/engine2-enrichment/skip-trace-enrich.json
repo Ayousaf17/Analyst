@@ -1,0 +1,516 @@
+{
+  "name": "Skip Trace & Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-15min",
+      "name": "Every 15 Minutes"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "filterByFormula": "=AND({Status} = 'New', {Owner Name} = '')",
+        "options": {
+          "maxRecords": 5
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "get-new-leads",
+      "name": "Get New Leads (Need Enrichment)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-leads",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "id": "has-leads",
+      "name": "Has Leads?"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 260],
+      "id": "loop-leads",
+      "name": "Loop Leads"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $json.id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Status",
+              "fieldValue": "Enriching"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1120, 260],
+      "id": "set-enriching",
+      "name": "Set Status: Enriching",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.batchskiptracing.com/api/v1/property-search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"address\": \"{{ $('Loop Leads').item.json.fields.Address }}\",\n  \"city\": \"{{ $('Loop Leads').item.json.fields.City }}\",\n  \"state\": \"{{ $('Loop Leads').item.json.fields.State || 'TX' }}\",\n  \"zip\": \"{{ $('Loop Leads').item.json.fields.ZIP || '' }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 260],
+      "id": "skip-trace",
+      "name": "Skip Trace API",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "skiptracing-auth",
+          "name": "SkipTracing"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse skip trace response\nconst response = $input.first().json;\nconst lead = $('Loop Leads').item.json;\n\nlet ownerData = {\n  owner_name: '',\n  owner_phone: '',\n  owner_phone_2: '',\n  owner_email: '',\n  owner_email_2: '',\n  skip_trace_success: false\n};\n\nif (response && !response.error) {\n  // BatchSkipTracing response format\n  const owner = response.owner || response.data?.owner || {};\n  const phones = response.phones || response.data?.phones || [];\n  const emails = response.emails || response.data?.emails || [];\n  \n  ownerData = {\n    owner_name: owner.name || owner.full_name || `${owner.first_name || ''} ${owner.last_name || ''}`.trim(),\n    owner_phone: phones[0]?.number || phones[0] || '',\n    owner_phone_2: phones[1]?.number || phones[1] || '',\n    owner_email: emails[0]?.email || emails[0] || '',\n    owner_email_2: emails[1]?.email || emails[1] || '',\n    skip_trace_success: true,\n    skip_trace_raw: response\n  };\n}\n\nreturn [{ json: { ...lead, enrichment: ownerData } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 260],
+      "id": "parse-skip-trace",
+      "name": "Parse Skip Trace"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-3.5-sonnet\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this potential wholesale real estate deal:\\n\\nProperty: {{ $('Loop Leads').item.json.fields.Address }}, {{ $('Loop Leads').item.json.fields.City }}, {{ $('Loop Leads').item.json.fields.State || 'TX' }}\\nAsking Price: ${{ $('Loop Leads').item.json.fields['Asking Price'] || 0 }}\\nEstimated Value: ${{ $('Loop Leads').item.json.fields['Estimated Value'] || $('Loop Leads').item.json.fields['Asking Price'] || 0 }}\\nSource: {{ $('Loop Leads').item.json.fields.Source }}\\nListing URL: {{ $('Loop Leads').item.json.fields['Listing URL'] || 'Not available' }}\\n\\nEvaluate for wholesale potential. Consider:\\n1. Equity spread (asking vs estimated value)\\n2. Motivation signals in the listing\\n3. Property condition indicators\\n4. Market timing\\n5. Deal viability\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"ai_score\\\": 0-100,\\n  \\\"priority\\\": \\\"high\\\" or \\\"medium\\\" or \\\"low\\\",\\n  \\\"motivation_signals\\\": [\\\"signal1\\\", \\\"signal2\\\"],\\n  \\\"concerns\\\": [\\\"concern1\\\", \\\"concern2\\\"],\\n  \\\"estimated_arv\\\": number,\\n  \\\"max_offer\\\": number,\\n  \\\"summary\\\": \\\"2-3 sentence deal summary\\\",\\n  \\\"recommended_action\\\": \\\"contact immediately\\\" or \\\"worth pursuing\\\" or \\\"low priority\\\" or \\\"skip\\\"\\n}\"\n    }\n  ],\n  \"max_tokens\": 800,\n  \"temperature\": 0.3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 260],
+      "id": "ai-deal-analysis",
+      "name": "AI Deal Analysis",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI analysis and merge all data\nconst aiResponse = $input.first().json;\nconst prevData = $('Parse Skip Trace').item.json;\n\nlet analysis = {\n  ai_score: 50,\n  priority: 'medium',\n  motivation_signals: [],\n  concerns: [],\n  summary: 'Analysis pending',\n  recommended_action: 'worth pursuing'\n};\n\ntry {\n  const content = aiResponse.choices[0].message.content;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Use defaults\n}\n\n// Determine priority from score\nlet priority = 'Low';\nif (analysis.ai_score >= 70) priority = 'High';\nelse if (analysis.ai_score >= 40) priority = 'Medium';\n\nreturn [{\n  json: {\n    lead_id: prevData.id,\n    enrichment: prevData.enrichment,\n    analysis: analysis,\n    priority: priority\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 260],
+      "id": "parse-analysis",
+      "name": "Parse AI Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "id": "={{ $json.lead_id }}",
+        "fields": {
+          "fieldMapping": [
+            {
+              "fieldName": "Owner Name",
+              "fieldValue": "={{ $json.enrichment.owner_name }}"
+            },
+            {
+              "fieldName": "Owner Phone",
+              "fieldValue": "={{ $json.enrichment.owner_phone }}"
+            },
+            {
+              "fieldName": "Owner Phone 2",
+              "fieldValue": "={{ $json.enrichment.owner_phone_2 }}"
+            },
+            {
+              "fieldName": "Owner Email",
+              "fieldValue": "={{ $json.enrichment.owner_email }}"
+            },
+            {
+              "fieldName": "Owner Email 2",
+              "fieldValue": "={{ $json.enrichment.owner_email_2 }}"
+            },
+            {
+              "fieldName": "AI Score",
+              "fieldValue": "={{ $json.analysis.ai_score }}"
+            },
+            {
+              "fieldName": "Priority",
+              "fieldValue": "={{ $json.priority }}"
+            },
+            {
+              "fieldName": "AI Analysis",
+              "fieldValue": "={{ JSON.stringify($json.analysis) }}"
+            },
+            {
+              "fieldName": "Status",
+              "fieldValue": "Ready"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2220, 260],
+      "id": "update-lead",
+      "name": "Update Lead with Enrichment",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-creds",
+          "name": "Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-hot",
+              "leftValue": "={{ $('Parse AI Analysis').item.json.analysis.ai_score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2440, 260],
+      "id": "is-high-score",
+      "name": "AI Score >= 80?"
+    },
+    {
+      "parameters": {
+        "channel": "#hot-leads",
+        "text": "=:fire: *High-Score Lead Found!*\n\n*Property:* {{ $('Loop Leads').item.json.fields.Address }}, {{ $('Loop Leads').item.json.fields.City }}\n*Price:* ${{ $('Loop Leads').item.json.fields['Asking Price']?.toLocaleString() }}\n*AI Score:* {{ $('Parse AI Analysis').item.json.analysis.ai_score }}/100\n*Source:* {{ $('Loop Leads').item.json.fields.Source }}\n\n*Summary:* {{ $('Parse AI Analysis').item.json.analysis.summary }}\n\n*Owner:* {{ $('Parse AI Analysis').item.json.enrichment.owner_name || 'Unknown' }}\n*Phone:* {{ $('Parse AI Analysis').item.json.enrichment.owner_phone || 'Not found' }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2660, 220],
+      "id": "slack-alert",
+      "name": "Slack Alert",
+      "credentials": {
+        "slackApi": {
+          "id": "slack-creds",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 2 }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2880, 260],
+      "id": "delay",
+      "name": "Delay",
+      "webhookId": "skip-trace-delay"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 380],
+      "id": "no-leads",
+      "name": "No New Leads"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3100, 300],
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get New Leads (Need Enrichment)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Leads (Need Enrichment)": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads": {
+      "main": [
+        [
+          {
+            "node": "Set Status: Enriching",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status: Enriching": {
+      "main": [
+        [
+          {
+            "node": "Skip Trace API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Trace API": {
+      "main": [
+        [
+          {
+            "node": "Parse Skip Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Skip Trace": {
+      "main": [
+        [
+          {
+            "node": "AI Deal Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Deal Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Update Lead with Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead with Enrichment": {
+      "main": [
+        [
+          {
+            "node": "AI Score >= 80?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Score >= 80?": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "id": "skip-trace-enrich",
+  "meta": {
+    "instanceId": "wholesale-leadgen"
+  },
+  "tags": [
+    {"name": "Engine 2", "id": "engine2"},
+    {"name": "Enrichment", "id": "enrichment"},
+    {"name": "Skip Trace", "id": "skiptrace"}
+  ]
+}
