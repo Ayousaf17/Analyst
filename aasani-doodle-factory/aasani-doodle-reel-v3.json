@@ -291,17 +291,6 @@
     },
     {
       "parameters": {
-        "operation": "toBase64",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.convertToFile",
-      "typeVersion": 1.1,
-      "position": [2700, 200],
-      "id": "convert-to-base64",
-      "name": "Convert to Base64"
-    },
-    {
-      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -335,12 +324,6 @@
               "type": "string"
             },
             {
-              "id": "image-base64",
-              "name": "image_base64",
-              "value": "={{ $json.data }}",
-              "type": "string"
-            },
-            {
               "id": "image-url",
               "name": "image_url",
               "value": "={{ $('Generate Doodle Image').item.json.data[0].url }}",
@@ -352,7 +335,7 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [2940, 200],
+      "position": [2700, 200],
       "id": "prepare-scene-data",
       "name": "Prepare Scene Data"
     },
@@ -817,17 +800,6 @@
       ]
     },
     "Download Image": {
-      "main": [
-        [
-          {
-            "node": "Convert to Base64",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Convert to Base64": {
       "main": [
         [
           {
