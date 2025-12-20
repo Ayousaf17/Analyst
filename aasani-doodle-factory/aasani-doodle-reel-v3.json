@@ -465,15 +465,17 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Your doodle reel is being generated! You will receive an email at {{ $json.user_email }} when it's ready.\",\n  \"status\": \"processing\",\n  \"task_id\": \"{{ $json.task_id }}\",\n  \"story_title\": \"{{ $json.story_title }}\",\n  \"industry\": \"{{ $json.business_industry }}\",\n  \"estimated_time\": \"2-4 minutes\",\n  \"next_steps\": [\n    \"Check your email inbox in a few minutes\",\n    \"The email will contain your video download link\",\n    \"Instagram caption will be included in the email\"\n  ]\n}",
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Video Generation Started!",
+        "completionMessage": "=Your doodle reel is being generated!\n\nYou will receive an email at **{{ $json.user_email }}** when it's ready.\n\n**Story:** {{ $json.story_title }}\n**Industry:** {{ $json.business_industry }}\n\n**Estimated time:** 2-4 minutes\n\n**Next steps:**\n- Check your email inbox in a few minutes\n- The email will contain your video download link\n- Instagram caption will be included in the email",
         "options": {}
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
       "position": [4620, 100],
       "id": "respond-immediately",
-      "name": "Respond Immediately"
+      "name": "Processing Started"
     },
     {
       "parameters": {
@@ -906,14 +908,14 @@
       "main": [
         [
           {
-            "node": "Respond Immediately",
+            "node": "Processing Started",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Respond Immediately": {
+    "Processing Started": {
       "main": [
         [
           {
