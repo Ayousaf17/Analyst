@@ -1,17 +1,19 @@
 {
-  "name": "Aasani Doodle Reel Generator v3",
   "nodes": [
     {
       "parameters": {
         "content": "## Aasani AI - Doodle Reel Generator v3\n\n**Purpose:** Transform business scenarios into engaging doodle-style Instagram Reels\n\n**Key Updates (v3):**\n- 3-part image prompts for character consistency\n- Spiky-haired male character (Aasani mascot)\n- Runway ML for video generation\n- Gmail notifications (replaces Slack)\n\n**Character Style (STRICT):**\n- Spiky hair, black hoodie, wide black pants\n- Transparent face, curved smile, no eyes\n- Bold outlines, no shading, white background\n\n**Flow:**\n1. Input business scenario\n2. AI generates narrative script (6-7 scenes)\n3. Consistent doodle images generated\n4. Voiceover created (OpenAI TTS)\n5. Runway ML compiles final video\n6. Gmail notification with download link\n\n**Cost:** ~$2.00 per video\n**Time:** 2-3 minutes end-to-end",
-        "height": 560,
+        "height": 624,
         "width": 420,
         "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [300, -280],
+      "position": [
+        -704,
+        400
+      ],
       "typeVersion": 1,
-      "id": "intro-note",
+      "id": "713d89d5-9ab7-47e4-84c5-2325caad1ded",
       "name": "Intro Note"
     },
     {
@@ -54,9 +56,15 @@
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
-                  {"option": "30 seconds (5-6 scenes)"},
-                  {"option": "60 seconds (6-7 scenes)"},
-                  {"option": "90 seconds (8-9 scenes)"}
+                  {
+                    "option": "30 seconds (5-6 scenes)"
+                  },
+                  {
+                    "option": "60 seconds (6-7 scenes)"
+                  },
+                  {
+                    "option": "90 seconds (8-9 scenes)"
+                  }
                 ]
               },
               "requiredField": true
@@ -66,10 +74,18 @@
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
-                  {"option": "Professional & Educational"},
-                  {"option": "Friendly & Conversational"},
-                  {"option": "Energetic & Motivating"},
-                  {"option": "Calm & Reassuring"}
+                  {
+                    "option": "Professional & Educational"
+                  },
+                  {
+                    "option": "Friendly & Conversational"
+                  },
+                  {
+                    "option": "Energetic & Motivating"
+                  },
+                  {
+                    "option": "Calm & Reassuring"
+                  }
                 ]
               },
               "requiredField": true
@@ -80,8 +96,11 @@
       },
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.2,
-      "position": [760, 200],
-      "id": "input-form",
+      "position": [
+        -256,
+        880
+      ],
+      "id": "1575b083-e76d-410b-a41b-1158cbe7b1a9",
       "name": "Input Form",
       "webhookId": "aasani-doodle-v3"
     },
@@ -149,8 +168,11 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1000, 200],
-      "id": "extract-inputs",
+      "position": [
+        -16,
+        880
+      ],
+      "id": "dfe01623-c7e3-4903-94a7-351893b00a0c",
       "name": "Extract Inputs"
     },
     {
@@ -161,9 +183,12 @@
         "color": 6
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [1200, 80],
+      "position": [
+        192,
+        768
+      ],
       "typeVersion": 1,
-      "id": "step1-note",
+      "id": "34d432de-c476-4061-859b-1de67b90ad45",
       "name": "Step 1 Note"
     },
     {
@@ -182,19 +207,22 @@
           ]
         },
         "options": {
-          "temperature": 0.7,
-          "maxTokens": 2500
+          "maxTokens": 2500,
+          "temperature": 0.7
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
-      "position": [1240, 200],
-      "id": "generate-script",
+      "position": [
+        240,
+        880
+      ],
+      "id": "3694174a-5153-464b-853c-33d996cf8908",
       "name": "Generate Narrative Script",
       "credentials": {
         "openAiApi": {
-          "id": "openai-creds",
-          "name": "OpenAI"
+          "id": "lQEKjK3ZzGMrPX6v",
+          "name": "OpenAi account"
         }
       }
     },
@@ -204,8 +232,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1500, 200],
-      "id": "parse-script",
+      "position": [
+        528,
+        880
+      ],
+      "id": "cf156a87-a76a-4336-9336-4d6688c359f7",
       "name": "Parse Script JSON"
     },
     {
@@ -216,9 +247,12 @@
         "color": 6
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [1700, 80],
+      "position": [
+        704,
+        768
+      ],
       "typeVersion": 1,
-      "id": "step2-note",
+      "id": "869bcdae-d84a-4a05-94dc-c0482ffc4192",
       "name": "Step 2 Note"
     },
     {
@@ -230,64 +264,50 @@
       },
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
-      "position": [1740, 200],
-      "id": "split-scenes",
+      "position": [
+        736,
+        880
+      ],
+      "id": "5d2bb79c-e616-457e-8691-a27f9591f3a3",
       "name": "Split Scenes"
     },
     {
       "parameters": {
-        "batchSize": 1,
         "options": {}
       },
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1980, 200],
-      "id": "iterate-scenes",
+      "position": [
+        976,
+        880
+      ],
+      "id": "1a8f1f25-add3-4aff-a341-8315a6ca3703",
       "name": "Iterate Scenes"
     },
     {
       "parameters": {
         "resource": "image",
-        "model": {
-          "__rl": true,
-          "value": "dall-e-3",
-          "mode": "list"
-        },
         "prompt": "=PART 1: GLOBAL CHARACTER STYLE (STRICT)\nA hand-drawn, black-and-white doodle-style illustration. The main character is a playful male figure with messy spiky hair, consistently styled.\n\nClothing (must match exactly):\n- Black hoodie with simple hood shape\n- Wide black pants\n- Chunky shoes with solid black fill\n\nFace:\n- Transparent face (no fill, just outline)\n- No eyes\n- One simple curved smile\n- One small nose\n\nStyle constraints:\n- Bold, thick black outlines only\n- Slightly imperfect, organic hand-drawn lines\n- Casual comic doodle feel\n- NO shading, NO gradients, NO gray fills\n- NO facial variation across frames\n\nOverall vibe: Calm, confident, approachable. Slightly playful but controlled. Organized energy, not chaotic.\n\n---\n\nPART 2: SCENE SETUP\n{{ $json.scene.visual_description }}\n\nPositioning:\n{{ $json.scene.positioning_notes }}\n\nSurrounding Doodle Elements:\n{{ $json.scene.doodle_elements.join(', ') }}\n\nEmotional Context:\n{{ $json.scene.emotional_tone }}\n\nComposition:\n{{ $json.scene.composition_notes }}\n\n---\n\nPART 3: OUTPUT SPECIFICATIONS\nBackground: Pure white background, fully clean canvas\nAspect Ratio: Square (1024x1024)\nText Overlay: {{ $json.scene.text_overlay || 'None - no text in image' }}\n\nWhat this scene communicates: {{ $json.scene.message }}\n\nCRITICAL: This is scene {{ $json.scene.scene_number }} of a sequence. The spiky-haired male character in black hoodie MUST look identical across all scenes.",
         "options": {
           "size": "1024x1024",
-          "quality": "hd",
-          "style": "natural"
+          "style": "natural",
+          "returnImageUrls": true
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
-      "position": [2220, 200],
-      "id": "generate-doodle",
+      "position": [
+        1216,
+        816
+      ],
+      "id": "054183b3-e6cd-4f0e-987b-09fe8ffb95bb",
       "name": "Generate Doodle Image",
       "credentials": {
         "openAiApi": {
-          "id": "openai-creds",
-          "name": "OpenAI"
+          "id": "lQEKjK3ZzGMrPX6v",
+          "name": "OpenAi account"
         }
       }
-    },
-    {
-      "parameters": {
-        "url": "={{ $json.data[0].url }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2460, 200],
-      "id": "download-image",
-      "name": "Download Image"
     },
     {
       "parameters": {
@@ -324,9 +344,9 @@
               "type": "string"
             },
             {
-              "id": "image-url",
+              "id": "009153bc-0bcf-4d76-a3e9-410bd003c677",
               "name": "image_url",
-              "value": "={{ $('Generate Doodle Image').item.json.data[0].url }}",
+              "value": "={{ $json.url }}",
               "type": "string"
             }
           ]
@@ -335,8 +355,11 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [2700, 200],
-      "id": "prepare-scene-data",
+      "position": [
+        1952,
+        816
+      ],
+      "id": "adcbb901-8ca7-4d72-b059-2b0ea6caa426",
       "name": "Prepare Scene Data"
     },
     {
@@ -347,21 +370,27 @@
       },
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
-      "position": [3180, 200],
-      "id": "aggregate-scenes",
+      "position": [
+        2176,
+        880
+      ],
+      "id": "bff2c07d-af66-4aab-a81f-e0f6883865a8",
       "name": "Aggregate All Scenes"
     },
     {
       "parameters": {
         "content": "## Step 3: Generate Audio & Video\nVoiceover + Runway ML video compilation",
         "height": 80,
-        "width": 700,
+        "width": 636,
         "color": 6
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [3380, 80],
+      "position": [
+        2384,
+        768
+      ],
       "typeVersion": 1,
-      "id": "step3-note",
+      "id": "605da448-af0a-4e2b-a60b-34e3b3605e2c",
       "name": "Step 3 Note"
     },
     {
@@ -370,30 +399,33 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3420, 200],
-      "id": "combine-narration",
+      "position": [
+        2416,
+        880
+      ],
+      "id": "7f5368b3-a0f4-4700-9d23-18b027fc45c0",
       "name": "Combine Narration"
     },
     {
       "parameters": {
         "resource": "audio",
-        "operation": "generate",
         "model": "tts-1-hd",
         "input": "={{ $json.full_narration }}",
         "voice": "nova",
-        "options": {
-          "responseFormat": "mp3"
-        }
+        "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
-      "position": [3660, 200],
-      "id": "generate-voiceover",
+      "position": [
+        2656,
+        880
+      ],
+      "id": "3ce997c0-1590-4494-bdd2-b93f179f8c15",
       "name": "Generate Voiceover",
       "credentials": {
         "openAiApi": {
-          "id": "openai-creds",
-          "name": "OpenAI"
+          "id": "lQEKjK3ZzGMrPX6v",
+          "name": "OpenAi account"
         }
       }
     },
@@ -403,38 +435,12 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3900, 200],
-      "id": "prepare-for-runway",
+      "position": [
+        2896,
+        880
+      ],
+      "id": "33dd9170-fa07-4e00-be61-e824cd89214b",
       "name": "Prepare for Runway ML"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.runwayml.com/v1/image_to_video",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"promptImage\": \"{{ $json.first_frame_url }}\",\n  \"promptText\": \"Whiteboard doodle animation style. Hand-drawn black line illustrations on white background animating smoothly. Simple, clean transitions between frames. The spiky-haired character in black hoodie moves naturally with subtle gestures. Arrows flow, icons appear, elements animate in a calm, professional explainer video style. Similar to RSA Animate or whiteboard explainer videos. Gentle, controlled motion - not chaotic.\",\n  \"model\": \"gen3a_turbo\",\n  \"duration\": 10,\n  \"ratio\": \"1280:768\",\n  \"watermark\": false\n}",
-        "options": {
-          "response": {
-            "response": {
-              "fullResponse": true
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [4140, 200],
-      "id": "generate-video-runway",
-      "name": "Generate Video (Runway ML)",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "runway-auth",
-          "name": "Runway ML"
-        }
-      }
     },
     {
       "parameters": {
@@ -442,53 +448,67 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [4380, 200],
-      "id": "extract-task-id",
+      "position": [
+        3376,
+        880
+      ],
+      "id": "e771c04c-e17e-4cbd-86dc-a1970ba087d3",
       "name": "Extract Task ID"
     },
     {
       "parameters": {
         "operation": "completion",
-        "respondWith": "text",
         "completionTitle": "Video Generation Started!",
         "completionMessage": "=Your doodle reel is being generated!\n\nYou will receive an email at **{{ $json.user_email }}** when it's ready.\n\n**Story:** {{ $json.story_title }}\n**Industry:** {{ $json.business_industry }}\n\n**Estimated time:** 2-4 minutes\n\n**Next steps:**\n- Check your email inbox in a few minutes\n- The email will contain your video download link\n- Instagram caption will be included in the email",
         "options": {}
       },
       "type": "n8n-nodes-base.form",
       "typeVersion": 1,
-      "position": [4620, 100],
-      "id": "respond-immediately",
-      "name": "Processing Started"
+      "position": [
+        3616,
+        784
+      ],
+      "id": "ad4ff7d1-b704-4029-8cea-9b28b29ee8e3",
+      "name": "Processing Started",
+      "webhookId": "08fb10b7-e8ac-4a41-b3b0-749ac7dc9f77"
     },
     {
       "parameters": {
-        "amount": 60,
-        "unit": "seconds"
+        "amount": 60
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [4620, 200],
-      "id": "wait-for-video",
+      "position": [
+        3616,
+        880
+      ],
+      "id": "9e7be35e-4d22-4719-95c2-2dcf180da9b4",
       "name": "Wait for Processing (60s)",
       "webhookId": "runway-wait"
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=https://api.runwayml.com/v1/tasks/{{ $('Extract Task ID').item.json.task_id }}",
+        "url": "=https://api.dev.runwayml.com/v1/tasks/{{ $('Extract Task ID').item.json.task_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpBearerAuth",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [4860, 200],
-      "id": "check-video-status",
+      "position": [
+        3856,
+        880
+      ],
+      "id": "d1a57185-9fe6-43a6-aecd-5bb6631fc075",
       "name": "Check Video Status",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "runway-auth",
-          "name": "Runway ML"
+          "id": "fuE05j6DDl3U392C",
+          "name": "OpenRouter API"
+        },
+        "httpBearerAuth": {
+          "id": "Ol1lOhAHOZx4XmBl",
+          "name": "Runway ML Bearer"
         }
       }
     },
@@ -498,7 +518,8 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "strict",
+            "version": 2
           },
           "conditions": [
             {
@@ -517,19 +538,24 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [5100, 200],
-      "id": "video-ready",
+      "position": [
+        4096,
+        880
+      ],
+      "id": "9833e94b-10a7-4019-9eb8-3af9916f67d3",
       "name": "Video Ready?"
     },
     {
       "parameters": {
-        "amount": 30,
-        "unit": "seconds"
+        "amount": 30
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [5340, 0],
-      "id": "wait-more",
+      "position": [
+        4336,
+        688
+      ],
+      "id": "345e7921-62bd-4787-bd39-40b8439fdd0c",
       "name": "Wait More (30s)",
       "webhookId": "runway-wait-more"
     },
@@ -546,8 +572,11 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [5340, 300],
-      "id": "download-video",
+      "position": [
+        4336,
+        992
+      ],
+      "id": "fe1cb91b-5d2f-46f9-92da-13317f57a4ea",
       "name": "Download Video"
     },
     {
@@ -558,14 +587,16 @@
         "color": 6
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [5540, 180],
+      "position": [
+        4544,
+        864
+      ],
       "typeVersion": 1,
-      "id": "step4-note",
+      "id": "83835852-82f2-4393-b10e-94ccfd24a884",
       "name": "Step 4 Note"
     },
     {
       "parameters": {
-        "operation": "upload",
         "name": "=Aasani_Reel_{{ $('Parse Script JSON').first().json.business_industry.replace(/[^a-zA-Z0-9]/g, '_') }}_{{ new Date().toISOString().split('T')[0] }}.mp4",
         "driveId": {
           "__rl": true,
@@ -574,20 +605,25 @@
         },
         "folderId": {
           "__rl": true,
-          "mode": "id",
-          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID"
+          "value": "1YsrRsWZuC4PvBSHztFPAvaABQPiBKkm1",
+          "mode": "list",
+          "cachedResultName": "Marketing",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1YsrRsWZuC4PvBSHztFPAvaABQPiBKkm1"
         },
         "options": {}
       },
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [5580, 300],
-      "id": "save-to-drive",
+      "position": [
+        4576,
+        992
+      ],
+      "id": "bcb9bd3d-dc80-4152-9abe-adb4aa4abb2d",
       "name": "Save to Google Drive",
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "gdrive-creds",
-          "name": "Google Drive"
+          "id": "QGzBH5uXv21qFz7c",
+          "name": "Google Drive account"
         }
       }
     },
@@ -661,15 +697,17 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [5820, 300],
-      "id": "prepare-final-output",
+      "position": [
+        4816,
+        992
+      ],
+      "id": "2b436b48-3a33-448e-a569-89ded1c62213",
       "name": "Prepare Final Output"
     },
     {
       "parameters": {
         "sendTo": "={{ $json.user_email }}",
         "subject": "=Your Aasani Doodle Reel is Ready! - {{ $json.business_industry }}",
-        "emailType": "html",
         "message": "=<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background: #1a1a2e; color: white; padding: 20px; text-align: center; }\n    .content { padding: 20px; }\n    .button { display: inline-block; background: #4A90D9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }\n    .section { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 5px; }\n    .caption-box { background: #fff; border: 1px solid #ddd; padding: 15px; margin: 10px 0; font-size: 14px; white-space: pre-wrap; }\n    .footer { background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Your Doodle Reel is Ready!</h1>\n  </div>\n  <div class=\"content\">\n    <p>Hi there!</p>\n    <p>Great news - your Aasani Doodle Reel has been generated and is ready to download!</p>\n    \n    <div class=\"section\">\n      <h3>Video Details</h3>\n      <p><strong>Title:</strong> {{ $json.story_title }}</p>\n      <p><strong>Industry:</strong> {{ $json.business_industry }}</p>\n    </div>\n    \n    <p style=\"text-align: center;\">\n      <a href=\"{{ $json.video_url }}\" class=\"button\">View Video</a>\n      <a href=\"{{ $json.download_url }}\" class=\"button\" style=\"background: #2ecc71;\">Download Video</a>\n    </p>\n    \n    <div class=\"section\">\n      <h3>Instagram Caption (Ready to Copy)</h3>\n      <div class=\"caption-box\">{{ $json.full_post_caption }}</div>\n    </div>\n    \n    <div class=\"section\">\n      <h3>Next Steps</h3>\n      <ol>\n        <li>Download the video using the button above</li>\n        <li>Upload to Instagram Reels</li>\n        <li>Copy and paste the caption provided</li>\n        <li>Post and track your engagement!</li>\n      </ol>\n    </div>\n    \n    <div class=\"section\">\n      <h3>Call to Action</h3>\n      <p>{{ $json.call_to_action }}</p>\n    </div>\n    \n    <p>Need more videos? Simply fill out the form again with a different business scenario!</p>\n    \n    <p>Best regards,<br><strong>Aasani Systems Team</strong></p>\n  </div>\n  <div class=\"footer\">\n    <p>Aasani Systems - Structure Before Intelligence</p>\n    <p>This email was automatically generated by Aasani Doodle Factory</p>\n  </div>\n</body>\n</html>",
         "options": {
           "replyTo": "hello@aasani.com"
@@ -677,41 +715,92 @@
       },
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [6060, 300],
-      "id": "send-gmail",
+      "position": [
+        5056,
+        992
+      ],
+      "id": "b51926e7-eec8-4785-b7f6-03e904144a25",
       "name": "Send Gmail Notification",
+      "webhookId": "b7b79908-0ef9-4a1c-8f8d-1d987e1cc721",
       "credentials": {
         "gmailOAuth2": {
-          "id": "gmail-creds",
-          "name": "Gmail"
+          "id": "vwDpFxFnWdiiZlkq",
+          "name": "Gmail account"
         }
       }
     },
     {
       "parameters": {
         "content": "## Credentials Required\n\n**1. OpenAI API** (`openai-creds`)\n- For: Script, images (DALL-E 3), TTS\n- Cost: ~$1.70 per video\n\n**2. Runway ML API** (`runway-auth`)\n- For: Video generation\n- Type: HTTP Header Auth\n- Header: Authorization\n- Value: Bearer YOUR_RUNWAY_API_KEY\n- Cost: ~$0.10-0.30 per video\n\n**3. Google Drive** (`gdrive-creds`)\n- For: Video storage\n- Type: OAuth2\n\n**4. Gmail** (`gmail-creds`)\n- For: Email notifications\n- Type: OAuth2\n\n**Total Cost: ~$2.00 per video**\n**Processing Time: 2-3 minutes**",
-        "height": 400,
+        "height": 512,
         "width": 420,
         "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [300, 300],
+      "position": [
+        -704,
+        1056
+      ],
       "typeVersion": 1,
-      "id": "credentials-note",
+      "id": "fce069a3-2849-4dd6-ae4b-16b2f6fda0a6",
       "name": "Credentials Note"
     },
     {
       "parameters": {
         "content": "## Character Consistency Guide\n\n**The Aasani Mascot MUST be:**\n- Spiky messy hair\n- Black hoodie (simple hood shape)\n- Wide black pants\n- Chunky shoes (solid black)\n- Transparent face (outline only)\n- NO eyes\n- One curved smile\n- One small nose\n\n**Style Constraints:**\n- Bold thick black outlines\n- NO shading, NO gradients\n- NO gray fills\n- White background always\n- Hand-drawn organic feel\n\n**Appears in:** Scenes 4+ as the helpful guide",
-        "height": 360,
+        "height": 504,
         "width": 350,
         "color": 7
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [740, -280],
+      "position": [
+        -272,
+        320
+      ],
       "typeVersion": 1,
-      "id": "character-guide",
+      "id": "7cf0597d-9e79-46d1-a9e6-8bd5c82e546d",
       "name": "Character Guide"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dev.runwayml.com/v1/image_to_video",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Runway-Version",
+              "value": "2024-11-06"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gen3a_turbo\",\n  \"promptImage\": \"{{ $json.image_sequence[0].image_url }}\",\n  \"promptText\": \"Whiteboard doodle animation style. Hand-drawn black line illustrations on white background animating smoothly. The spiky-haired character in black hoodie moves naturally. Simple, clean transitions. Calm, professional explainer video style.\",\n  \"duration\": 5,\n  \"ratio\": \"1280:768\",\n  \"watermark\": false\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3152,
+        880
+      ],
+      "id": "9999bfc7-e922-499e-8c70-97f19f69d2d6",
+      "name": "Generate Video (Runway ML)1",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "Ol1lOhAHOZx4XmBl",
+          "name": "Runway ML Bearer"
+        }
+      }
     }
   ],
   "connections": {
@@ -774,14 +863,14 @@
       "main": [
         [
           {
-            "node": "Generate Doodle Image",
+            "node": "Aggregate All Scenes",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Aggregate All Scenes",
+            "node": "Generate Doodle Image",
             "type": "main",
             "index": 0
           }
@@ -789,17 +878,6 @@
       ]
     },
     "Generate Doodle Image": {
-      "main": [
-        [
-          {
-            "node": "Download Image",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download Image": {
       "main": [
         [
           {
@@ -858,18 +936,7 @@
       "main": [
         [
           {
-            "node": "Generate Video (Runway ML)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Video (Runway ML)": {
-      "main": [
-        [
-          {
-            "node": "Extract Task ID",
+            "node": "Generate Video (Runway ML)1",
             "type": "main",
             "index": 0
           }
@@ -982,23 +1049,39 @@
         ]
       ]
     },
-    "Send Gmail Notification": {
-      "main": []
+    "Generate Video (Runway ML)1": {
+      "main": [
+        [
+          {
+            "node": "Extract Task ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {},
-  "settings": {
-    "executionOrder": "v1"
+  "pinData": {
+    "Input Form": [
+      {
+        "Input Form": [
+          {
+            "Your Email": "ayub@aasani.ai",
+            "Business Industry": "Window Cleaning",
+            "Problem Scenario": "Manual scheduling chaos. Jobs fall through cracks.",
+            "Pain Points (3-5)": "1. No scheduling system\n2. Missed follow-ups\n3. Manual invoicing",
+            "Desired Outcome": "Automated scheduling and invoicing. Real-time tracking.",
+            "Video Duration": "30 seconds (2-4 scenes)",
+            "Tone/Style": "Friendly & Conversational",
+            "submittedAt": "2025-12-19T22:40:00.000-06:00",
+            "formMode": "test"
+          }
+        ]
+      }
+    ]
   },
-  "staticData": null,
-  "id": "aasani-doodle-reel-v3",
   "meta": {
-    "instanceId": "aasani-factory"
-  },
-  "tags": [
-    {"name": "Aasani", "id": "aasani"},
-    {"name": "Video Generation", "id": "video"},
-    {"name": "Doodle", "id": "doodle"},
-    {"name": "Runway ML", "id": "runway"}
-  ]
+    "templateCredsSetupCompleted": true,
+    "instanceId": "89aa7945180226003eaabc2f707966f9cb80855e1b923a9f8aa13c508486d4ce"
+  }
 }
