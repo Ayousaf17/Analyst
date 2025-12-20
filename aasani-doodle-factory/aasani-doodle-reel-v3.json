@@ -455,13 +455,25 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract task ID from Runway response\nconst response = $input.first().json;\nconst taskId = response.body?.id || response.id;\n\nif (!taskId) {\n  throw new Error('Failed to start Runway ML task - no task ID returned');\n}\n\nreturn {\n  json: {\n    task_id: taskId,\n    status: 'processing'\n  }\n};"
+        "jsCode": "// Extract task ID from Runway response and prepare for async processing\nconst response = $input.first().json;\nconst taskId = response.body?.id || response.id;\n\nif (!taskId) {\n  throw new Error('Failed to start Runway ML task - no task ID returned');\n}\n\n// Get user info for response\nconst scriptData = $('Parse Script JSON').first().json;\n\nreturn {\n  json: {\n    task_id: taskId,\n    status: 'processing',\n    user_email: scriptData.user_email,\n    business_industry: scriptData.business_industry,\n    story_title: scriptData.story_title || 'Your Doodle Reel'\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [4380, 200],
       "id": "extract-task-id",
       "name": "Extract Task ID"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Your doodle reel is being generated! You will receive an email at {{ $json.user_email }} when it's ready.\",\n  \"status\": \"processing\",\n  \"task_id\": \"{{ $json.task_id }}\",\n  \"story_title\": \"{{ $json.story_title }}\",\n  \"industry\": \"{{ $json.business_industry }}\",\n  \"estimated_time\": \"2-4 minutes\",\n  \"next_steps\": [\n    \"Check your email inbox in a few minutes\",\n    \"The email will contain your video download link\",\n    \"Instagram caption will be included in the email\"\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [4620, 100],
+      "id": "respond-immediately",
+      "name": "Respond Immediately"
     },
     {
       "parameters": {
@@ -535,45 +547,6 @@
       "id": "wait-more",
       "name": "Wait More (30s)",
       "webhookId": "runway-wait-more"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Track retry attempts for video status polling\nconst currentRetries = $('Check Video Status').first().json.retry_count || 0;\nconst newRetryCount = currentRetries + 1;\nconst maxRetries = 6; // Max 6 retries = ~4 minutes total (60s initial + 6*30s)\n\nreturn {\n  json: {\n    ...$input.first().json,\n    retry_count: newRetryCount,\n    max_retries_reached: newRetryCount >= maxRetries\n  }\n};"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [5580, 0],
-      "id": "track-retries",
-      "name": "Track Retries"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "max-retries",
-              "leftValue": "={{ $json.max_retries_reached }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [5820, 0],
-      "id": "check-max-retries",
-      "name": "Max Retries?"
     },
     {
       "parameters": {
@@ -728,30 +701,6 @@
           "name": "Gmail"
         }
       }
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Your doodle reel has been generated and sent to your email!\",\n  \"video_url\": \"{{ $('Prepare Final Output').item.json.video_url }}\",\n  \"story_title\": \"{{ $('Prepare Final Output').item.json.story_title }}\",\n  \"instagram_caption\": {{ JSON.stringify($('Prepare Final Output').item.json.full_post_caption) }},\n  \"next_steps\": [\n    \"Check your email for the download link\",\n    \"Download the video\",\n    \"Upload to Instagram Reels\",\n    \"Use the caption provided\"\n  ]\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [6300, 300],
-      "id": "return-success",
-      "name": "Return Success"
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Video generation is taking longer than expected. The video is still processing and you will receive an email notification when it's ready.\",\n  \"status\": \"processing\",\n  \"retries_attempted\": {{ $json.retry_count || 0 }},\n  \"note\": \"Runway ML video generation can take 3-5 minutes for complex scenes. Please check your email shortly.\"\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [6060, 0],
-      "id": "still-processing",
-      "name": "Still Processing"
     },
     {
       "parameters": {
@@ -957,6 +906,17 @@
       "main": [
         [
           {
+            "node": "Respond Immediately",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Immediately": {
+      "main": [
+        [
+          {
             "node": "Wait for Processing (60s)",
             "type": "main",
             "index": 0
@@ -1008,35 +968,6 @@
       "main": [
         [
           {
-            "node": "Track Retries",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Track Retries": {
-      "main": [
-        [
-          {
-            "node": "Max Retries?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Max Retries?": {
-      "main": [
-        [
-          {
-            "node": "Still Processing",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
             "node": "Check Video Status",
             "type": "main",
             "index": 0
@@ -1078,15 +1009,7 @@
       ]
     },
     "Send Gmail Notification": {
-      "main": [
-        [
-          {
-            "node": "Return Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": []
     }
   },
   "pinData": {},
