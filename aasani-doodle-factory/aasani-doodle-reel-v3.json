@@ -531,10 +531,49 @@
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [5340, 100],
+      "position": [5340, 0],
       "id": "wait-more",
       "name": "Wait More (30s)",
       "webhookId": "runway-wait-more"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Track retry attempts for video status polling\nconst currentRetries = $('Check Video Status').first().json.retry_count || 0;\nconst newRetryCount = currentRetries + 1;\nconst maxRetries = 6; // Max 6 retries = ~4 minutes total (60s initial + 6*30s)\n\nreturn {\n  json: {\n    ...$input.first().json,\n    retry_count: newRetryCount,\n    max_retries_reached: newRetryCount >= maxRetries\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5580, 0],
+      "id": "track-retries",
+      "name": "Track Retries"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "max-retries",
+              "leftValue": "={{ $json.max_retries_reached }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [5820, 0],
+      "id": "check-max-retries",
+      "name": "Max Retries?"
     },
     {
       "parameters": {
@@ -705,12 +744,12 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Video is still processing. You will receive an email when it's ready.\",\n  \"status\": \"{{ $json.status }}\",\n  \"estimated_time\": \"1-2 minutes\"\n}",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Video generation is taking longer than expected. The video is still processing and you will receive an email notification when it's ready.\",\n  \"status\": \"processing\",\n  \"retries_attempted\": {{ $json.retry_count || 0 }},\n  \"note\": \"Runway ML video generation can take 3-5 minutes for complex scenes. Please check your email shortly.\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [5580, 100],
+      "position": [6060, 0],
       "id": "still-processing",
       "name": "Still Processing"
     },
@@ -967,6 +1006,35 @@
     },
     "Wait More (30s)": {
       "main": [
+        [
+          {
+            "node": "Track Retries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Retries": {
+      "main": [
+        [
+          {
+            "node": "Max Retries?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Max Retries?": {
+      "main": [
+        [
+          {
+            "node": "Still Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Check Video Status",
