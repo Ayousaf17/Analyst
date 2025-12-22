@@ -1,0 +1,13 @@
+# Error Solutions Directory
+#
+# Store resolved error patterns here in YAML format.
+# The error-resolver skill will reference these for faster debugging.
+#
+# Example: gorgias-401.yaml
+# ---
+# error: "401 Unauthorized from Gorgias API"
+# diagnosis: "API credentials expired or malformed"
+# root_cause: "Basic auth header not properly base64 encoded"
+# fix: "Regenerate API key, update n8n credential"
+# verification: "curl with new credentials returns 200"
+# prevention: "Add credential validation on workflow activation"
