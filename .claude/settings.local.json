@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Read(~/.claude/*)",
+      "Read(.claude/*)"
+    ],
+    "deny": []
+  },
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--read-only",
+        "--project-ref=YOUR_PROJECT_REF"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys, json, re; from datetime import datetime; data=json.loads(sys.stdin.read()); q=data.get('tool_input',{}).get('query',''); year=str(datetime.now().year); has_year=bool(re.search(r'20[2-9][0-9]',q)); temporal=['latest','recent','current','new','updated']; has_temporal=any(t in q.lower() for t in temporal); data['tool_input']['query']=q if (has_year or has_temporal) else f'{q} {year}'; print(json.dumps(data))\""
+          }
+        ]
+      }
+    ]
+  }
+}
