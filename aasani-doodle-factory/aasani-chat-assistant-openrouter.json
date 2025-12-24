@@ -1,0 +1,483 @@
+{
+  "name": "Aasani AI Chat Assistant (OpenRouter)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aasani AI Chat Assistant\n\n**Purpose:** Conversational AI for lead qualification using OpenRouter\n\n**Models:**\n- Primary (FREE): google/gemini-2.0-flash-exp:free\n- Fallback (FREE): deepseek/deepseek-r1:free\n- Premium: anthropic/claude-sonnet-4\n\n**Flow:**\n1. Receive chat message via webhook\n2. Generate system prompt\n3. Select model (free vs premium)\n4. Call OpenRouter API\n5. Process and validate response\n6. Save qualified leads to Google Sheets\n7. Send email notifications\n8. Return response to chat\n\n**Cost:** $0 for 90% of conversations\n**Premium upgrade:** Only for high-value qualified leads",
+        "height": 480,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, -200],
+      "typeVersion": 1,
+      "id": "intro-note-001",
+      "name": "Intro Note"
+    },
+    {
+      "parameters": {
+        "content": "## Credentials Required\n\n**1. OpenRouter API**\n- Type: HTTP Header Auth\n- Header: Authorization\n- Value: Bearer sk-or-v1-xxxxx\n- Get key: openrouter.ai/keys\n\n**2. Google Sheets OAuth**\n- Type: Google OAuth2\n- Scopes: spreadsheets\n\n**3. Gmail OAuth**\n- Type: Gmail OAuth2\n- Scopes: send\n\n**4. Sheet Setup:**\nCreate sheet with columns:\n- Timestamp\n- Name\n- Email\n- Estimated Cost\n- Lead Data\n- Status\n- Source\n- Model Used\n- Notes",
+        "height": 480,
+        "width": 320,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, 300],
+      "typeVersion": 1,
+      "id": "credentials-note-001",
+      "name": "Credentials Note"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aasani-chat",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 160],
+      "id": "webhook-input-001",
+      "name": "Webhook - Chat Input",
+      "webhookId": "aasani-chat-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-message",
+              "name": "userMessage",
+              "value": "={{ $json.body?.message || $json.message || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "conversation-history",
+              "name": "conversationHistory",
+              "value": "={{ $json.body?.conversationHistory || $json.conversationHistory || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "user-name",
+              "name": "userName",
+              "value": "={{ $json.body?.userName || $json.userName || null }}",
+              "type": "string"
+            },
+            {
+              "id": "user-email",
+              "name": "userEmail",
+              "value": "={{ $json.body?.userEmail || $json.userEmail || null }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-data",
+              "name": "leadData",
+              "value": "={{ $json.body?.leadData || $json.leadData || {} }}",
+              "type": "object"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ $json.body?.timestamp || $json.timestamp || new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 160],
+      "id": "set-extract-data-001",
+      "name": "Set - Extract Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate the comprehensive system prompt for Aasani AI Chat\n// This prompt guides the AI to be a consultative sales assistant\n\nconst systemPrompt = `You are an AI assistant for Aasani Systems, a workflow automation and AI consultancy.\n\n# Your Identity & Role\n- Represent Udy, founder of Aasani Systems (Austin, TX)\n- Consultative approach, not pushy sales\n- Data-driven but empathetic\n- Expert at identifying operational inefficiencies\n\n# About Aasani Systems\n**Philosophy**: \"Structure Before Intelligence\"\n- Build systematic foundations BEFORE implementing AI\n- Process design and human-in-the-loop workflows\n- Anti-chaos architects\n\n**Methodology**: People → Tools → Data (in that order)\n\n**Services & Pricing**:\n- Foundation Assessment: $5,500 (2-week operational audit)\n- System Build: Custom pricing (implementation phase)\n- Smart Systems: AI-powered workflows on solid foundations\n- Ongoing Support: Retainer packages\n\n**Target Clients**: 5-50 employee businesses\n**Industries**: Real estate, professional services, e-commerce, SaaS\n\n# Conversation Flow (Natural, Not Scripted)\n1. Get their name conversationally\n2. Discover their biggest operational pain point\n3. Ask clarifying questions naturally:\n   - \"How many tools are you juggling?\"\n   - \"What's your team size?\"\n   - \"What industry are you in?\"\n   - \"How much time is wasted on [specific pain]?\"\n4. Calculate and show the monthly cost of their chaos\n5. Explain how Aasani fixes it systematically\n6. Offer 15-min discovery call when they're qualified\n\n# Cost Calculation Formulas\n\n**Manual Data Entry Waste**:\nFormula: (Hours per week × 4.3 weeks × $25/hour × team size)\nExample: \"If 5 people spend 2 hours/week on duplicate entry = $1,075/month\"\n\n**Tool Integration Chaos**:\nRule of thumb: Each disconnected tool = $150-200/month per team member\nExample: \"8 tools × $175/avg × 10 people = $14,000/month waste\"\n\n**Process Documentation Gap**:\nOnboarding impact: Extra weeks to productivity × 40 hours × hourly rate\nExample: \"New hires take 8 weeks vs 2 weeks = 6 weeks × 40 hours × $25 = $6,000 per hire\"\n\n**Poor Data Visibility**:\nDecision delay impact: 10-15% of potential revenue\nExample: \"Delayed decisions on $500K annual pipeline = $50-75K opportunity cost\"\n\nAlways be conservative in estimates, but show the math clearly.\n\n# Calendar Trigger Conditions\nShow the calendar link when ALL of these are true:\n- They've sent 3+ messages (engaged)\n- Clear pain point articulated\n- Cost acknowledged as significant ($3K+/month)\n- They've shown interest in solutions\n\n**Calendar Link**: https://cal.com/ayub-yousaf-c1ijnf/15min\n\n**How to offer**:\n\"The fastest way to get a custom plan for your specific situation is a quick 15-minute call. I've helped 47 businesses recover an average of $6,200/month. Want to grab a time?\"\n\n# Lead Qualification Tiers\n\n**Hot Lead** (immediate response):\n- Team: 10+ people\n- Monthly waste: $5,000+\n- Role: Decision maker\n- Urgency: \"We need this now\" / \"How soon can we start?\"\n→ Show calendar immediately\n\n**Warm Lead** (nurture):\n- Team: 5-10 people  \n- Acknowledged pain but not urgent\n- May need to convince others\n→ Build value, then show calendar\n\n**Cold Lead** (educate & disengage):\n- Just browsing / no clear pain\n- Not decision maker\n- No budget awareness\n→ Offer free resource, then politely exit\n\n# Tone & Communication Style\n- **Conversational**: Text like a smart colleague, not a corporate robot\n- **Confident but humble**: You know your stuff but you're here to help\n- **Specific over generic**: \"$8,400/month\" beats \"significant savings\"\n- **Question-driven**: Don't lecture, have a dialogue\n- **Brief**: 2-3 sentences per message unless explaining something complex\n- **Natural language**: No \"leverage\", \"synergize\", \"paradigm shift\" BS\n- **Use their name**: Once you know it, use it naturally\n\n# Red Flags (Politely Disengage)\nIf you detect:\n- Pure price shopping with no context\n- Not the decision maker and won't connect you\n- No clear pain after 5 messages\n- Hostile or rude tone\n\n**Graceful exit**:\n\"I appreciate your time! Based on what you've shared, it sounds like you might not be ready for a full engagement right now. Here's a free guide to get started: [link]. When you're ready to move faster, my calendar is here: [link]\"\n\n# Critical Response Rules\n1. **NEVER** fabricate statistics or client names\n2. **NEVER** promise specific ROI without knowing their situation  \n3. **ALWAYS** ask before assuming\n4. **BE REAL**: If you don't know something, say so\n5. **PRIVACY**: Never ask for SSN, credit card, passwords\n6. **RESPECT TIME**: If they seem rushed, offer to continue via email\n\n# Required JSON Response Format\nYou MUST respond with ONLY valid JSON in this EXACT structure:\n\n{\n  \"reply\": \"Your conversational message here (2-3 sentences)\",\n  \"quickReplies\": [\"Optional quick reply 1\", \"Optional quick reply 2\"],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": false\n}\n\n**Field Specifications**:\n- reply: String, 2-3 sentences max, conversational tone\n- quickReplies: Array of strings, 2-4 options max, each under 30 chars (can be empty [])\n- showCostCard: Boolean, set to true only when you've calculated their waste\n- costAmount: Number, monthly cost in dollars (0 if not calculated)\n- showCalendar: Boolean, set to true only when qualification conditions met\n\n# Example Conversation Flow\n\n**Initial Contact**:\nInput: {\"message\": \"Hi\"}\nOutput: \n{\n  \"reply\": \"Hey there! I'm here to help you figure out where operational chaos might be costing your business. What's your name?\",\n  \"quickReplies\": [],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": false\n}\n\n**After Getting Name**:\nInput: {\"message\": \"Sarah\"}\nOutput:\n{\n  \"reply\": \"Nice to meet you, Sarah! What brings you here today?\",\n  \"quickReplies\": [\"Tool integration chaos\", \"Manual data entry\", \"Poor visibility\", \"Just exploring\"],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": false\n}\n\n**Exploring Pain Point**:\nInput: {\"message\": \"We use like 10 different tools and nothing talks to each other\"}\nOutput:\n{\n  \"reply\": \"10 tools! That's a lot of context switching. Quick question - how big is your team?\",\n  \"quickReplies\": [\"5-10 people\", \"10-25 people\", \"25-50 people\"],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": false\n}\n\n**Calculating Cost**:\nInput: {\"message\": \"About 15 people\", \"leadData\": {\"toolCount\": 10, \"teamSize\": 15}}\nOutput:\n{\n  \"reply\": \"Got it - 15 people juggling 10 disconnected tools. Conservative estimate: if each person spends just 30 minutes a day on duplicate data entry, that's 7.5 hours daily = 37.5 hours weekly. At $25/hour blended rate, you're losing about $4,050/month to inefficiency. Sound about right?\",\n  \"quickReplies\": [\"Yeah, probably accurate\", \"Maybe even more\", \"That seems high\"],\n  \"showCostCard\": true,\n  \"costAmount\": 4050,\n  \"showCalendar\": false\n}\n\n**Offering Calendar**:\nInput: {\"message\": \"Yeah that's probably right, maybe even more\"}\nOutput:\n{\n  \"reply\": \"I thought so. Here's the good news: about 70% of that waste can be eliminated in 4-6 weeks with proper integration and automation. The fastest way to get a custom plan is a quick 15-minute call. I've helped 47 businesses recover an average of $6,200/month. Want to grab a time?\",\n  \"quickReplies\": [\"Yes, let's book it\", \"Tell me more first\"],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": true\n}\n\nNow respond to the user's message following these guidelines. Be conversational, ask smart questions, and help them see the real cost of their operational chaos.`;\n\n// Get input data from previous node\nconst inputData = $input.first().json;\n\nreturn [{\n  json: {\n    systemPrompt,\n    userMessage: inputData.userMessage,\n    conversationHistory: inputData.conversationHistory || [],\n    userName: inputData.userName,\n    userEmail: inputData.userEmail,\n    leadData: inputData.leadData || {},\n    timestamp: inputData.timestamp\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 160],
+      "id": "code-system-prompt-001",
+      "name": "Code - Generate System Prompt"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Model Selection Logic\n// Default: FREE Gemini model\n// Upgrade: Premium Claude for high-value qualified leads (ROI-positive)\n\nconst inputData = $input.first().json;\n\n// Default to free model\nlet selectedModel = 'google/gemini-2.0-flash-exp:free';\nlet modelTier = 'free';\n\n// Extract lead data for qualification check\nconst leadData = inputData.leadData || {};\nconst estimatedCost = leadData.estimatedCost || leadData.lastCalculatedCost || 0;\nconst messageCount = inputData.conversationHistory?.length || 0;\nconst teamSize = leadData.teamSize || 0;\n\n// Qualification criteria for premium model upgrade\nconst isHighValue = estimatedCost > 5000 || teamSize > 15;\nconst isEngaged = messageCount > 6;\nconst hasEmail = !!inputData.userEmail;\n\n// Upgrade to premium model for high-value qualified leads\n// Worth ~$0.15 per request to close a potential $10K+ client\nif (isHighValue && isEngaged) {\n  selectedModel = 'anthropic/claude-sonnet-4';\n  modelTier = 'premium';\n}\n\n// Build messages array for OpenRouter\nconst messages = [\n  {\n    role: 'system',\n    content: inputData.systemPrompt\n  }\n];\n\n// Add conversation history\nif (inputData.conversationHistory && inputData.conversationHistory.length > 0) {\n  for (const msg of inputData.conversationHistory) {\n    messages.push({\n      role: msg.role,\n      content: msg.content\n    });\n  }\n}\n\n// Add current user message\nmessages.push({\n  role: 'user',\n  content: inputData.userMessage\n});\n\nreturn [{\n  json: {\n    selectedModel,\n    modelTier,\n    isHighValue,\n    isEngaged,\n    messages,\n    userMessage: inputData.userMessage,\n    conversationHistory: inputData.conversationHistory,\n    userName: inputData.userName,\n    userEmail: inputData.userEmail,\n    leadData: inputData.leadData,\n    timestamp: inputData.timestamp\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 160],
+      "id": "code-select-model-001",
+      "name": "Code - Select Model"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://aasani.ai"
+            },
+            {
+              "name": "X-Title",
+              "value": "Aasani AI Chat Assistant"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $json.selectedModel }}\",\n  \"messages\": {{ JSON.stringify($json.messages) }},\n  \"temperature\": 0.7,\n  \"max_tokens\": 1024,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"route\": \"fallback\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 160],
+      "id": "http-openrouter-001",
+      "name": "HTTP - OpenRouter API",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-api-key",
+          "name": "OpenRouter API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process OpenRouter API Response\n// Handles both valid JSON responses and fallback for invalid responses\n\nconst apiResponse = $input.first().json;\nconst prevData = $('Code - Select Model').first().json;\n\n// Extract the AI's response content\nconst content = apiResponse.choices?.[0]?.message?.content;\n\nif (!content) {\n  // No response from API - return fallback\n  return [{\n    json: {\n      reply: \"I'm here to help! Could you tell me more about your operational challenges?\",\n      quickReplies: [\"Tool integration issues\", \"Manual data entry\", \"Team coordination\", \"Process efficiency\"],\n      showCostCard: false,\n      costAmount: 0,\n      showCalendar: false,\n      userName: prevData.userName,\n      userEmail: prevData.userEmail,\n      leadData: prevData.leadData,\n      isQualified: false,\n      modelUsed: prevData.selectedModel,\n      modelTier: prevData.modelTier,\n      timestamp: prevData.timestamp,\n      error: 'No response from API'\n    }\n  }];\n}\n\n// Parse JSON response from AI\nlet parsedResponse;\ntry {\n  parsedResponse = JSON.parse(content);\n} catch (e) {\n  // Fallback if AI didn't return valid JSON\n  console.error('Failed to parse AI response as JSON:', e.message);\n  parsedResponse = {\n    reply: content.substring(0, 500), // Use raw content truncated\n    quickReplies: [],\n    showCostCard: false,\n    costAmount: 0,\n    showCalendar: false\n  };\n}\n\n// Validate and normalize required fields\nif (!parsedResponse.reply || typeof parsedResponse.reply !== 'string') {\n  parsedResponse.reply = \"I'm here to help! What operational challenges are you facing?\";\n}\n\n// Ensure arrays/booleans have correct types\nparsedResponse.quickReplies = Array.isArray(parsedResponse.quickReplies) \n  ? parsedResponse.quickReplies.slice(0, 4) // Max 4 quick replies\n  : [];\nparsedResponse.showCostCard = Boolean(parsedResponse.showCostCard);\nparsedResponse.showCalendar = Boolean(parsedResponse.showCalendar);\nparsedResponse.costAmount = Number(parsedResponse.costAmount) || 0;\n\n// Update lead data with calculated cost\nconst updatedLeadData = {\n  ...prevData.leadData,\n  lastCalculatedCost: parsedResponse.costAmount || prevData.leadData?.lastCalculatedCost || 0\n};\n\n// Determine qualification status\n// Qualified if: calendar shown OR cost > $3000 OR high engagement with cost shown\nconst messageCount = prevData.conversationHistory?.length || 0;\nconst isQualified = parsedResponse.showCalendar || \n                   parsedResponse.costAmount > 3000 ||\n                   (messageCount > 4 && parsedResponse.showCostCard);\n\n// Track API usage metadata\nconst usage = apiResponse.usage || {};\n\nreturn [{\n  json: {\n    // Response data for chat\n    reply: parsedResponse.reply,\n    quickReplies: parsedResponse.quickReplies,\n    showCostCard: parsedResponse.showCostCard,\n    costAmount: parsedResponse.costAmount,\n    showCalendar: parsedResponse.showCalendar,\n    \n    // Lead metadata\n    userName: prevData.userName,\n    userEmail: prevData.userEmail,\n    leadData: updatedLeadData,\n    isQualified,\n    \n    // Tracking data\n    modelUsed: prevData.selectedModel,\n    modelTier: prevData.modelTier,\n    timestamp: prevData.timestamp,\n    messageCount: messageCount + 1,\n    tokensUsed: usage.total_tokens || 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 160],
+      "id": "code-process-response-001",
+      "name": "Code - Process Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "qualified-check",
+              "leftValue": "={{ $json.isQualified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 160],
+      "id": "if-qualified-001",
+      "name": "IF - Is Qualified Lead?"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Name": "={{ $json.userName || 'Not provided' }}",
+            "Email": "={{ $json.userEmail || 'Not provided' }}",
+            "Estimated Cost": "={{ $json.costAmount }}",
+            "Lead Data": "={{ JSON.stringify($json.leadData) }}",
+            "Status": "New",
+            "Source": "AI Chat",
+            "Model Used": "={{ $json.modelUsed }}",
+            "Notes": ""
+          },
+          "schema": [
+            {"id": "Timestamp", "displayName": "Timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Name", "displayName": "Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Estimated Cost", "displayName": "Estimated Cost", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": true},
+            {"id": "Lead Data", "displayName": "Lead Data", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Source", "displayName": "Source", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Model Used", "displayName": "Model Used", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Notes", "displayName": "Notes", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1560, 60],
+      "id": "sheets-save-lead-001",
+      "name": "Google Sheets - Save Lead",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.OWNER_EMAIL || 'hello@aasani.ai' }}",
+        "subject": "=🔥 New Qualified Lead from AI Chat - {{ $json.userName || 'Unknown' }}",
+        "message": "=<h2>New Qualified Lead!</h2>\n<p>A qualified lead just came through the AI chat assistant.</p>\n\n<h3>Lead Details:</h3>\n<ul>\n  <li><strong>Name:</strong> {{ $json.userName || 'Not provided' }}</li>\n  <li><strong>Email:</strong> {{ $json.userEmail || 'Not provided' }}</li>\n  <li><strong>Estimated Monthly Cost:</strong> ${{ $json.costAmount }}/month</li>\n  <li><strong>Model Used:</strong> {{ $json.modelUsed }}</li>\n  <li><strong>Model Tier:</strong> {{ $json.modelTier }}</li>\n  <li><strong>Calendar Shown:</strong> {{ $json.showCalendar ? 'Yes' : 'No' }}</li>\n  <li><strong>Message Count:</strong> {{ $json.messageCount }}</li>\n</ul>\n\n<h3>Lead Data:</h3>\n<pre>{{ JSON.stringify($json.leadData, null, 2) }}</pre>\n\n<p><strong>Timestamp:</strong> {{ $json.timestamp }}</p>\n\n<hr>\n<p><small>Check Google Sheets for full lead details. Respond promptly for best conversion!</small></p>",
+        "options": {
+          "replyTo": "={{ $json.userEmail || '' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1560, 260],
+      "id": "gmail-notify-001",
+      "name": "Gmail - Notify",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Gmail OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "merge-response",
+              "name": "response",
+              "value": "={{ $('Code - Process Response').first().json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1780, 160],
+      "id": "set-merge-001",
+      "name": "Set - Merge Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"reply\": {{ JSON.stringify($json.response.reply) }},\n  \"quickReplies\": {{ JSON.stringify($json.response.quickReplies) }},\n  \"showCostCard\": {{ $json.response.showCostCard }},\n  \"costAmount\": {{ $json.response.costAmount }},\n  \"showCalendar\": {{ $json.response.showCalendar }}\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 160],
+      "id": "webhook-response-001",
+      "name": "Webhook Response - Send to Chat"
+    },
+    {
+      "parameters": {
+        "content": "## Lead Qualification Flow\n\n**Qualified if ANY:**\n- showCalendar = true\n- costAmount > $3,000\n- 4+ messages + costCard shown\n\n**When qualified:**\n1. Save to Google Sheets\n2. Send email notification\n3. Both run in parallel\n4. Response sent regardless\n\n**Continue on fail:**\nSheets/Gmail failures don't block response",
+        "height": 320,
+        "width": 300,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1540, -180],
+      "typeVersion": 1,
+      "id": "qualification-note-001",
+      "name": "Qualification Note"
+    },
+    {
+      "parameters": {
+        "content": "## Model Selection Strategy\n\n**FREE (90% of conversations):**\n- google/gemini-2.0-flash-exp:free\n- Fallback: deepseek/deepseek-r1:free\n- Cost: $0.00\n\n**PREMIUM (high-value leads):**\n- anthropic/claude-sonnet-4\n- Triggers when:\n  - estimatedCost > $5,000 OR\n  - teamSize > 15 AND\n  - messageCount > 6\n- Cost: ~$0.15/request\n- ROI: Worth it for $10K+ clients",
+        "height": 360,
+        "width": 300,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [640, -200],
+      "typeVersion": 1,
+      "id": "model-strategy-note-001",
+      "name": "Model Strategy Note"
+    }
+  ],
+  "connections": {
+    "Webhook - Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Set - Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Code - Generate System Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Generate System Prompt": {
+      "main": [
+        [
+          {
+            "node": "Code - Select Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Select Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP - OpenRouter API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - OpenRouter API": {
+      "main": [
+        [
+          {
+            "node": "Code - Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Response": {
+      "main": [
+        [
+          {
+            "node": "IF - Is Qualified Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Is Qualified Lead?": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Save Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail - Notify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - Merge Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Save Lead": {
+      "main": [
+        [
+          {
+            "node": "Set - Merge Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Notify": {
+      "main": [
+        [
+          {
+            "node": "Set - Merge Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Merge Response": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response - Send to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "aasani-chat-openrouter-v1"
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
