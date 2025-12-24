@@ -1,0 +1,345 @@
+{
+  "name": "Aasani AI Chat Assistant v2 (Native OpenRouter)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aasani AI Chat Assistant v2\n\n**Purpose:** Conversational AI for lead qualification\n\n**Uses Native OpenRouter Node:**\n- Works with existing credential\n- Simpler setup\n- google/gemini-2.0-flash-exp:free\n\n**Flow:**\n1. Receive chat via webhook\n2. Build messages with system prompt\n3. Call OpenRouter (native node)\n4. Parse response\n5. Save qualified leads\n6. Send notifications\n7. Return response",
+        "height": 340,
+        "width": 320,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, 0],
+      "typeVersion": 1,
+      "id": "intro-note-v2",
+      "name": "Intro Note"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aasani-chat-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "id": "webhook-v2-001",
+      "name": "Webhook - Chat Input",
+      "webhookId": "aasani-chat-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract input data and build the full prompt\nconst input = $input.first().json;\nconst body = input.body || input;\n\nconst userMessage = body.message || '';\nconst conversationHistory = body.conversationHistory || [];\nconst userName = body.userName || null;\nconst userEmail = body.userEmail || null;\nconst leadData = body.leadData || {};\nconst timestamp = body.timestamp || new Date().toISOString();\n\n// Build the system prompt\nconst systemPrompt = `You are an AI assistant for Aasani Systems, a workflow automation and AI consultancy.\n\n# Your Identity & Role\n- Represent Udy, founder of Aasani Systems (Austin, TX)\n- Consultative approach, not pushy sales\n- Data-driven but empathetic\n- Expert at identifying operational inefficiencies\n\n# About Aasani Systems\n**Philosophy**: \"Structure Before Intelligence\"\n- Build systematic foundations BEFORE implementing AI\n- Process design and human-in-the-loop workflows\n\n**Services & Pricing**:\n- Foundation Assessment: $5,500 (2-week operational audit)\n- System Build: Custom pricing\n- Smart Systems: AI-powered workflows\n- Ongoing Support: Retainer packages\n\n**Target Clients**: 5-50 employee businesses\n\n# Conversation Flow\n1. Get their name conversationally\n2. Discover their biggest operational pain point\n3. Ask clarifying questions:\n   - \"How many tools are you juggling?\"\n   - \"What's your team size?\"\n   - \"What industry are you in?\"\n4. Calculate monthly cost of their chaos\n5. Offer 15-min discovery call when qualified\n\n# Cost Calculation Formulas\n\n**Manual Data Entry**: Hours/week × 4.3 × $25 × team size\n**Tool Chaos**: Each tool = $150-200/month per person\n**Documentation Gap**: Extra onboarding weeks × 40 × hourly rate\n\n# Calendar Trigger (show when ALL true):\n- 3+ messages sent\n- Clear pain point\n- Cost > $3K/month acknowledged\n- Interest in solutions shown\n\n**Calendar**: https://cal.com/ayub-yousaf-c1ijnf/15min\n\n# Response Rules\n- 2-3 sentences max\n- Conversational, not corporate\n- Use their name once known\n- Show math for cost calculations\n\n# CRITICAL: JSON Response Format\nRespond with ONLY valid JSON:\n\n{\n  \"reply\": \"Your message here\",\n  \"quickReplies\": [\"Option 1\", \"Option 2\"],\n  \"showCostCard\": false,\n  \"costAmount\": 0,\n  \"showCalendar\": false\n}\n\nFields:\n- reply: String, your response\n- quickReplies: Array of 2-4 short options (or empty [])\n- showCostCard: true only when you calculated their waste\n- costAmount: Monthly cost in dollars\n- showCalendar: true only when fully qualified`;\n\n// Build messages array\nconst messages = [];\n\n// Add conversation history\nif (conversationHistory.length > 0) {\n  for (const msg of conversationHistory) {\n    messages.push({\n      role: msg.role,\n      content: msg.content\n    });\n  }\n}\n\n// Add current user message\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\n// Build the full prompt for the LLM\nconst fullPrompt = systemPrompt + '\\n\\nConversation so far:\\n' + \n  messages.map(m => `${m.role}: ${m.content}`).join('\\n') +\n  '\\n\\nRespond with valid JSON only:';\n\nreturn [{\n  json: {\n    fullPrompt,\n    userMessage,\n    conversationHistory,\n    userName,\n    userEmail,\n    leadData,\n    timestamp,\n    messageCount: conversationHistory.length + 1\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 200],
+      "id": "code-build-prompt-v2",
+      "name": "Code - Build Prompt"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.0-flash-exp:free",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1024
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [660, 340],
+      "id": "openrouter-model-v2",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "dkHyqaKDXnOTT5i0",
+          "name": "OpenRouter - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "prompt": "={{ $json.fullPrompt }}",
+        "hasOutputParser": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [440, 200],
+      "id": "llm-chain-v2",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the LLM response and extract JSON\nconst input = $input.first().json;\nconst prevData = $('Code - Build Prompt').first().json;\n\n// Get the response text\nlet responseText = input.response?.text || input.text || input.output || '';\n\n// Try to extract JSON from the response\nlet parsedResponse;\ntry {\n  // Try to find JSON in the response\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsedResponse = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No JSON found in response');\n  }\n} catch (e) {\n  // Fallback response\n  parsedResponse = {\n    reply: responseText.substring(0, 500) || \"I'm here to help! What operational challenges are you facing?\",\n    quickReplies: [\"Tool integration\", \"Manual data entry\", \"Team coordination\"],\n    showCostCard: false,\n    costAmount: 0,\n    showCalendar: false\n  };\n}\n\n// Normalize fields\nparsedResponse.reply = parsedResponse.reply || \"How can I help you today?\";\nparsedResponse.quickReplies = Array.isArray(parsedResponse.quickReplies) ? parsedResponse.quickReplies.slice(0, 4) : [];\nparsedResponse.showCostCard = Boolean(parsedResponse.showCostCard);\nparsedResponse.showCalendar = Boolean(parsedResponse.showCalendar);\nparsedResponse.costAmount = Number(parsedResponse.costAmount) || 0;\n\n// Determine qualification\nconst isQualified = parsedResponse.showCalendar || \n                   parsedResponse.costAmount > 3000 ||\n                   (prevData.messageCount > 4 && parsedResponse.showCostCard);\n\nreturn [{\n  json: {\n    ...parsedResponse,\n    userName: prevData.userName,\n    userEmail: prevData.userEmail,\n    leadData: {\n      ...prevData.leadData,\n      lastCalculatedCost: parsedResponse.costAmount\n    },\n    isQualified,\n    timestamp: prevData.timestamp,\n    messageCount: prevData.messageCount\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 200],
+      "id": "code-parse-response-v2",
+      "name": "Code - Parse Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "qualified",
+              "leftValue": "={{ $json.isQualified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 200],
+      "id": "if-qualified-v2",
+      "name": "IF - Qualified?"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Name": "={{ $json.userName || 'Not provided' }}",
+            "Email": "={{ $json.userEmail || 'Not provided' }}",
+            "Estimated Cost": "={{ $json.costAmount }}",
+            "Lead Data": "={{ JSON.stringify($json.leadData) }}",
+            "Status": "New",
+            "Source": "AI Chat v2"
+          },
+          "schema": [
+            {"id": "Timestamp", "displayName": "Timestamp", "type": "string"},
+            {"id": "Name", "displayName": "Name", "type": "string"},
+            {"id": "Email", "displayName": "Email", "type": "string"},
+            {"id": "Estimated Cost", "displayName": "Estimated Cost", "type": "number"},
+            {"id": "Lead Data", "displayName": "Lead Data", "type": "string"},
+            {"id": "Status", "displayName": "Status", "type": "string"},
+            {"id": "Source", "displayName": "Source", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 100],
+      "id": "sheets-v2",
+      "name": "Google Sheets - Save Lead",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.OWNER_EMAIL || 'hello@aasani.ai' }}",
+        "subject": "=🔥 Qualified Lead: {{ $json.userName || 'Unknown' }} - ${{ $json.costAmount }}/mo",
+        "message": "=<h2>New Qualified Lead!</h2>\n<ul>\n<li><strong>Name:</strong> {{ $json.userName || 'Not provided' }}</li>\n<li><strong>Email:</strong> {{ $json.userEmail || 'Not provided' }}</li>\n<li><strong>Monthly Cost:</strong> ${{ $json.costAmount }}</li>\n<li><strong>Calendar Shown:</strong> {{ $json.showCalendar ? 'Yes' : 'No' }}</li>\n</ul>\n<p><strong>Timestamp:</strong> {{ $json.timestamp }}</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1100, 300],
+      "id": "gmail-v2",
+      "name": "Gmail - Notify",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Gmail OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "response",
+              "name": "response",
+              "value": "={{ $('Code - Parse Response').first().json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 200],
+      "id": "set-merge-v2",
+      "name": "Set - Merge"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"reply\": {{ JSON.stringify($json.response.reply) }},\n  \"quickReplies\": {{ JSON.stringify($json.response.quickReplies) }},\n  \"showCostCard\": {{ $json.response.showCostCard }},\n  \"costAmount\": {{ $json.response.costAmount }},\n  \"showCalendar\": {{ $json.response.showCalendar }}\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1540, 200],
+      "id": "webhook-response-v2",
+      "name": "Webhook Response"
+    }
+  ],
+  "connections": {
+    "Webhook - Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Code - Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parse Response": {
+      "main": [
+        [
+          {
+            "node": "IF - Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Save Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail - Notify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Save Lead": {
+      "main": [
+        [
+          {
+            "node": "Set - Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Notify": {
+      "main": [
+        [
+          {
+            "node": "Set - Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Merge": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "aasani-chat-v2-native"
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
