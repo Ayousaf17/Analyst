@@ -1,0 +1,545 @@
+{
+  "name": "Aasani Lead Capture System",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aasani Lead Capture System\n\n**Purpose:** Capture leads from Framer website form and process them\n\n**Flow:**\n1. Receive webhook from Framer form\n2. Validate & clean data\n3. Check for duplicate in Notion CRM\n4. Create or update Notion record\n5. Send auto-reply to lead\n6. Notify owner (Email + Slack)\n7. Return success response\n\n**Credentials Required:**\n- Notion Aasani HQ (OAuth2)\n- Google Workspace - Ayub (Gmail)\n- Slack (optional)\n\n**Webhook URL:**\n`https://axistential.app.n8n.cloud/webhook/lead-capture`",
+        "height": 420,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, -100],
+      "typeVersion": 1,
+      "id": "intro-note",
+      "name": "Intro Note"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "id": "webhook-lead-capture",
+      "name": "Webhook - Lead Form",
+      "webhookId": "aasani-lead-capture"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and Clean Lead Data\nconst input = $input.first().json;\nconst body = input.body || input;\n\n// Extract fields with defaults\nconst name = (body.name || '').trim();\nconst email = (body.email || '').trim().toLowerCase();\nconst company = (body.company || '').trim();\nconst phone = (body.phone || '').trim();\nconst message = (body.message || '').trim();\n\n// Validation - name and email are required\nif (!name) {\n  throw new Error('Name is required');\n}\nif (!email || !email.includes('@')) {\n  throw new Error('Valid email is required');\n}\n\n// Extract company domain from email if company not provided\nlet companyName = company;\nif (!companyName && email.includes('@')) {\n  const domain = email.split('@')[1];\n  // Skip common email providers\n  const commonProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com'];\n  if (!commonProviders.includes(domain)) {\n    // Capitalize domain name\n    companyName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);\n  }\n}\n\n// Format phone number (basic cleanup)\nlet formattedPhone = phone.replace(/[^0-9+]/g, '');\nif (formattedPhone && !formattedPhone.startsWith('+')) {\n  formattedPhone = '+1' + formattedPhone; // Default to US\n}\n\n// Generate dates\nconst today = new Date();\nconst tomorrow = new Date(today);\ntomorrow.setDate(tomorrow.getDate() + 1);\n\nconst todayISO = today.toISOString().split('T')[0];\nconst tomorrowISO = tomorrow.toISOString().split('T')[0];\nconst timestamp = today.toISOString();\n\nreturn [{\n  json: {\n    // Cleaned data\n    name,\n    email,\n    company: companyName || 'Unknown',\n    phone: formattedPhone || null,\n    message: message || 'No message provided',\n    \n    // Metadata\n    source: 'Website',\n    stage: 'New Lead',\n    next_action: 'Follow up within 24 hours',\n    next_action_date: tomorrowISO,\n    last_contact_date: todayISO,\n    timestamp,\n    \n    // For duplicate check\n    email_lower: email\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 200],
+      "id": "code-validate-data",
+      "name": "Validate & Clean Data"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_CRM_DATABASE_ID",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "string",
+        "filterJson": "={{ JSON.stringify({ property: 'Email', email: { equals: $json.email_lower } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [440, 200],
+      "id": "notion-check-duplicate",
+      "name": "Check Duplicate in CRM",
+      "credentials": {
+        "notionApi": {
+          "id": "notion-aasani-hq",
+          "name": "Notion Aasani HQ"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "duplicate-check",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 200],
+      "id": "if-duplicate",
+      "name": "Is Duplicate?"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('Check Duplicate in CRM').item.json.id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Last Contact Date|date",
+              "dateValue": "={{ $('Validate & Clean Data').item.json.last_contact_date }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textValue": "=UPDATED {{ $('Validate & Clean Data').item.json.timestamp }}:\n{{ $('Validate & Clean Data').item.json.message }}\n\n---\nPrevious notes above"
+            },
+            {
+              "key": "Next Action|rich_text",
+              "textValue": "={{ $('Validate & Clean Data').item.json.next_action }}"
+            },
+            {
+              "key": "Next Action Date|date",
+              "dateValue": "={{ $('Validate & Clean Data').item.json.next_action_date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [880, 100],
+      "id": "notion-update-existing",
+      "name": "Update Existing Record",
+      "credentials": {
+        "notionApi": {
+          "id": "notion-aasani-hq",
+          "name": "Notion Aasani HQ"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_CRM_DATABASE_ID",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Name|title",
+              "textValue": "={{ $('Validate & Clean Data').item.json.name }}"
+            },
+            {
+              "key": "Email|email",
+              "textValue": "={{ $('Validate & Clean Data').item.json.email }}"
+            },
+            {
+              "key": "Company|rich_text",
+              "textValue": "={{ $('Validate & Clean Data').item.json.company }}"
+            },
+            {
+              "key": "Phone|phone_number",
+              "phoneValue": "={{ $('Validate & Clean Data').item.json.phone }}"
+            },
+            {
+              "key": "Source|select",
+              "selectValue": "Website"
+            },
+            {
+              "key": "Stage|select",
+              "selectValue": "New Lead"
+            },
+            {
+              "key": "Next Action|rich_text",
+              "textValue": "={{ $('Validate & Clean Data').item.json.next_action }}"
+            },
+            {
+              "key": "Next Action Date|date",
+              "dateValue": "={{ $('Validate & Clean Data').item.json.next_action_date }}"
+            },
+            {
+              "key": "Last Contact Date|date",
+              "dateValue": "={{ $('Validate & Clean Data').item.json.last_contact_date }}"
+            },
+            {
+              "key": "Estimated Value|number",
+              "numberValue": 0
+            },
+            {
+              "key": "Notes|rich_text",
+              "textValue": "={{ $('Validate & Clean Data').item.json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [880, 300],
+      "id": "notion-create-new",
+      "name": "Create New Record",
+      "credentials": {
+        "notionApi": {
+          "id": "notion-aasani-hq",
+          "name": "Notion Aasani HQ"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "merge-data",
+              "name": "lead",
+              "value": "={{ $('Validate & Clean Data').item.json }}",
+              "type": "object"
+            },
+            {
+              "id": "notion-id",
+              "name": "notion_record_id",
+              "value": "={{ $json.id || $('Check Duplicate in CRM').item.json.id || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "is-duplicate",
+              "name": "is_duplicate",
+              "value": "={{ $('Is Duplicate?').item.json.id ? true : false }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 200],
+      "id": "set-merge-data",
+      "name": "Merge Lead Data"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.lead.email }}",
+        "subject": "Thanks for reaching out to Aasani Systems",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <p>Hi {{ $json.lead.name }},</p>\n  \n  <p>Thanks for reaching out! I received your message about workflow automation.</p>\n  \n  <p>I'll review your challenge and get back to you within 24 hours with some initial thoughts on how we can help.</p>\n  \n  <p>In the meantime, here's a quick look at our approach:</p>\n  \n  <blockquote style=\"border-left: 3px solid #1a1a2e; padding-left: 15px; margin: 20px 0; color: #555;\">\n    <strong>\"Structure Before Intelligence\"</strong><br>\n    We build systematic foundations BEFORE implementing AI. This ensures your automations are reliable, maintainable, and actually solve the right problems.\n  </blockquote>\n  \n  <p>Looking forward to connecting,</p>\n  \n  <p style=\"margin-top: 30px;\">\n    <strong>Ayub Yousaf</strong><br>\n    Founder, Aasani Systems<br>\n    <a href=\"https://aasani.ai\" style=\"color: #4A90D9;\">aasani.ai</a>\n  </p>\n</div>",
+        "options": {
+          "replyTo": "ayub@aasani.ai"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1320, 200],
+      "id": "gmail-auto-reply",
+      "name": "Send Auto-Reply Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-ayub",
+          "name": "Google Workspace - Ayub"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ayub@aasani.ai",
+        "subject": "=🚨 New Lead: {{ $json.lead.name }} from {{ $json.lead.company }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif;\">\n  <h2 style=\"color: #1a1a2e;\">New Lead Captured from aasani.ai</h2>\n  \n  <table style=\"width: 100%; border-collapse: collapse; margin: 20px 0;\">\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\"><strong>Name:</strong></td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">{{ $json.lead.name }}</td>\n    </tr>\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\"><strong>Email:</strong></td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\"><a href=\"mailto:{{ $json.lead.email }}\">{{ $json.lead.email }}</a></td>\n    </tr>\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\"><strong>Company:</strong></td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">{{ $json.lead.company }}</td>\n    </tr>\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\"><strong>Phone:</strong></td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">{{ $json.lead.phone || 'Not provided' }}</td>\n    </tr>\n  </table>\n  \n  <div style=\"background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <strong>Message:</strong><br>\n    <p style=\"margin: 10px 0 0 0;\">{{ $json.lead.message }}</p>\n  </div>\n  \n  <table style=\"width: 100%; margin: 20px 0;\">\n    <tr>\n      <td><strong>Source:</strong> Website Form</td>\n      <td><strong>Added to CRM:</strong> ✅ Yes</td>\n    </tr>\n    <tr>\n      <td><strong>Status:</strong> {{ $json.is_duplicate ? '⚠️ Duplicate (Updated)' : '🆕 New Lead' }}</td>\n      <td><strong>Follow up by:</strong> Tomorrow</td>\n    </tr>\n  </table>\n  \n  <p style=\"margin-top: 20px;\">\n    <a href=\"https://www.notion.so/{{ $json.notion_record_id.replace(/-/g, '') }}\" style=\"background: #4A90D9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">View in Notion</a>\n  </p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1540, 100],
+      "id": "gmail-notify-owner",
+      "name": "Email Notification to Owner",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-ayub",
+          "name": "Google Workspace - Ayub"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "leads",
+          "mode": "name"
+        },
+        "text": "=🚨 *New Lead Captured*\n\n*Name:* {{ $json.lead.name }}\n*Company:* {{ $json.lead.company }}\n*Email:* {{ $json.lead.email }}\n*Phone:* {{ $json.lead.phone || 'Not provided' }}\n*Source:* Website\n\n*Message:*\n> {{ $json.lead.message }}\n\n✅ Added to Notion CRM {{ $json.is_duplicate ? '(Updated existing)' : '(New record)' }}\n📅 Follow up by: Tomorrow",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1540, 300],
+      "id": "slack-notify-owner",
+      "name": "Slack Notification",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "slack-aasani",
+          "name": "Slack Aasani"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "prepare-response",
+              "name": "response",
+              "value": "={{ { success: true, message: \"Thanks! We'll be in touch within 24 hours.\", lead_id: $('Merge Lead Data').item.json.notion_record_id } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1760, 200],
+      "id": "set-prepare-response",
+      "name": "Prepare Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Thanks! We'll be in touch within 24 hours.\",\n  \"lead_id\": \"{{ $('Merge Lead Data').item.json.notion_record_id }}\"\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1980, 200],
+      "id": "webhook-response",
+      "name": "Success Response"
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\n\nAll critical nodes have `continueOnFail: true` where appropriate:\n- Notion duplicate check (might fail if DB not found)\n- Email/Slack notifications (shouldn't block response)\n\nThe validation node throws errors for:\n- Missing name\n- Invalid email\n\nThese will return error to webhook caller.",
+        "height": 220,
+        "width": 300,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, 340],
+      "typeVersion": 1,
+      "id": "error-handling-note",
+      "name": "Error Handling Note"
+    },
+    {
+      "parameters": {
+        "content": "## Duplicate Handling\n\n**If email exists in CRM:**\n- Update last contact date\n- Append new message to notes\n- Update next action\n- Flag as duplicate in response\n\n**If new email:**\n- Create full new record\n- All fields populated",
+        "height": 220,
+        "width": 260,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [640, -100],
+      "typeVersion": 1,
+      "id": "duplicate-handling-note",
+      "name": "Duplicate Handling Note"
+    },
+    {
+      "parameters": {
+        "content": "## Notifications (Parallel)\n\n**Email to Owner:**\n- Full lead details\n- Link to Notion record\n- Status badges\n\n**Slack (Optional):**\n- Quick summary\n- Channel: #leads\n- ContinueOnFail if not connected",
+        "height": 200,
+        "width": 260,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1520, -100],
+      "typeVersion": 1,
+      "id": "notifications-note",
+      "name": "Notifications Note"
+    }
+  ],
+  "connections": {
+    "Webhook - Lead Form": {
+      "main": [
+        [
+          {
+            "node": "Validate & Clean Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Clean Data": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate in CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate in CRM": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Update Existing Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create New Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Existing Record": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Record": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Send Auto-Reply Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Auto-Reply Email": {
+      "main": [
+        [
+          {
+            "node": "Email Notification to Owner",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Notification to Owner": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Notification": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "aasani-lead-capture-v1"
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
