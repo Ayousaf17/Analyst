@@ -3,25 +3,34 @@
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "stripe-finance",
-        "options": {
-          "rawBody": true
-        }
+        "events": [
+          "charge.succeeded",
+          "invoice.paid",
+          "invoice.payment_failed",
+          "customer.subscription.created",
+          "customer.subscription.deleted",
+          "charge.refunded"
+        ]
       },
-      "id": "webhook-stripe",
-      "name": "Webhook - Stripe Events",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "id": "stripe-trigger",
+      "name": "Stripe Trigger",
+      "type": "n8n-nodes-base.stripeTrigger",
+      "typeVersion": 1,
       "position": [240, 300],
-      "webhookId": "stripe-finance-webhook"
+      "webhookId": "stripe-finance-webhook",
+      "credentials": {
+        "stripeApi": {
+          "id": "stripe-credential-id",
+          "name": "Stripe - Aasani"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Verify Stripe webhook signature\nconst crypto = require('crypto');\n\nconst webhookSecret = $env.STRIPE_WEBHOOK_SECRET || 'whsec_your_webhook_secret';\nconst signature = $input.first().headers['stripe-signature'];\nconst payload = $input.first().rawBody;\n\n// Parse signature header\nconst sigParts = {};\nsignature.split(',').forEach(part => {\n  const [key, value] = part.split('=');\n  sigParts[key] = value;\n});\n\nconst timestamp = sigParts['t'];\nconst expectedSig = sigParts['v1'];\n\n// Create signed payload\nconst signedPayload = `${timestamp}.${payload}`;\n\n// Calculate expected signature\nconst hmac = crypto.createHmac('sha256', webhookSecret);\nhmac.update(signedPayload);\nconst calculatedSig = hmac.digest('hex');\n\n// Verify signature (in production, use constant-time comparison)\nconst isValid = calculatedSig === expectedSig;\n\n// Check timestamp (prevent replay attacks - 5 min tolerance)\nconst currentTime = Math.floor(Date.now() / 1000);\nconst tolerance = 300; // 5 minutes\nconst isTimestampValid = Math.abs(currentTime - parseInt(timestamp)) < tolerance;\n\nif (!isValid || !isTimestampValid) {\n  throw new Error('Invalid Stripe webhook signature');\n}\n\n// Parse and return the event\nconst event = JSON.parse(payload);\n\nreturn [{\n  json: {\n    eventType: event.type,\n    eventId: event.id,\n    created: new Date(event.created * 1000).toISOString(),\n    data: event.data.object,\n    livemode: event.livemode\n  }\n}];"
+        "jsCode": "// Extract event type and data from Stripe Trigger\nconst event = $input.first().json;\n\nreturn [{\n  json: {\n    eventType: event.type,\n    eventId: event.id,\n    created: new Date(event.created * 1000).toISOString(),\n    data: event.data.object,\n    livemode: event.livemode\n  }\n}];"
       },
-      "id": "code-verify-signature",
-      "name": "Code - Verify Signature",
+      "id": "code-extract-event",
+      "name": "Code - Extract Event",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [460, 300]
@@ -682,20 +691,6 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\"received\": true, \"eventId\": \"{{ $('Code - Verify Signature').item.json.eventId }}\"}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "respond-webhook",
-      "name": "Respond to Webhook",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [2020, 300]
-    },
-    {
-      "parameters": {
         "jsCode": "// Error handler - log to Notion and notify\nconst error = $input.first().json;\n\nreturn [{\n  json: {\n    errorMessage: error.message || 'Unknown error',\n    errorStack: error.stack || '',\n    timestamp: new Date().toISOString(),\n    workflow: 'Stripe Revenue Tracker'\n  }\n}];"
       },
       "id": "code-error-handler",
@@ -724,18 +719,18 @@
     }
   ],
   "connections": {
-    "Webhook - Stripe Events": {
+    "Stripe Trigger": {
       "main": [
         [
           {
-            "node": "Code - Verify Signature",
+            "node": "Code - Extract Event",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Code - Verify Signature": {
+    "Code - Extract Event": {
       "main": [
         [
           {
@@ -843,17 +838,6 @@
         ]
       ]
     },
-    "Slack - Payment Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Code - Process Invoice": {
       "main": [
         [
@@ -883,28 +867,6 @@
         ]
       ]
     },
-    "Notion - Create Expense": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notion - Create Income (Subscription)": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Code - Process Failed Payment": {
       "main": [
         [
@@ -927,33 +889,11 @@
         ]
       ]
     },
-    "Slack - Failed Payment Alert": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Code - Process Subscription": {
       "main": [
         [
           {
             "node": "Slack - Subscription Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack - Subscription Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -976,17 +916,6 @@
         [
           {
             "node": "Slack - Refund Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack - Refund Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
