@@ -1,0 +1,332 @@
+{
+  "name": "Monthly Finance Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - 1st of Month 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get previous month date range\nconst now = new Date();\nconst firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);\n\nconst monthName = firstDayLastMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });\nconst monthShort = firstDayLastMonth.toLocaleString('en-US', { month: 'short', year: 'numeric' });\n\nreturn [{\n  json: {\n    monthName,\n    monthShort,\n    startDate: firstDayLastMonth.toISOString().split('T')[0],\n    endDate: lastDayLastMonth.toISOString().split('T')[0],\n    year: firstDayLastMonth.getFullYear(),\n    month: firstDayLastMonth.getMonth() + 1\n  }\n}];"
+      },
+      "id": "code-date-range",
+      "name": "Code - Get Month Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "returnAll": true,
+        "filterType": "json",
+        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $json.startDate }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $json.endDate }}\"\n      }\n    },\n    {\n      \"property\": \"Type\",\n      \"select\": {\n        \"equals\": \"Customer Payment\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notion-get-revenue",
+      "name": "Notion - Get Revenue",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 200],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+        },
+        "returnAll": true,
+        "filterType": "json",
+        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $('Code - Get Month Range').item.json.startDate }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $('Code - Get Month Range').item.json.endDate }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notion-get-expenses",
+      "name": "Notion - Get Expenses",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 400],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "returnAll": true,
+        "filterType": "json",
+        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $('Code - Get Month Range').item.json.startDate }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $('Code - Get Month Range').item.json.endDate }}\"\n      }\n    },\n    {\n      \"property\": \"Type\",\n      \"select\": {\n        \"equals\": \"Stripe Fee\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notion-get-fees",
+      "name": "Notion - Get Stripe Fees",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 600],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge all financial data and calculate metrics\nconst monthData = $('Code - Get Month Range').first().json;\nconst revenueItems = $('Notion - Get Revenue').all() || [];\nconst expenseItems = $('Notion - Get Expenses').all() || [];\nconst feeItems = $('Notion - Get Stripe Fees').all() || [];\n\n// Calculate revenue\nconst incomes = revenueItems.map(i => i.json);\nconst totalRevenue = incomes.reduce((sum, income) => \n  sum + (income.properties?.Amount?.number || 0), 0\n);\n\n// Calculate Stripe fees (negative amounts)\nconst fees = feeItems.map(f => f.json);\nconst totalStripeFees = Math.abs(\n  fees.reduce((sum, fee) => sum + (fee.properties?.Amount?.number || 0), 0)\n);\n\n// Calculate expenses by category\nconst expenses = expenseItems.map(e => e.json);\nconst expensesByCategory = {};\nlet totalExpenses = 0;\n\nexpenses.forEach(expense => {\n  const amount = expense.properties?.Amount?.number || 0;\n  totalExpenses += amount;\n  \n  // Get category name (simplified - would need relation lookup in production)\n  const category = expense.properties?.Categories?.relation?.[0]?.id || 'Uncategorized';\n  const merchant = expense.properties?.Expense?.title?.[0]?.plain_text || 'Unknown';\n  const date = expense.properties?.Date?.date?.start || '';\n  const receiptStatus = expense.properties?.['Receipt Status']?.select?.name || 'Unknown';\n  \n  if (!expensesByCategory[category]) {\n    expensesByCategory[category] = {\n      total: 0,\n      count: 0,\n      items: []\n    };\n  }\n  \n  expensesByCategory[category].total += amount;\n  expensesByCategory[category].count++;\n  expensesByCategory[category].items.push({\n    merchant,\n    amount,\n    date,\n    receiptStatus\n  });\n});\n\n// Sort categories by total\nconst sortedCategories = Object.entries(expensesByCategory)\n  .sort((a, b) => b[1].total - a[1].total)\n  .map(([name, data]) => ({\n    name,\n    ...data,\n    percentage: totalExpenses > 0 ? (data.total / totalExpenses * 100).toFixed(1) : 0\n  }));\n\n// Net profit\nconst netProfit = totalRevenue - totalExpenses - totalStripeFees;\nconst profitMargin = totalRevenue > 0 \n  ? (netProfit / totalRevenue * 100).toFixed(1)\n  : 0;\n\n// Missing receipts\nconst missingReceipts = expenses.filter(exp => \n  exp.properties?.['Receipt Status']?.select?.name === 'Pending'\n);\nconst missingReceiptsTotal = missingReceipts.reduce((sum, exp) => \n  sum + (exp.properties?.Amount?.number || 0), 0\n);\n\n// Top customers (from revenue)\nconst customerRevenue = {};\nincomes.forEach(income => {\n  const customer = income.properties?.Customer?.rich_text?.[0]?.plain_text || 'Unknown';\n  const amount = income.properties?.Amount?.number || 0;\n  customerRevenue[customer] = (customerRevenue[customer] || 0) + amount;\n});\n\nconst topCustomers = Object.entries(customerRevenue)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([name, amount]) => ({ name, amount }));\n\nreturn [{\n  json: {\n    ...monthData,\n    metrics: {\n      totalRevenue,\n      totalStripeFees,\n      totalExpenses,\n      netProfit,\n      profitMargin,\n      revenueCount: incomes.length,\n      expenseCount: expenses.length\n    },\n    sortedCategories,\n    topCustomers,\n    missingReceipts: {\n      count: missingReceipts.length,\n      total: missingReceiptsTotal,\n      items: missingReceipts.map(exp => ({\n        merchant: exp.properties?.Expense?.title?.[0]?.plain_text || 'Unknown',\n        amount: exp.properties?.Amount?.number || 0,\n        url: exp.url\n      }))\n    }\n  }\n}];"
+      },
+      "id": "code-calculate-metrics",
+      "name": "Code - Calculate Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Notion report content\nconst data = $input.first().json;\nconst { metrics, sortedCategories, topCustomers, missingReceipts, monthName } = data;\n\nlet reportContent = `# Finance Report - ${monthName}\\n\\n`;\n\nreportContent += `## Summary\\n\\n`;\nreportContent += `**Revenue:** $${metrics.totalRevenue.toFixed(2)}\\n`;\nreportContent += `**Expenses:** $${metrics.totalExpenses.toFixed(2)}\\n`;\nreportContent += `**Stripe Fees:** $${metrics.totalStripeFees.toFixed(2)}\\n`;\nreportContent += `**Net Profit:** $${metrics.netProfit.toFixed(2)} (${metrics.profitMargin}% margin)\\n\\n`;\n\nreportContent += `---\\n\\n`;\n\nreportContent += `## Revenue Breakdown\\n\\n`;\nreportContent += `**Total Customer Payments:** $${metrics.totalRevenue.toFixed(2)}\\n`;\nreportContent += `**Number of Transactions:** ${metrics.revenueCount}\\n`;\nreportContent += `**Average Transaction:** $${metrics.revenueCount > 0 ? (metrics.totalRevenue / metrics.revenueCount).toFixed(2) : '0.00'}\\n\\n`;\n\nif (topCustomers.length > 0) {\n  reportContent += `### Top Customers\\n\\n`;\n  topCustomers.forEach((c, i) => {\n    reportContent += `${i + 1}. ${c.name}: $${c.amount.toFixed(2)}\\n`;\n  });\n  reportContent += `\\n`;\n}\n\nreportContent += `---\\n\\n`;\n\nreportContent += `## Expense Breakdown by Category\\n\\n`;\nsortedCategories.forEach(cat => {\n  reportContent += `### ${cat.name} - $${cat.total.toFixed(2)} (${cat.percentage}%)\\n`;\n  reportContent += `- ${cat.count} transactions\\n`;\n  reportContent += `- Average: $${(cat.total / cat.count).toFixed(2)}\\n\\n`;\n  \n  // Top 3 expenses in category\n  const topItems = cat.items.sort((a, b) => b.amount - a.amount).slice(0, 3);\n  reportContent += `Top expenses:\\n`;\n  topItems.forEach((item, i) => {\n    reportContent += `${i + 1}. ${item.merchant} - $${item.amount.toFixed(2)}\\n`;\n  });\n  reportContent += `\\n`;\n});\n\nreportContent += `---\\n\\n`;\n\nreportContent += `## Action Items\\n\\n`;\nif (missingReceipts.count > 0) {\n  reportContent += `:warning: **Missing Receipts:** ${missingReceipts.count} expenses ($${missingReceipts.total.toFixed(2)})\\n\\n`;\n  missingReceipts.items.forEach(item => {\n    reportContent += `- ${item.merchant}: $${item.amount.toFixed(2)}\\n`;\n  });\n}\n\nreturn [{\n  json: {\n    ...data,\n    reportContent\n  }\n}];"
+      },
+      "id": "code-generate-report",
+      "name": "Code - Generate Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format email HTML\nconst data = $input.first().json;\nconst { metrics, sortedCategories, missingReceipts, monthName } = data;\n\nconst emailHtml = `\n<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <h1>:bar_chart: ${monthName} Finance Report</h1>\n  \n  <div style=\"background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n    <h2 style=\"margin-top: 0;\">Summary</h2>\n    <table style=\"width: 100%; border-collapse: collapse;\">\n      <tr>\n        <td style=\"padding: 8px;\"><strong>Revenue:</strong></td>\n        <td style=\"text-align: right; color: #10b981;\">$${metrics.totalRevenue.toFixed(2)}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px;\"><strong>Expenses:</strong></td>\n        <td style=\"text-align: right; color: #ef4444;\">$${metrics.totalExpenses.toFixed(2)}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px;\"><strong>Stripe Fees:</strong></td>\n        <td style=\"text-align: right; color: #ef4444;\">$${metrics.totalStripeFees.toFixed(2)}</td>\n      </tr>\n      <tr style=\"border-top: 2px solid #000;\">\n        <td style=\"padding: 8px;\"><strong>Net Profit:</strong></td>\n        <td style=\"text-align: right; font-size: 1.2em;\"><strong>$${metrics.netProfit.toFixed(2)}</strong> (${metrics.profitMargin}%)</td>\n      </tr>\n    </table>\n  </div>\n  \n  <h2>Top Expense Categories</h2>\n  <ol>\n    ${sortedCategories.slice(0, 5).map(cat => \n      `<li>${cat.name}: $${cat.total.toFixed(2)} (${cat.percentage}%)</li>`\n    ).join('')}\n  </ol>\n  \n  <h2>:warning: Action Items</h2>\n  <ul>\n    <li><strong>${missingReceipts.count} receipts still missing</strong> (total $${missingReceipts.total.toFixed(2)})</li>\n  </ul>\n  \n  <p style=\"margin-top: 30px;\">\n    <a href=\"https://notion.so\" style=\"background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;\">\n      View Full Report in Notion\n    </a>\n  </p>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...data,\n    emailHtml,\n    emailSubject: `:bar_chart: ${monthName} Finance Report - $${metrics.netProfit.toFixed(2)} Profit`\n  }\n}];"
+      },
+      "id": "code-format-email",
+      "name": "Code - Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.OWNER_EMAIL || 'ayub@aasani.ai' }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "gmail-send-report",
+      "name": "Gmail - Send Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1560, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Slack summary\nconst data = $input.first().json;\nconst { metrics, sortedCategories, missingReceipts, monthName } = data;\n\nlet message = `:bar_chart: *${monthName} Finance Report*\\n\\n`;\nmessage += `*Revenue:* $${metrics.totalRevenue.toFixed(2)}\\n`;\nmessage += `*Expenses:* $${metrics.totalExpenses.toFixed(2)}\\n`;\nmessage += `*Net Profit:* *$${metrics.netProfit.toFixed(2)}* (${metrics.profitMargin}% margin)\\n\\n`;\n\nmessage += `*Top Categories:*\\n`;\nsortedCategories.slice(0, 3).forEach((cat, i) => {\n  message += `${i + 1}. ${cat.name}: $${cat.total.toFixed(2)} (${cat.percentage}%)\\n`;\n});\nmessage += `\\n`;\n\nmessage += `:warning: *Action Items:*\\n`;\nmessage += `• ${missingReceipts.count} receipts missing ($${missingReceipts.total.toFixed(2)})\\n\\n`;\n\nmessage += `<https://notion.so|View Full Report>`;\n\nreturn [{\n  json: {\n    ...data,\n    slackMessage: message\n  }\n}];"
+      },
+      "id": "code-format-slack",
+      "name": "Code - Format Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "={{ $json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "id": "slack-send-summary",
+      "name": "Slack - Send Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2000, 400],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule - 1st of Month 8am": {
+      "main": [
+        [
+          {
+            "node": "Code - Get Month Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Get Month Range": {
+      "main": [
+        [
+          {
+            "node": "Notion - Get Revenue",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion - Get Expenses",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion - Get Stripe Fees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Revenue": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Expenses": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Stripe Fees": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Calculate Metrics": {
+      "main": [
+        [
+          {
+            "node": "Code - Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Code - Format Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format Email": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Send Report": {
+      "main": [
+        [
+          {
+            "node": "Code - Format Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format Slack": {
+      "main": [
+        [
+          {
+            "node": "Slack - Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Reports",
+      "id": "reports-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}

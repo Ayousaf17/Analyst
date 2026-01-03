@@ -1,0 +1,516 @@
+{
+  "name": "Relay Expense Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute",
+              "minute": 5
+            }
+          ]
+        },
+        "filters": {
+          "folderId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "INBOX"
+          },
+          "sender": "notifications@relayfi.com",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "gmail-trigger",
+      "name": "Gmail - Relay Emails",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "transaction",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "payment",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "charged",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "filter-transaction-emails",
+      "name": "Filter - Transaction Emails",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Relay transaction email\nconst email = $input.first().json;\nconst subject = email.subject || '';\nconst body = email.text || email.snippet || '';\n\n// Extract amount from subject: \"Card transaction: $45.00 at OpenAI\"\nconst amountMatch = subject.match(/\\$([0-9,]+\\.?[0-9]*)/);\nconst amount = amountMatch \n  ? parseFloat(amountMatch[1].replace(',', '')) \n  : 0;\n\n// Extract merchant from subject\nlet merchant = 'Unknown Merchant';\nconst merchantMatch = subject.match(/at\\s+(.+?)(?:\\s*$|\\s+on)/i);\nif (merchantMatch) {\n  merchant = merchantMatch[1].trim();\n} else {\n  // Try alternate pattern: \"$XX.XX by Merchant\"\n  const altMatch = subject.match(/by\\s+(.+?)(?:\\s*$|\\s+on)/i);\n  if (altMatch) {\n    merchant = altMatch[1].trim();\n  }\n}\n\n// Clean merchant name\nmerchant = merchant.replace(/[*#]+/g, '').trim();\n\n// Extract date from body\nlet transactionDate = new Date().toISOString().split('T')[0];\nconst datePatterns = [\n  /on\\s+([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /Date:\\s*([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})/,\n  /([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i\n];\n\nfor (const pattern of datePatterns) {\n  const dateMatch = body.match(pattern) || subject.match(pattern);\n  if (dateMatch) {\n    try {\n      const parsed = new Date(dateMatch[1]);\n      if (!isNaN(parsed.getTime())) {\n        transactionDate = parsed.toISOString().split('T')[0];\n        break;\n      }\n    } catch (e) {}\n  }\n}\n\n// Extract card last 4 digits\nconst cardMatch = body.match(/ending in (\\d{4})/) || body.match(/\\*{4}\\s*(\\d{4})/) || subject.match(/\\*+(\\d{4})/);\nconst cardLast4 = cardMatch ? cardMatch[1] : '';\n\n// Generate unique transaction ID\nconst timestamp = Date.now();\nconst transactionId = `relay_${cardLast4 || 'xxxx'}_${timestamp}`;\n\n// Calculate validation deadline (24 hours from now)\nconst deadline = new Date();\ndeadline.setHours(deadline.getHours() + 24);\nconst validationDeadline = deadline.toISOString();\n\nreturn [{\n  json: {\n    amount,\n    merchant,\n    transactionDate,\n    cardLast4,\n    transactionId,\n    validationDeadline,\n    source: 'Relay Card',\n    emailId: email.id,\n    rawSubject: subject,\n    rawBody: body.substring(0, 500)\n  }\n}];"
+      },
+      "id": "code-parse-email",
+      "name": "Code - Parse Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Auto-categorize merchant\nconst input = $input.first().json;\nconst merchant = input.merchant.toLowerCase();\n\nconst merchantCategories = {\n  // Software/SaaS\n  'openai': 'Software/SaaS',\n  'anthropic': 'Software/SaaS',\n  'claude': 'Software/SaaS',\n  'chatgpt': 'Software/SaaS',\n  'framer': 'Software/SaaS',\n  'github': 'Software/SaaS',\n  'google': 'Software/SaaS',\n  'aws': 'Software/SaaS',\n  'amazon web': 'Software/SaaS',\n  'vercel': 'Software/SaaS',\n  'n8n': 'Software/SaaS',\n  'notion': 'Software/SaaS',\n  'slack': 'Software/SaaS',\n  'zoom': 'Software/SaaS',\n  'figma': 'Software/SaaS',\n  'adobe': 'Software/SaaS',\n  'dropbox': 'Software/SaaS',\n  'microsoft': 'Software/SaaS',\n  'digitalocean': 'Software/SaaS',\n  'heroku': 'Software/SaaS',\n  'netlify': 'Software/SaaS',\n  'stripe': 'Software/SaaS',\n  'twilio': 'Software/SaaS',\n  'sendgrid': 'Software/SaaS',\n  'mailchimp': 'Software/SaaS',\n  'hubspot': 'Software/SaaS',\n  'intercom': 'Software/SaaS',\n  'loom': 'Software/SaaS',\n  'calendly': 'Software/SaaS',\n  'typeform': 'Software/SaaS',\n  'airtable': 'Software/SaaS',\n  'zapier': 'Software/SaaS',\n  'make': 'Software/SaaS',\n  'grammarly': 'Software/SaaS',\n  \n  // Travel & Transportation\n  'uber': 'Travel & Transportation',\n  'lyft': 'Travel & Transportation',\n  'delta': 'Travel & Transportation',\n  'united': 'Travel & Transportation',\n  'american airlines': 'Travel & Transportation',\n  'southwest': 'Travel & Transportation',\n  'jetblue': 'Travel & Transportation',\n  'airbnb': 'Travel & Transportation',\n  'marriott': 'Travel & Transportation',\n  'hilton': 'Travel & Transportation',\n  'hyatt': 'Travel & Transportation',\n  'expedia': 'Travel & Transportation',\n  'booking.com': 'Travel & Transportation',\n  'hertz': 'Travel & Transportation',\n  'enterprise': 'Travel & Transportation',\n  'amtrak': 'Travel & Transportation',\n  'parking': 'Travel & Transportation',\n  'toll': 'Travel & Transportation',\n  'gas': 'Travel & Transportation',\n  'shell': 'Travel & Transportation',\n  'exxon': 'Travel & Transportation',\n  'chevron': 'Travel & Transportation',\n  \n  // Meals & Entertainment\n  'starbucks': 'Meals & Entertainment',\n  'chipotle': 'Meals & Entertainment',\n  'panera': 'Meals & Entertainment',\n  'sweetgreen': 'Meals & Entertainment',\n  'doordash': 'Meals & Entertainment',\n  'uber eats': 'Meals & Entertainment',\n  'grubhub': 'Meals & Entertainment',\n  'postmates': 'Meals & Entertainment',\n  'restaurant': 'Meals & Entertainment',\n  'cafe': 'Meals & Entertainment',\n  'coffee': 'Meals & Entertainment',\n  'pizza': 'Meals & Entertainment',\n  'mcdonald': 'Meals & Entertainment',\n  'wendys': 'Meals & Entertainment',\n  'chick-fil-a': 'Meals & Entertainment',\n  'taco bell': 'Meals & Entertainment',\n  'shake shack': 'Meals & Entertainment',\n  'five guys': 'Meals & Entertainment',\n  'whole foods': 'Meals & Entertainment',\n  'trader joe': 'Meals & Entertainment',\n  \n  // Office Supplies\n  'amazon': 'Office Supplies',\n  'staples': 'Office Supplies',\n  'office depot': 'Office Supplies',\n  'target': 'Office Supplies',\n  'walmart': 'Office Supplies',\n  'costco': 'Office Supplies',\n  \n  // Equipment & Hardware\n  'best buy': 'Equipment & Hardware',\n  'apple': 'Equipment & Hardware',\n  'b&h': 'Equipment & Hardware',\n  'newegg': 'Equipment & Hardware',\n  'micro center': 'Equipment & Hardware',\n  \n  // Marketing & Advertising\n  'facebook': 'Marketing & Advertising',\n  'meta': 'Marketing & Advertising',\n  'google ads': 'Marketing & Advertising',\n  'linkedin': 'Marketing & Advertising',\n  'twitter': 'Marketing & Advertising',\n  'tiktok': 'Marketing & Advertising',\n  'canva': 'Marketing & Advertising',\n  \n  // Professional Services\n  'law': 'Professional Services',\n  'legal': 'Professional Services',\n  'attorney': 'Professional Services',\n  'cpa': 'Professional Services',\n  'accountant': 'Professional Services',\n  'consultant': 'Professional Services',\n  \n  // Banking\n  'bank': 'Banking Fees',\n  'wire': 'Banking Fees',\n  'transfer fee': 'Banking Fees'\n};\n\n// Find matching category\nlet category = 'Miscellaneous';\nfor (const [keyword, cat] of Object.entries(merchantCategories)) {\n  if (merchant.includes(keyword)) {\n    category = cat;\n    break;\n  }\n}\n\n// Determine priority based on amount\nconst priority = input.amount > 500 ? 'High' : 'Normal';\n\nreturn [{\n  json: {\n    ...input,\n    category,\n    priority\n  }\n}];"
+      },
+      "id": "code-categorize",
+      "name": "Code - Categorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Expense|title",
+              "title": "={{ $json.merchant }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Source|select",
+              "selectValue": "Relay Card"
+            },
+            {
+              "key": "Receipt Status|select",
+              "selectValue": "Pending"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.transactionId }}"
+            },
+            {
+              "key": "Validation Deadline|date",
+              "date": "={{ $json.validationDeadline }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Auto-logged from Relay. Card: **** {{ $json.cardLast4 }}. Category: {{ $json.category }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-expense",
+      "name": "Notion - Create Expense",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1120, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TASKS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Task|title",
+              "title": "=:paperclip: Add receipt for {{ $('Code - Categorize').item.json.merchant }} - ${{ $('Code - Categorize').item.json.amount.toFixed(2) }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "To Do"
+            },
+            {
+              "key": "Priority|select",
+              "selectValue": "={{ $('Code - Categorize').item.json.priority }}"
+            },
+            {
+              "key": "Due Date|date",
+              "date": "={{ $('Code - Categorize').item.json.validationDeadline }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Receipt must be added within 24 hours.\n\nTransaction: {{ $('Code - Categorize').item.json.merchant }}\nAmount: ${{ $('Code - Categorize').item.json.amount.toFixed(2) }}\nCard: **** {{ $('Code - Categorize').item.json.cardLast4 }}\nCategory: {{ $('Code - Categorize').item.json.category }}\n\nExpense Record: {{ $('Notion - Create Expense').item.json.url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-task",
+      "name": "Notion - Create Receipt Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1340, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Notion - Create Expense').item.json.id }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Receipt Task|relation",
+              "relationValue": [
+                "={{ $('Notion - Create Receipt Task').item.json.id }}"
+              ]
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-link-task",
+      "name": "Notion - Link Task to Expense",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1560, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:outbox_tray: *New Expense Logged*\n\n*Merchant:* {{ $('Code - Categorize').item.json.merchant }}\n*Amount:* ${{ $('Code - Categorize').item.json.amount.toFixed(2) }}\n*Category:* {{ $('Code - Categorize').item.json.category }}\n*Card:* **** {{ $('Code - Categorize').item.json.cardLast4 }}\n*Date:* {{ $('Code - Categorize').item.json.transactionDate }}\n\n:alarm_clock: *Receipt due:* {{ new Date($('Code - Categorize').item.json.validationDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }}\n\n<{{ $('Notion - Create Expense').item.json.url }}|Add Receipt in Notion>",
+        "otherOptions": {}
+      },
+      "id": "slack-notification",
+      "name": "Slack - Expense Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1780, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail - Relay Emails').item.json.id }}"
+      },
+      "id": "gmail-mark-read",
+      "name": "Gmail - Mark as Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2000, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail - Relay Emails').item.json.id }}",
+        "labelIds": [
+          "Processed-n8n"
+        ]
+      },
+      "id": "gmail-add-label",
+      "name": "Gmail - Add Processed Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2220, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handling - create manual review task\nconst error = $input.first();\nconst originalEmail = $('Gmail - Relay Emails').first()?.json || {};\n\nreturn [{\n  json: {\n    errorMessage: error.message || 'Failed to parse transaction email',\n    emailSubject: originalEmail.subject || 'Unknown',\n    emailFrom: originalEmail.from || 'Unknown',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-error-handler",
+      "name": "Code - Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TASKS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Task|title",
+              "title": "=:warning: Manual Review: Relay Email Parsing Failed"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "To Do"
+            },
+            {
+              "key": "Priority|select",
+              "selectValue": "High"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Failed to parse Relay transaction email.\n\nEmail Subject: {{ $json.emailSubject }}\nFrom: {{ $json.emailFrom }}\nError: {{ $json.errorMessage }}\nTime: {{ $json.timestamp }}\n\nPlease review the email manually and create the expense record."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-error-task",
+      "name": "Notion - Create Error Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [900, 500],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:x: *Relay Email Parse Error*\n\nFailed to parse transaction email:\n*Subject:* {{ $('Code - Error Handler').item.json.emailSubject }}\n*Error:* {{ $('Code - Error Handler').item.json.errorMessage }}\n\nManual review task created in Notion.",
+        "otherOptions": {}
+      },
+      "id": "slack-error-notification",
+      "name": "Slack - Error Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1120, 500],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail - Relay Emails": {
+      "main": [
+        [
+          {
+            "node": "Filter - Transaction Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter - Transaction Emails": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parse Email": {
+      "main": [
+        [
+          {
+            "node": "Code - Categorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Categorize": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Expense": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Receipt Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Receipt Task": {
+      "main": [
+        [
+          {
+            "node": "Notion - Link Task to Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Link Task to Expense": {
+      "main": [
+        [
+          {
+            "node": "Slack - Expense Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Expense Notification": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Mark as Read": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Add Processed Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Error Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Error Task": {
+      "main": [
+        [
+          {
+            "node": "Slack - Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Relay",
+      "id": "relay-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}

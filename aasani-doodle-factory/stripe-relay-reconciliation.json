@@ -1,0 +1,575 @@
+{
+  "name": "Stripe-Relay Reconciliation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - Daily 11pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate date ranges\nconst now = new Date();\n\n// Yesterday range\nconst yesterday = new Date(now);\nyesterday.setDate(yesterday.getDate() - 1);\nyesterday.setHours(0, 0, 0, 0);\n\nconst yesterdayEnd = new Date(yesterday);\nyesterdayEnd.setHours(23, 59, 59, 999);\n\n// Stripe payouts typically arrive T+2, so check 3 days ago\nconst threeDaysAgo = new Date(now);\nthreeDaysAgo.setDate(threeDaysAgo.getDate() - 3);\nthreeDaysAgo.setHours(0, 0, 0, 0);\n\n// Unix timestamps for Stripe API\nconst threeDaysAgoUnix = Math.floor(threeDaysAgo.getTime() / 1000);\nconst yesterdayEndUnix = Math.floor(yesterdayEnd.getTime() / 1000);\n\nreturn [{\n  json: {\n    yesterday: yesterday.toISOString().split('T')[0],\n    yesterdayEnd: yesterdayEnd.toISOString().split('T')[0],\n    threeDaysAgo: threeDaysAgo.toISOString().split('T')[0],\n    threeDaysAgoUnix,\n    yesterdayEndUnix\n  }\n}];"
+      },
+      "id": "code-date-range",
+      "name": "Code - Calculate Date Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.stripe.com/v1/payouts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "stripeApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "created[gte]",
+              "value": "={{ $json.threeDaysAgoUnix }}"
+            },
+            {
+              "name": "created[lte]",
+              "value": "={{ $json.yesterdayEndUnix }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-stripe-payouts",
+      "name": "HTTP - Get Stripe Payouts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 200],
+      "credentials": {
+        "stripeApi": {
+          "id": "stripe-credential-id",
+          "name": "Stripe - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TRANSACTIONS_DB_ID }}"
+        },
+        "returnAll": true,
+        "filterType": "json",
+        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $('Code - Calculate Date Range').item.json.threeDaysAgo }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $('Code - Calculate Date Range').item.json.yesterdayEnd }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notion-get-transactions",
+      "name": "Notion - Get Transactions",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 400],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge payout and transaction data\nconst stripeData = $('HTTP - Get Stripe Payouts').first()?.json || { data: [] };\nconst transactionItems = $('Notion - Get Transactions').all() || [];\n\nconst payouts = stripeData.data || [];\nconst transactions = transactionItems.map(item => item.json);\n\nreturn [{\n  json: {\n    payouts,\n    transactions,\n    payoutCount: payouts.length,\n    transactionCount: transactions.length\n  }\n}];"
+      },
+      "id": "code-merge-data",
+      "name": "Code - Merge Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match Stripe payouts to Relay deposits\nconst data = $input.first().json;\nconst stripePayouts = data.payouts;\nconst relayDeposits = [...data.transactions];\n\nconst reconciliation = {\n  matched: [],\n  unmatchedPayouts: [],\n  unmatchedDeposits: [...relayDeposits]\n};\n\nconst matchTransaction = (payout, deposits) => {\n  const payoutAmount = payout.amount / 100; // Convert cents\n  const payoutDate = new Date(payout.arrival_date * 1000);\n  \n  // Try exact match first\n  let match = deposits.find(deposit => {\n    const depositAmount = deposit.properties?.Amount?.number || 0;\n    const depositDateStr = deposit.properties?.Date?.date?.start;\n    if (!depositDateStr) return false;\n    \n    const depositDate = new Date(depositDateStr);\n    const dateDiff = Math.abs(depositDate - payoutDate);\n    \n    // Exact amount, within ±2 days\n    return Math.abs(depositAmount - payoutAmount) < 0.01 &&\n           dateDiff <= 2 * 24 * 60 * 60 * 1000;\n  });\n  \n  // If no exact match, try fuzzy\n  if (!match) {\n    match = deposits.find(deposit => {\n      const depositAmount = deposit.properties?.Amount?.number || 0;\n      const depositDateStr = deposit.properties?.Date?.date?.start;\n      if (!depositDateStr) return false;\n      \n      const depositDate = new Date(depositDateStr);\n      const dateDiff = Math.abs(depositDate - payoutDate);\n      \n      // Within $10, within ±3 days\n      return Math.abs(depositAmount - payoutAmount) <= 10 &&\n             dateDiff <= 3 * 24 * 60 * 60 * 1000;\n    });\n  }\n  \n  return match;\n};\n\nconst calculateConfidence = (payout, deposit) => {\n  const payoutAmount = payout.amount / 100;\n  const depositAmount = deposit.properties?.Amount?.number || 0;\n  const payoutDate = new Date(payout.arrival_date * 1000);\n  const depositDateStr = deposit.properties?.Date?.date?.start;\n  const depositDate = depositDateStr ? new Date(depositDateStr) : new Date();\n  \n  let confidence = 0;\n  \n  // Amount matching\n  const amountDiff = Math.abs(payoutAmount - depositAmount);\n  if (amountDiff < 0.01) confidence += 50;\n  else if (amountDiff <= 5) confidence += 40;\n  else if (amountDiff <= 10) confidence += 30;\n  \n  // Date matching\n  const dateDiff = Math.abs(payoutDate - depositDate) / (24 * 60 * 60 * 1000);\n  if (dateDiff < 1) confidence += 50;\n  else if (dateDiff <= 2) confidence += 40;\n  else if (dateDiff <= 3) confidence += 30;\n  \n  return Math.round(confidence);\n};\n\n// Process each payout\nfor (const payout of stripePayouts) {\n  const match = matchTransaction(payout, reconciliation.unmatchedDeposits);\n  \n  if (match) {\n    const confidence = calculateConfidence(payout, match);\n    reconciliation.matched.push({\n      payout: {\n        id: payout.id,\n        amount: payout.amount / 100,\n        arrivalDate: new Date(payout.arrival_date * 1000).toISOString().split('T')[0],\n        status: payout.status\n      },\n      deposit: {\n        id: match.id,\n        amount: match.properties?.Amount?.number || 0,\n        date: match.properties?.Date?.date?.start,\n        title: match.properties?.Transactions?.title?.[0]?.plain_text || 'Unknown'\n      },\n      confidence\n    });\n    \n    // Remove from unmatched\n    const index = reconciliation.unmatchedDeposits.findIndex(d => d.id === match.id);\n    if (index > -1) {\n      reconciliation.unmatchedDeposits.splice(index, 1);\n    }\n  } else {\n    const payoutAge = (Date.now() - payout.arrival_date * 1000) / (24 * 60 * 60 * 1000);\n    reconciliation.unmatchedPayouts.push({\n      id: payout.id,\n      amount: payout.amount / 100,\n      arrivalDate: new Date(payout.arrival_date * 1000).toISOString().split('T')[0],\n      status: payout.status,\n      daysOld: Math.round(payoutAge),\n      isOld: payoutAge > 3\n    });\n  }\n}\n\n// Calculate totals\nconst matchedTotal = reconciliation.matched.reduce((sum, m) => sum + m.payout.amount, 0);\nconst unmatchedPayoutTotal = reconciliation.unmatchedPayouts.reduce((sum, p) => sum + p.amount, 0);\nconst unmatchedDepositTotal = reconciliation.unmatchedDeposits.reduce((sum, d) => \n  sum + (d.properties?.Amount?.number || 0), 0\n);\n\nreturn [{\n  json: {\n    reconciliation,\n    summary: {\n      matchedCount: reconciliation.matched.length,\n      matchedTotal,\n      unmatchedPayoutCount: reconciliation.unmatchedPayouts.length,\n      unmatchedPayoutTotal,\n      unmatchedDepositCount: reconciliation.unmatchedDeposits.length,\n      unmatchedDepositTotal,\n      hasOldUnmatched: reconciliation.unmatchedPayouts.some(p => p.isOld)\n    }\n  }\n}];"
+      },
+      "id": "code-reconcile",
+      "name": "Code - Reconcile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create transaction records for matched payouts\nconst data = $input.first().json;\nconst matched = data.reconciliation.matched;\n\n// Return items to create\nreturn matched.map(m => ({\n  json: {\n    title: `Stripe Payout → Relay`,\n    amount: m.payout.amount,\n    date: m.payout.arrivalDate,\n    payoutId: m.payout.id,\n    confidence: m.confidence,\n    notes: `Auto-reconciled. Stripe payout: ${m.payout.id}. Confidence: ${m.confidence}%`\n  }\n}));"
+      },
+      "id": "code-prepare-transactions",
+      "name": "Code - Prepare Transactions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $items().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-has-matched",
+      "name": "IF - Has Matched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TRANSACTIONS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Transactions|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-transaction",
+      "name": "Notion - Create Transaction",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1780, 100],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create pending transactions for unmatched payouts\nconst data = $('Code - Reconcile').first().json;\nconst unmatched = data.reconciliation.unmatchedPayouts;\n\nreturn unmatched.map(p => ({\n  json: {\n    title: `:warning: Unmatched Stripe Payout`,\n    amount: p.amount,\n    date: p.arrivalDate,\n    payoutId: p.id,\n    daysOld: p.daysOld,\n    notes: `Stripe payout not yet detected in Relay. Payout ID: ${p.id}. Expected: ${p.arrivalDate}. Days since payout: ${p.daysOld}. Check manually if not received within 5 business days.`\n  }\n}));"
+      },
+      "id": "code-prepare-unmatched",
+      "name": "Code - Prepare Unmatched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $items().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-has-unmatched",
+      "name": "IF - Has Unmatched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TRANSACTIONS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Transactions|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-pending",
+      "name": "Notion - Create Pending Transaction",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1780, 400],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format daily summary report\nconst data = $('Code - Reconcile').first().json;\nconst { summary, reconciliation } = data;\n\nlet message = `:moneybag: *Daily Reconciliation Report*\\n\\n`;\n\nmessage += `:white_check_mark: *Matched:* ${summary.matchedCount} transfers ($${summary.matchedTotal.toFixed(2)})\\n`;\nmessage += `:warning: *Unmatched Stripe Payouts:* ${summary.unmatchedPayoutCount} ($${summary.unmatchedPayoutTotal.toFixed(2)})\\n`;\nmessage += `:warning: *Unmatched Relay Deposits:* ${summary.unmatchedDepositCount} ($${summary.unmatchedDepositTotal.toFixed(2)})\\n\\n`;\n\nif (summary.hasOldUnmatched) {\n  message += `:rotating_light: *Alert:* Some payouts are >3 days old and still unmatched. Manual review required.\\n\\n`;\n  \n  reconciliation.unmatchedPayouts.filter(p => p.isOld).forEach(p => {\n    message += `• $${p.amount.toFixed(2)} - Payout ${p.id} (${p.daysOld} days old)\\n`;\n  });\n  message += '\\n';\n}\n\nmessage += `<https://notion.so|View Transactions in Notion>`;\n\nreturn [{\n  json: {\n    message,\n    summary\n  }\n}];"
+      },
+      "id": "code-format-summary",
+      "name": "Code - Format Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "={{ $json.message }}",
+        "otherOptions": {}
+      },
+      "id": "slack-summary",
+      "name": "Slack - Daily Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2220, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $('Code - Reconcile').item.json.summary.hasOldUnmatched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-has-old",
+      "name": "IF - Has Old Unmatched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create review tasks for old unmatched payouts\nconst data = $('Code - Reconcile').first().json;\nconst oldUnmatched = data.reconciliation.unmatchedPayouts.filter(p => p.isOld);\n\nreturn oldUnmatched.map(p => ({\n  json: {\n    title: `:mag: Missing Relay Deposit: $${p.amount.toFixed(2)}`,\n    dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n    notes: `Stripe payout not found in Relay after ${p.daysOld} days.\\n\\nAmount: $${p.amount.toFixed(2)}\\nPayout ID: ${p.id}\\nExpected Date: ${p.arrivalDate}\\n\\nAction: Check Relay account manually for this deposit.`\n  }\n}));"
+      },
+      "id": "code-prepare-review-tasks",
+      "name": "Code - Prepare Review Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 200]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TASKS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Task|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "To Do"
+            },
+            {
+              "key": "Priority|select",
+              "selectValue": "High"
+            },
+            {
+              "key": "Due Date|date",
+              "date": "={{ $json.dueDate }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "={{ $json.notes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-review-task",
+      "name": "Notion - Create Review Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2880, 200],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule - Daily 11pm": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Date Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Calculate Date Range": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Get Stripe Payouts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion - Get Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Get Stripe Payouts": {
+      "main": [
+        [
+          {
+            "node": "Code - Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Transactions": {
+      "main": [
+        [
+          {
+            "node": "Code - Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Code - Reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Reconcile": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare Transactions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code - Prepare Unmatched",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code - Format Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Transactions": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Matched": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Unmatched": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Unmatched": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Pending Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format Summary": {
+      "main": [
+        [
+          {
+            "node": "Slack - Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Old Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Old Unmatched": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare Review Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Review Tasks": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Review Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Reconciliation",
+      "id": "reconciliation-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}

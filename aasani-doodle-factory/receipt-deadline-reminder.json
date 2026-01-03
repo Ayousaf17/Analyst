@@ -1,0 +1,425 @@
+{
+  "name": "Receipt Deadline Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Set timestamp variables\nconst now = new Date();\nconst sixHoursFromNow = new Date(now.getTime() + (6 * 60 * 60 * 1000));\nconst twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));\nconst sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));\n\nreturn [{\n  json: {\n    now: now.toISOString(),\n    nowDate: now.toISOString().split('T')[0],\n    sixHoursFromNow: sixHoursFromNow.toISOString(),\n    twentyFourHoursAgo: twentyFourHoursAgo.toISOString(),\n    sevenDaysAgo: sevenDaysAgo.toISOString()\n  }\n}];"
+      },
+      "id": "code-timestamps",
+      "name": "Code - Get Timestamps",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+        },
+        "returnAll": true,
+        "filterType": "json",
+        "filterJson": "{\n  \"property\": \"Receipt Status\",\n  \"select\": {\n    \"equals\": \"Pending\"\n  }\n}",
+        "options": {
+          "sort": [
+            {
+              "key": "Validation Deadline|date",
+              "direction": "ascending"
+            }
+          ]
+        }
+      },
+      "id": "notion-get-pending",
+      "name": "Notion - Get Pending Receipts",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Categorize expenses by urgency\nconst items = $input.all();\nconst now = new Date();\nconst sixHours = 6 * 60 * 60 * 1000;\nconst twentyFourHours = 24 * 60 * 60 * 1000;\nconst sevenDays = 7 * 24 * 60 * 60 * 1000;\n\nconst categorized = {\n  overdue: [],\n  dueSoon: [],\n  upcoming: [],\n  critical: [] // High value + overdue > 7 days\n};\n\nfor (const item of items) {\n  const expense = item.json;\n  const deadlineStr = expense.properties?.['Validation Deadline']?.date?.start;\n  const amount = expense.properties?.Amount?.number || 0;\n  const merchant = expense.properties?.Expense?.title?.[0]?.plain_text || 'Unknown';\n  const expenseUrl = expense.url || '';\n  \n  if (!deadlineStr) continue;\n  \n  const deadline = new Date(deadlineStr);\n  const timeUntil = deadline - now;\n  \n  const expenseData = {\n    id: expense.id,\n    merchant,\n    amount,\n    deadline: deadline.toISOString(),\n    url: expenseUrl\n  };\n  \n  if (timeUntil < 0) {\n    // Overdue\n    const hoursOverdue = Math.abs(timeUntil) / (60 * 60 * 1000);\n    const daysOverdue = Math.floor(hoursOverdue / 24);\n    expenseData.hoursOverdue = Math.round(hoursOverdue);\n    expenseData.daysOverdue = daysOverdue;\n    categorized.overdue.push(expenseData);\n    \n    // Check if critical (>$500 AND >7 days overdue)\n    if (amount > 500 && hoursOverdue > 7 * 24) {\n      categorized.critical.push(expenseData);\n    }\n  } else if (timeUntil <= sixHours) {\n    // Due soon (within 6 hours)\n    const hoursRemaining = Math.round(timeUntil / (60 * 60 * 1000));\n    expenseData.hoursRemaining = hoursRemaining;\n    categorized.dueSoon.push(expenseData);\n  } else if (timeUntil <= twentyFourHours) {\n    // Upcoming (6-24 hours)\n    const hoursRemaining = Math.round(timeUntil / (60 * 60 * 1000));\n    expenseData.hoursRemaining = hoursRemaining;\n    categorized.upcoming.push(expenseData);\n  }\n}\n\n// Calculate totals\nconst overdueTotal = categorized.overdue.reduce((sum, e) => sum + e.amount, 0);\nconst dueSoonTotal = categorized.dueSoon.reduce((sum, e) => sum + e.amount, 0);\nconst upcomingTotal = categorized.upcoming.reduce((sum, e) => sum + e.amount, 0);\nconst criticalTotal = categorized.critical.reduce((sum, e) => sum + e.amount, 0);\n\nconst needsNotification = categorized.overdue.length > 0 || categorized.dueSoon.length > 0;\nconst hasCritical = categorized.critical.length > 0;\n\nreturn [{\n  json: {\n    categorized,\n    counts: {\n      overdue: categorized.overdue.length,\n      dueSoon: categorized.dueSoon.length,\n      upcoming: categorized.upcoming.length,\n      critical: categorized.critical.length\n    },\n    totals: {\n      overdue: overdueTotal,\n      dueSoon: dueSoonTotal,\n      upcoming: upcomingTotal,\n      critical: criticalTotal\n    },\n    needsNotification,\n    hasCritical\n  }\n}];"
+      },
+      "id": "code-categorize",
+      "name": "Code - Categorize by Urgency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needsNotification }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-needs-notification",
+      "name": "IF - Needs Notification",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Slack message\nconst data = $input.first().json;\nconst { categorized, counts, totals } = data;\n\nconst formatExpense = (exp, isOverdue = false) => {\n  const timeStr = isOverdue \n    ? (exp.daysOverdue > 0 ? `${exp.daysOverdue}d ${exp.hoursOverdue % 24}h overdue` : `${exp.hoursOverdue}h overdue`)\n    : `${exp.hoursRemaining}h remaining`;\n  return `• $${exp.amount.toFixed(2)} ${exp.merchant} - <${exp.url}|Add Receipt> (${timeStr})`;\n};\n\nlet message = ':rotating_light: *EXPENSE RECEIPTS NEEDED*\\n\\n';\n\nif (counts.overdue > 0) {\n  message += `*OVERDUE (${counts.overdue}) - $${totals.overdue.toFixed(2)}:*\\n`;\n  categorized.overdue.forEach(exp => {\n    message += `${formatExpense(exp, true)}\\n`;\n  });\n  message += '\\n';\n}\n\nif (counts.dueSoon > 0) {\n  message += `*DUE SOON - Next 6 Hours (${counts.dueSoon}) - $${totals.dueSoon.toFixed(2)}:*\\n`;\n  categorized.dueSoon.forEach(exp => {\n    message += `${formatExpense(exp)}\\n`;\n  });\n  message += '\\n';\n}\n\n// Only show upcoming if list is short\nif (counts.upcoming > 0 && counts.upcoming <= 5) {\n  message += `*UPCOMING - Next 24 Hours (${counts.upcoming}) - $${totals.upcoming.toFixed(2)}:*\\n`;\n  categorized.upcoming.forEach(exp => {\n    message += `${formatExpense(exp)}\\n`;\n  });\n  message += '\\n';\n}\n\nmessage += `\\n:clipboard: <https://notion.so|View All Pending Receipts>`;\n\nreturn [{\n  json: {\n    ...data,\n    slackMessage: message\n  }\n}];"
+      },
+      "id": "code-format-message",
+      "name": "Code - Format Slack Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "={{ $json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "id": "slack-reminder",
+      "name": "Slack - Send Reminder",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1560, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasCritical }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-critical",
+      "name": "IF - Has Critical Items",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format critical items for email\nconst data = $input.first().json;\nconst critical = data.categorized.critical;\n\nlet itemsList = '';\ncritical.forEach(exp => {\n  itemsList += `<tr>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.merchant}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">$${exp.amount.toFixed(2)}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.daysOverdue} days</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee;\"><a href=\"${exp.url}\">Add Receipt</a></td>\n  </tr>`;\n});\n\nconst emailHtml = `\n<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #fee2e2; padding: 20px; border-radius: 8px; margin-bottom: 20px;\">\n    <h1 style=\"color: #dc2626; margin-top: 0;\">:warning: URGENT: High-Value Receipts Overdue</h1>\n    <p>The following high-value expenses are missing receipts and are significantly overdue:</p>\n  </div>\n  \n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <thead>\n      <tr style=\"background: #f3f4f6;\">\n        <th style=\"padding: 12px; text-align: left;\">Merchant</th>\n        <th style=\"padding: 12px; text-align: left;\">Amount</th>\n        <th style=\"padding: 12px; text-align: left;\">Days Overdue</th>\n        <th style=\"padding: 12px; text-align: left;\">Action</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${itemsList}\n    </tbody>\n  </table>\n  \n  <div style=\"background: #fef3c7; padding: 15px; border-radius: 8px;\">\n    <p style=\"margin: 0;\"><strong>Total at risk:</strong> $${data.totals.critical.toFixed(2)}</p>\n    <p style=\"margin: 10px 0 0 0;\">These items must be addressed immediately for tax compliance. Expenses without receipts may not be deductible.</p>\n  </div>\n  \n  <p style=\"margin-top: 20px;\">\n    <a href=\"https://notion.so\" style=\"background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;\">View and Add Receipts</a>\n  </p>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...data,\n    emailHtml,\n    emailSubject: `URGENT: ${data.counts.critical} High-Value Receipts Overdue ($${data.totals.critical.toFixed(2)})`\n  }\n}];"
+      },
+      "id": "code-format-email",
+      "name": "Code - Format Critical Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 100]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.OWNER_EMAIL || 'ayub@aasani.ai' }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "gmail-critical-alert",
+      "name": "Gmail - Critical Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2220, 100],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag critical items in Notion\nconst data = $input.first().json;\nconst critical = data.categorized.critical;\n\n// Return items to update\nreturn critical.map(exp => ({\n  json: {\n    expenseId: exp.id,\n    note: `:rotating_light: CRITICAL: High-value receipt overdue >${exp.daysOverdue} days. Amount: $${exp.amount.toFixed(2)}`\n  }\n}));"
+      },
+      "id": "code-flag-items",
+      "name": "Code - Prepare Flag Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 100]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2660, 100]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.expenseId }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Notes|rich_text",
+              "textContent": "={{ $json.note }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-flag-critical",
+      "name": "Notion - Flag Critical Items",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2880, 100],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// No notification needed - log for debugging\nreturn [{\n  json: {\n    status: 'skipped',\n    reason: 'No overdue or due soon receipts',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-no-notification",
+      "name": "Code - No Notification Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    }
+  ],
+  "connections": {
+    "Schedule - Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Code - Get Timestamps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Get Timestamps": {
+      "main": [
+        [
+          {
+            "node": "Notion - Get Pending Receipts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Pending Receipts": {
+      "main": [
+        [
+          {
+            "node": "Code - Categorize by Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Categorize by Urgency": {
+      "main": [
+        [
+          {
+            "node": "IF - Needs Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Needs Notification": {
+      "main": [
+        [
+          {
+            "node": "Code - Format Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - No Notification Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Slack - Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Send Reminder": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Critical Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Critical Items": {
+      "main": [
+        [
+          {
+            "node": "Code - Format Critical Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format Critical Email": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Critical Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Critical Alert": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare Flag Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Flag Updates": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Notion - Flag Critical Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Flag Critical Items": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Receipts",
+      "id": "receipts-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}

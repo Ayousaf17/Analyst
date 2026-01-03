@@ -1,0 +1,1030 @@
+{
+  "name": "Stripe Revenue Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stripe-finance",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-stripe",
+      "name": "Webhook - Stripe Events",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "stripe-finance-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Stripe webhook signature\nconst crypto = require('crypto');\n\nconst webhookSecret = $env.STRIPE_WEBHOOK_SECRET || 'whsec_your_webhook_secret';\nconst signature = $input.first().headers['stripe-signature'];\nconst payload = $input.first().rawBody;\n\n// Parse signature header\nconst sigParts = {};\nsignature.split(',').forEach(part => {\n  const [key, value] = part.split('=');\n  sigParts[key] = value;\n});\n\nconst timestamp = sigParts['t'];\nconst expectedSig = sigParts['v1'];\n\n// Create signed payload\nconst signedPayload = `${timestamp}.${payload}`;\n\n// Calculate expected signature\nconst hmac = crypto.createHmac('sha256', webhookSecret);\nhmac.update(signedPayload);\nconst calculatedSig = hmac.digest('hex');\n\n// Verify signature (in production, use constant-time comparison)\nconst isValid = calculatedSig === expectedSig;\n\n// Check timestamp (prevent replay attacks - 5 min tolerance)\nconst currentTime = Math.floor(Date.now() / 1000);\nconst tolerance = 300; // 5 minutes\nconst isTimestampValid = Math.abs(currentTime - parseInt(timestamp)) < tolerance;\n\nif (!isValid || !isTimestampValid) {\n  throw new Error('Invalid Stripe webhook signature');\n}\n\n// Parse and return the event\nconst event = JSON.parse(payload);\n\nreturn [{\n  json: {\n    eventType: event.type,\n    eventId: event.id,\n    created: new Date(event.created * 1000).toISOString(),\n    data: event.data.object,\n    livemode: event.livemode\n  }\n}];"
+      },
+      "id": "code-verify-signature",
+      "name": "Code - Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "charge.succeeded",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "charge_succeeded"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "invoice.paid",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "invoice_paid"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "invoice.payment_failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "payment_failed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "customer.subscription.created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "subscription_created"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "customer.subscription.deleted",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "subscription_deleted"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "charge.refunded",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "charge_refunded"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "switch-event-type",
+      "name": "Switch - Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process charge.succeeded event\nconst data = $input.first().json.data;\n\n// Extract payment details\nconst amount = data.amount / 100; // Convert cents to dollars\nconst currency = data.currency.toUpperCase();\nconst chargeId = data.id;\nconst customerId = data.customer;\nconst customerName = data.billing_details?.name || data.customer_email || 'Unknown Customer';\nconst customerEmail = data.billing_details?.email || data.customer_email || '';\nconst description = data.description || 'Payment';\nconst receiptUrl = data.receipt_url || '';\n\n// Transaction date\nconst transactionDate = new Date(data.created * 1000).toISOString().split('T')[0];\n\n// Calculate fee (if balance_transaction is expanded)\nlet feeAmount = 0;\nlet netAmount = amount;\nif (data.balance_transaction && typeof data.balance_transaction === 'object') {\n  feeAmount = data.balance_transaction.fee / 100;\n  netAmount = data.balance_transaction.net / 100;\n} else {\n  // Estimate Stripe fee: 2.9% + $0.30\n  feeAmount = Math.round((amount * 0.029 + 0.30) * 100) / 100;\n  netAmount = amount - feeAmount;\n}\n\n// Payment method info\nconst paymentMethod = data.payment_method_details?.type || 'card';\nconst cardBrand = data.payment_method_details?.card?.brand || '';\nconst cardLast4 = data.payment_method_details?.card?.last4 || '';\n\nreturn [{\n  json: {\n    eventType: 'charge.succeeded',\n    chargeId,\n    customerId,\n    customerName,\n    customerEmail,\n    description,\n    amount,\n    feeAmount,\n    netAmount,\n    currency,\n    transactionDate,\n    paymentMethod,\n    cardInfo: cardBrand && cardLast4 ? `${cardBrand} ****${cardLast4}` : '',\n    receiptUrl,\n    incomeTitle: `${customerName} - ${description}`,\n    feeTitle: `Stripe Processing Fee - ${chargeId}`\n  }\n}];"
+      },
+      "id": "code-process-charge",
+      "name": "Code - Process Charge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 100]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Income|title",
+              "title": "={{ $json.incomeTitle }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.netAmount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Customer Payment"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.chargeId }}"
+            },
+            {
+              "key": "Customer|rich_text",
+              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Cleared"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-income",
+      "name": "Notion - Create Income Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1140, 0],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $('Code - Process Charge').item.json.feeAmount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-has-fee",
+      "name": "IF - Has Fee",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1360, 0]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Income|title",
+              "title": "={{ $('Code - Process Charge').item.json.feeTitle }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ -$('Code - Process Charge').item.json.feeAmount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $('Code - Process Charge').item.json.transactionDate }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Stripe Fee"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $('Code - Process Charge').item.json.chargeId }}_fee"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Cleared"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-fee",
+      "name": "Notion - Create Fee Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1580, -80],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:moneybag: *New Payment Received*\n\n*Customer:* {{ $('Code - Process Charge').item.json.customerName }}\n*Amount:* ${{ $('Code - Process Charge').item.json.amount.toFixed(2) }} {{ $('Code - Process Charge').item.json.currency }}\n*Stripe Fee:* ${{ $('Code - Process Charge').item.json.feeAmount.toFixed(2) }}\n*Net:* ${{ $('Code - Process Charge').item.json.netAmount.toFixed(2) }}\n*Description:* {{ $('Code - Process Charge').item.json.description }}\n*Payment:* {{ $('Code - Process Charge').item.json.cardInfo }}\n*Date:* {{ $('Code - Process Charge').item.json.transactionDate }}\n\n<{{ $('Notion - Create Income Record').item.json.url }}|View in Notion>",
+        "otherOptions": {}
+      },
+      "id": "slack-payment-notification",
+      "name": "Slack - Payment Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1800, 0],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process invoice.paid event\nconst data = $input.first().json.data;\n\n// Determine if this is OUR expense or customer REVENUE\nconst customerEmail = data.customer_email || '';\nconst isOurExpense = customerEmail.includes('aasani.ai') || \n                     customerEmail.includes('ayub@') ||\n                     customerEmail === 'ayub@aasani.ai';\n\n// Extract invoice details\nconst invoiceId = data.id;\nconst amount = data.amount_paid / 100;\nconst currency = data.currency.toUpperCase();\nconst customerId = data.customer;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst invoiceUrl = data.hosted_invoice_url || data.invoice_pdf || '';\nconst transactionDate = new Date(data.effective_at * 1000 || data.created * 1000).toISOString().split('T')[0];\n\n// Get line item descriptions\nlet description = 'Subscription Payment';\nif (data.lines && data.lines.data && data.lines.data.length > 0) {\n  description = data.lines.data.map(line => line.description || line.plan?.nickname || 'Subscription').join(', ');\n}\n\n// Subscription info\nconst subscriptionId = data.subscription || '';\nconst periodStart = data.period_start ? new Date(data.period_start * 1000).toISOString().split('T')[0] : '';\nconst periodEnd = data.period_end ? new Date(data.period_end * 1000).toISOString().split('T')[0] : '';\n\nreturn [{\n  json: {\n    eventType: 'invoice.paid',\n    isOurExpense,\n    invoiceId,\n    amount,\n    currency,\n    customerId,\n    customerName,\n    customerEmail,\n    description,\n    invoiceUrl,\n    transactionDate,\n    subscriptionId,\n    periodStart,\n    periodEnd,\n    title: isOurExpense ? `${description} Subscription` : `${customerName} - ${description}`\n  }\n}];"
+      },
+      "id": "code-process-invoice",
+      "name": "Code - Process Invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isOurExpense }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-our-expense",
+      "name": "IF - Our Expense",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Expense|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Source|select",
+              "selectValue": "Stripe Subscription"
+            },
+            {
+              "key": "Receipt Status|select",
+              "selectValue": "Added"
+            },
+            {
+              "key": "Receipt URL|url",
+              "urlValue": "={{ $json.invoiceUrl }}"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.invoiceId }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Auto-logged from Stripe. Period: {{ $json.periodStart }} to {{ $json.periodEnd }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-expense",
+      "name": "Notion - Create Expense",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1360, 200],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Income|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Subscription"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.invoiceId }}"
+            },
+            {
+              "key": "Customer|rich_text",
+              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Cleared"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-income-sub",
+      "name": "Notion - Create Income (Subscription)",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1360, 360],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process payment failed event\nconst data = $input.first().json.data;\n\nconst invoiceId = data.id;\nconst amount = (data.amount_due || data.total) / 100;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst customerEmail = data.customer_email || '';\nconst transactionDate = new Date(data.created * 1000).toISOString().split('T')[0];\n\n// Failure details\nconst failureMessage = data.last_finalization_error?.message || \n                       data.charge?.failure_message || \n                       'Payment failed';\nconst attemptCount = data.attempt_count || 1;\nconst nextAttempt = data.next_payment_attempt \n  ? new Date(data.next_payment_attempt * 1000).toISOString()\n  : null;\n\n// Invoice URL for manual payment\nconst hostedInvoiceUrl = data.hosted_invoice_url || '';\n\nreturn [{\n  json: {\n    eventType: 'invoice.payment_failed',\n    invoiceId,\n    amount,\n    customerName,\n    customerEmail,\n    transactionDate,\n    failureMessage,\n    attemptCount,\n    nextAttempt,\n    hostedInvoiceUrl,\n    title: `FAILED: ${customerName} - $${amount.toFixed(2)}`\n  }\n}];"
+      },
+      "id": "code-process-failed",
+      "name": "Code - Process Failed Payment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 460]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Income|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Customer Payment"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.invoiceId }}"
+            },
+            {
+              "key": "Customer|rich_text",
+              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Failed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-failed",
+      "name": "Notion - Create Failed Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1140, 460],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:warning: *PAYMENT FAILED*\n\n*Customer:* {{ $('Code - Process Failed Payment').item.json.customerName }}\n*Amount:* ${{ $('Code - Process Failed Payment').item.json.amount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Failed Payment').item.json.failureMessage }}\n*Attempt:* #{{ $('Code - Process Failed Payment').item.json.attemptCount }}\n{{ $('Code - Process Failed Payment').item.json.nextAttempt ? '*Next Attempt:* ' + $('Code - Process Failed Payment').item.json.nextAttempt : '' }}\n\n*Action Required:* Contact customer\n\n{{ $('Code - Process Failed Payment').item.json.hostedInvoiceUrl ? '<' + $('Code - Process Failed Payment').item.json.hostedInvoiceUrl + '|Payment Link>' : '' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-failed-alert",
+      "name": "Slack - Failed Payment Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1360, 460],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process subscription created/deleted\nconst data = $input.first().json.data;\nconst eventType = $input.first().json.eventType;\nconst isCreated = eventType === 'customer.subscription.created';\n\nconst subscriptionId = data.id;\nconst customerId = data.customer;\nconst status = data.status;\nconst canceledAt = data.canceled_at ? new Date(data.canceled_at * 1000).toISOString() : null;\n\n// Get plan details\nlet planName = 'Unknown Plan';\nlet amount = 0;\nlet interval = 'month';\n\nif (data.items && data.items.data && data.items.data.length > 0) {\n  const item = data.items.data[0];\n  planName = item.price?.nickname || item.plan?.nickname || 'Subscription';\n  amount = (item.price?.unit_amount || item.plan?.amount || 0) / 100;\n  interval = item.price?.recurring?.interval || item.plan?.interval || 'month';\n}\n\n// Current period\nconst periodStart = new Date(data.current_period_start * 1000).toISOString().split('T')[0];\nconst periodEnd = new Date(data.current_period_end * 1000).toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    eventType,\n    action: isCreated ? 'Created' : 'Canceled',\n    subscriptionId,\n    customerId,\n    status,\n    planName,\n    amount,\n    interval,\n    periodStart,\n    periodEnd,\n    canceledAt\n  }\n}];"
+      },
+      "id": "code-process-subscription",
+      "name": "Code - Process Subscription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 640]
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:bell: *Subscription {{ $json.action }}*\n\n*Customer ID:* {{ $json.customerId }}\n*Plan:* {{ $json.planName }}\n*Amount:* ${{ $json.amount.toFixed(2) }}/{{ $json.interval }}\n*Status:* {{ $json.status }}\n{{ $json.canceledAt ? '*Canceled At:* ' + $json.canceledAt : '' }}\n*Period:* {{ $json.periodStart }} to {{ $json.periodEnd }}",
+        "otherOptions": {}
+      },
+      "id": "slack-subscription-notification",
+      "name": "Slack - Subscription Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1140, 640],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process refund event\nconst data = $input.first().json.data;\n\nconst chargeId = data.id;\nconst refundId = data.refunds?.data?.[0]?.id || `refund_${chargeId}`;\nconst originalAmount = data.amount / 100;\nconst refundedAmount = data.amount_refunded / 100;\nconst customerName = data.billing_details?.name || 'Unknown';\nconst customerEmail = data.billing_details?.email || data.customer_email || '';\nconst transactionDate = new Date().toISOString().split('T')[0];\n\n// Refund reason\nconst reason = data.refunds?.data?.[0]?.reason || 'Customer request';\n\nreturn [{\n  json: {\n    eventType: 'charge.refunded',\n    chargeId,\n    refundId,\n    originalAmount,\n    refundedAmount,\n    customerName,\n    customerEmail,\n    transactionDate,\n    reason,\n    title: `REFUND: ${customerName} - $${refundedAmount.toFixed(2)}`\n  }\n}];"
+      },
+      "id": "code-process-refund",
+      "name": "Code - Process Refund",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 820]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Income|title",
+              "title": "={{ $json.title }}"
+            },
+            {
+              "key": "Amount|number",
+              "numberValue": "={{ -$json.refundedAmount }}"
+            },
+            {
+              "key": "Date|date",
+              "date": "={{ $json.transactionDate }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Refund"
+            },
+            {
+              "key": "Transaction ID|rich_text",
+              "textContent": "={{ $json.refundId }}"
+            },
+            {
+              "key": "Customer|rich_text",
+              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Cleared"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-refund",
+      "name": "Notion - Create Refund Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1140, 820],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:rotating_light: *Refund Issued*\n\n*Customer:* {{ $('Code - Process Refund').item.json.customerName }}\n*Original Amount:* ${{ $('Code - Process Refund').item.json.originalAmount.toFixed(2) }}\n*Refunded:* ${{ $('Code - Process Refund').item.json.refundedAmount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Refund').item.json.reason }}\n*Date:* {{ $('Code - Process Refund').item.json.transactionDate }}\n\n<{{ $('Notion - Create Refund Record').item.json.url }}|View in Notion>",
+        "otherOptions": {}
+      },
+      "id": "slack-refund-notification",
+      "name": "Slack - Refund Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1360, 820],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"received\": true, \"eventId\": \"{{ $('Code - Verify Signature').item.json.eventId }}\"}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2020, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler - log to Notion and notify\nconst error = $input.first().json;\n\nreturn [{\n  json: {\n    errorMessage: error.message || 'Unknown error',\n    errorStack: error.stack || '',\n    timestamp: new Date().toISOString(),\n    workflow: 'Stripe Revenue Tracker'\n  }\n}];"
+      },
+      "id": "code-error-handler",
+      "name": "Code - Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:x: *Stripe Webhook Error*\n\n*Error:* {{ $json.errorMessage }}\n*Timestamp:* {{ $json.timestamp }}\n*Workflow:* {{ $json.workflow }}\n\nCheck n8n execution logs for details.",
+        "otherOptions": {}
+      },
+      "id": "slack-error-alert",
+      "name": "Slack - Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [900, 520],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Stripe Events": {
+      "main": [
+        [
+          {
+            "node": "Code - Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "Switch - Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - Event Type": {
+      "main": [
+        [
+          {
+            "node": "Code - Process Charge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Process Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Process Failed Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Process Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Process Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Process Refund",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Charge": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Income Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Income Record": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Fee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Fee": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Fee Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack - Payment Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Fee Record": {
+      "main": [
+        [
+          {
+            "node": "Slack - Payment Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Payment Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Invoice": {
+      "main": [
+        [
+          {
+            "node": "IF - Our Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Our Expense": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Expense",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Create Income (Subscription)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Expense": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Income (Subscription)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Failed Payment": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Failed Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Failed Record": {
+      "main": [
+        [
+          {
+            "node": "Slack - Failed Payment Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Failed Payment Alert": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Subscription": {
+      "main": [
+        [
+          {
+            "node": "Slack - Subscription Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Subscription Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Refund": {
+      "main": [
+        [
+          {
+            "node": "Notion - Create Refund Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Refund Record": {
+      "main": [
+        [
+          {
+            "node": "Slack - Refund Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Refund Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Slack - Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Stripe",
+      "id": "stripe-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}

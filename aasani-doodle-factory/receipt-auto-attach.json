@@ -1,0 +1,698 @@
+{
+  "name": "Receipt Auto-Attach",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "filters": {
+          "q": "from:(receipts@framer.com OR noreply@openai.com OR receipts@anthropic.com OR noreply@stripe.com OR receipts@notion.so OR billing@vercel.com OR noreply@github.com OR aws@amazon.com OR no-reply@dropbox.com OR receipts@slack.com OR billing@digitalocean.com OR noreply@heroku.com OR billing@netlify.com OR noreply@twilio.com OR billing@sendgrid.com) has:attachment is:unread newer_than:7d -label:Processed-n8n"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "gmail-get-receipts",
+      "name": "Gmail - Get Receipt Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [460, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "receipt",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "invoice",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "payment",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "billing",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "confirmation",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "filter-valid-receipts",
+      "name": "Filter - Valid Receipt Emails",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract receipt data from email\nconst email = $input.first().json;\nconst subject = email.subject || '';\nconst body = email.text || email.snippet || '';\nconst from = email.from || '';\n\n// Extract amount from subject/body\nconst amountPatterns = [\n  /\\$([0-9,]+\\.\\d{2})/,\n  /Total:?\\s*\\$([0-9,]+\\.\\d{2})/i,\n  /Amount:?\\s*\\$([0-9,]+\\.\\d{2})/i,\n  /Charge:?\\s*\\$([0-9,]+\\.\\d{2})/i,\n  /Payment:?\\s*\\$([0-9,]+\\.\\d{2})/i\n];\n\nlet amount = null;\nfor (const pattern of amountPatterns) {\n  const match = subject.match(pattern) || body.match(pattern);\n  if (match) {\n    amount = parseFloat(match[1].replace(',', ''));\n    break;\n  }\n}\n\n// Extract merchant from sender domain\nconst senderDomainMatch = from.match(/@([a-zA-Z0-9.-]+)/i);\nlet merchant = 'Unknown';\nif (senderDomainMatch) {\n  const domain = senderDomainMatch[1].toLowerCase();\n  // Common service mappings\n  const domainMap = {\n    'framer.com': 'Framer',\n    'openai.com': 'OpenAI',\n    'anthropic.com': 'Anthropic',\n    'stripe.com': 'Stripe',\n    'notion.so': 'Notion',\n    'vercel.com': 'Vercel',\n    'github.com': 'GitHub',\n    'amazon.com': 'AWS',\n    'aws.amazon.com': 'AWS',\n    'dropbox.com': 'Dropbox',\n    'slack.com': 'Slack',\n    'digitalocean.com': 'DigitalOcean',\n    'heroku.com': 'Heroku',\n    'netlify.com': 'Netlify',\n    'twilio.com': 'Twilio',\n    'sendgrid.com': 'SendGrid',\n    'zoom.us': 'Zoom',\n    'adobe.com': 'Adobe',\n    'figma.com': 'Figma',\n    'google.com': 'Google',\n    'microsoft.com': 'Microsoft'\n  };\n  \n  merchant = domainMap[domain] || domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);\n}\n\n// Extract date from email\nconst emailDate = new Date(email.date || email.internalDate).toISOString().split('T')[0];\n\n// Get PDF attachment\nlet attachment = null;\nif (email.attachments && email.attachments.length > 0) {\n  // Prefer PDF with invoice/receipt in name\n  attachment = email.attachments.find(a => \n    a.filename && a.filename.toLowerCase().includes('invoice')\n  ) || email.attachments.find(a => \n    a.filename && a.filename.toLowerCase().includes('receipt')\n  ) || email.attachments.find(a => \n    a.filename && a.filename.toLowerCase().endsWith('.pdf')\n  ) || email.attachments[0];\n}\n\nreturn [{\n  json: {\n    emailId: email.id,\n    subject,\n    from,\n    merchant,\n    amount,\n    date: emailDate,\n    hasAttachment: !!attachment,\n    attachmentName: attachment?.filename || '',\n    attachmentData: attachment?.data || null,\n    attachmentMimeType: attachment?.mimeType || ''\n  }\n}];"
+      },
+      "id": "code-extract-data",
+      "name": "Code - Extract Receipt Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasAttachment }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-has-attachment",
+      "name": "IF - Has Attachment",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Google Drive folder path and filename\nconst input = $input.first().json;\nconst date = new Date(input.date);\nconst year = date.getFullYear();\nconst month = String(date.getMonth() + 1).padStart(2, '0');\n\nconst folderPath = `Business/Receipts/${year}/${month}`;\n\n// Generate filename\nlet filename;\nif (input.amount) {\n  filename = `${input.merchant}_${input.date}_$${input.amount.toFixed(2)}.pdf`;\n} else {\n  filename = `${input.merchant}_${input.date}_Receipt.pdf`;\n}\n\n// Clean filename (remove invalid characters)\nfilename = filename.replace(/[<>:\"/\\\\|?*]/g, '_');\n\nreturn [{\n  json: {\n    ...input,\n    folderPath,\n    filename,\n    year,\n    month\n  }\n}];"
+      },
+      "id": "code-build-path",
+      "name": "Code - Build Drive Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_DRIVE_RECEIPTS_FOLDER_ID }}"
+        },
+        "name": "={{ $json.filename }}",
+        "options": {}
+      },
+      "id": "google-drive-upload",
+      "name": "Google Drive - Upload Receipt",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1560, 200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credential-id",
+          "name": "Google Drive - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "share",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "permissionsUi": {
+          "permissionsValues": {
+            "role": "reader",
+            "type": "anyone"
+          }
+        },
+        "options": {}
+      },
+      "id": "google-drive-share",
+      "name": "Google Drive - Get Share Link",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1780, 200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credential-id",
+          "name": "Google Drive - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Drive share URL\nconst fileId = $input.first().json.id;\nconst receiptUrl = `https://drive.google.com/file/d/${fileId}/view`;\n\n// Get original data from earlier node\nconst extractData = $('Code - Build Drive Path').first().json;\n\nreturn [{\n  json: {\n    ...extractData,\n    driveFileId: fileId,\n    receiptUrl\n  }\n}];"
+      },
+      "id": "code-get-url",
+      "name": "Code - Get Share URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+        },
+        "returnAll": false,
+        "limit": 50,
+        "filterType": "json",
+        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Receipt Status\",\n      \"select\": {\n        \"equals\": \"Pending\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ new Date(new Date($json.date).getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ new Date(new Date($json.date).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notion-search-expenses",
+      "name": "Notion - Search Matching Expenses",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2220, 200],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match receipt to expense\nconst receiptData = $('Code - Get Share URL').first().json;\nconst expenses = $input.all();\n\nif (!expenses || expenses.length === 0) {\n  return [{\n    json: {\n      ...receiptData,\n      matched: false,\n      matchedExpense: null,\n      matchScore: 0,\n      reason: 'No pending expenses found in date range'\n    }\n  }];\n}\n\n// Calculate similarity score\nconst similarity = (str1, str2) => {\n  if (!str1 || !str2) return 0;\n  const s1 = str1.toLowerCase().trim();\n  const s2 = str2.toLowerCase().trim();\n  \n  // Exact match\n  if (s1 === s2) return 100;\n  \n  // Contains match\n  if (s1.includes(s2) || s2.includes(s1)) return 80;\n  \n  // Word overlap\n  const words1 = s1.split(/\\s+/);\n  const words2 = s2.split(/\\s+/);\n  const overlap = words1.filter(w => words2.some(w2 => w2.includes(w) || w.includes(w2))).length;\n  const maxWords = Math.max(words1.length, words2.length);\n  \n  return Math.round((overlap / maxWords) * 60);\n};\n\n// Find best match\nlet bestMatch = null;\nlet bestScore = 0;\n\nfor (const item of expenses) {\n  const expense = item.json;\n  const expenseTitle = expense.properties?.Expense?.title?.[0]?.plain_text || '';\n  const expenseAmount = expense.properties?.Amount?.number || 0;\n  \n  let score = 0;\n  \n  // Merchant name similarity (max 50 points)\n  const merchantScore = similarity(receiptData.merchant, expenseTitle);\n  score += merchantScore * 0.5;\n  \n  // Amount match (max 50 points)\n  if (receiptData.amount && expenseAmount) {\n    const amountDiff = Math.abs(receiptData.amount - expenseAmount);\n    if (amountDiff < 0.01) {\n      score += 50; // Exact match\n    } else if (amountDiff <= 5) {\n      score += 40; // Within $5\n    } else if (amountDiff <= 10) {\n      score += 30; // Within $10\n    }\n  }\n  \n  if (score > bestScore) {\n    bestScore = score;\n    bestMatch = expense;\n  }\n}\n\nconst matched = bestScore >= 50; // Threshold for auto-matching\n\nreturn [{\n  json: {\n    ...receiptData,\n    matched,\n    matchedExpense: matched ? bestMatch : null,\n    matchedExpenseId: matched ? bestMatch?.id : null,\n    matchedExpenseUrl: matched ? bestMatch?.url : null,\n    matchScore: Math.round(bestScore),\n    reason: matched ? 'Found matching expense' : `Best score ${Math.round(bestScore)} below threshold 50`\n  }\n}];"
+      },
+      "id": "code-match-expense",
+      "name": "Code - Match to Expense",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.matched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-matched",
+      "name": "IF - Matched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2660, 200]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.matchedExpenseId }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Receipt URL|url",
+              "urlValue": "={{ $json.receiptUrl }}"
+            },
+            {
+              "key": "Receipt Status|select",
+              "selectValue": "Added"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-update-expense",
+      "name": "Notion - Update Expense with Receipt",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2880, 100],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:white_check_mark: *Receipt Auto-Attached*\n\n*Expense:* {{ $('Code - Match to Expense').item.json.merchant }}\n*Amount:* {{ $('Code - Match to Expense').item.json.amount ? '$' + $('Code - Match to Expense').item.json.amount.toFixed(2) : 'N/A' }}\n*Receipt:* {{ $('Code - Match to Expense').item.json.filename }}\n*Match Confidence:* {{ $('Code - Match to Expense').item.json.matchScore }}%\n\n<{{ $('Code - Match to Expense').item.json.matchedExpenseUrl }}|View in Notion>",
+        "otherOptions": {}
+      },
+      "id": "slack-success",
+      "name": "Slack - Success Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [3100, 100],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.NOTION_TASKS_DB_ID }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Task|title",
+              "title": "=:mag: Review unmatched receipt: {{ $json.merchant }} {{ $json.amount ? '$' + $json.amount.toFixed(2) : '' }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "To Do"
+            },
+            {
+              "key": "Priority|select",
+              "selectValue": "Normal"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Receipt received but could not auto-match to expense.\n\nReceipt Details:\n- Merchant: {{ $json.merchant }}\n- Amount: {{ $json.amount ? '$' + $json.amount.toFixed(2) : 'Not detected' }}\n- Date: {{ $json.date }}\n- File: {{ $json.filename }}\n- Drive Link: {{ $json.receiptUrl }}\n\nReason: {{ $json.reason }}\n\nPlease manually create expense or link to existing."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-create-review-task",
+      "name": "Notion - Create Review Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2880, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-credential-id",
+          "name": "Notion - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#all-aasani-systems",
+        "text": "=:warning: *Unmatched Receipt*\n\nReceived receipt that couldn't be matched:\n*Merchant:* {{ $('Code - Match to Expense').item.json.merchant }}\n*Amount:* {{ $('Code - Match to Expense').item.json.amount ? '$' + $('Code - Match to Expense').item.json.amount.toFixed(2) : 'Not detected' }}\n*From:* {{ $('Code - Match to Expense').item.json.from }}\n*Reason:* {{ $('Code - Match to Expense').item.json.reason }}\n\nReceipt saved to Drive: <{{ $('Code - Match to Expense').item.json.receiptUrl }}|View Receipt>\nManual review task created: <{{ $json.url }}|View Task>",
+        "otherOptions": {}
+      },
+      "id": "slack-unmatched",
+      "name": "Slack - Unmatched Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [3100, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credential-id",
+          "name": "Slack - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Code - Extract Receipt Data').item.json.emailId }}"
+      },
+      "id": "gmail-mark-read",
+      "name": "Gmail - Mark as Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [3320, 200],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $('Code - Extract Receipt Data').item.json.emailId }}",
+        "labelIds": [
+          "Processed-n8n"
+        ]
+      },
+      "id": "gmail-add-label",
+      "name": "Gmail - Add Processed Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [3540, 200],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip emails without attachments\nconst input = $input.first().json;\n\nreturn [{\n  json: {\n    ...input,\n    skipped: true,\n    reason: 'No PDF attachment found'\n  }\n}];"
+      },
+      "id": "code-no-attachment",
+      "name": "Code - No Attachment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $json.emailId }}"
+      },
+      "id": "gmail-mark-read-skip",
+      "name": "Gmail - Mark as Read (Skip)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1560, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential-id",
+          "name": "Gmail - Aasani"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule - Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Get Receipt Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Get Receipt Emails": {
+      "main": [
+        [
+          {
+            "node": "Filter - Valid Receipt Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter - Valid Receipt Emails": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract Receipt Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract Receipt Data": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Attachment": {
+      "main": [
+        [
+          {
+            "node": "Code - Build Drive Path",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - No Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build Drive Path": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Upload Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Upload Receipt": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Get Share Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Get Share Link": {
+      "main": [
+        [
+          {
+            "node": "Code - Get Share URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Get Share URL": {
+      "main": [
+        [
+          {
+            "node": "Notion - Search Matching Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Search Matching Expenses": {
+      "main": [
+        [
+          {
+            "node": "Code - Match to Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Match to Expense": {
+      "main": [
+        [
+          {
+            "node": "IF - Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Matched": {
+      "main": [
+        [
+          {
+            "node": "Notion - Update Expense with Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Create Review Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Update Expense with Receipt": {
+      "main": [
+        [
+          {
+            "node": "Slack - Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Success Notification": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Create Review Task": {
+      "main": [
+        [
+          {
+            "node": "Slack - Unmatched Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Unmatched Notification": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Mark as Read": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Add Processed Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - No Attachment": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Mark as Read (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Finance",
+      "id": "finance-tag"
+    },
+    {
+      "name": "Receipts",
+      "id": "receipts-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aasani-instance"
+  },
+  "pinData": {}
+}
