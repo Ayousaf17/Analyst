@@ -27,13 +27,52 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract event type and data from Stripe Trigger\nconst event = $input.first().json;\n\nreturn [{\n  json: {\n    eventType: event.type,\n    eventId: event.id,\n    created: new Date(event.created * 1000).toISOString(),\n    data: event.data.object,\n    livemode: event.livemode\n  }\n}];"
+        "jsCode": "// Extract event type and data from Stripe Trigger\nconst event = $input.first().json;\n\nreturn [{\n  json: {\n    eventType: event.type,\n    eventId: event.id,\n    created: new Date(event.created * 1000).toISOString(),\n    data: event.data.object,\n    livemode: event.livemode,\n    customerId: event.data.object.customer || null,\n    chargeId: event.data.object.id || null\n  }\n}];"
       },
       "id": "code-extract-event",
       "name": "Code - Extract Event",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "charge",
+        "operation": "get",
+        "chargeId": "={{ $json.chargeId }}",
+        "options": {
+          "expand": ["balance_transaction", "customer"]
+        }
+      },
+      "id": "stripe-get-charge",
+      "name": "Stripe - Get Charge",
+      "type": "n8n-nodes-base.stripe",
+      "typeVersion": 1,
+      "position": [920, -60],
+      "credentials": {
+        "stripeApi": {
+          "id": "stripe-credential-id",
+          "name": "Stripe - Aasani"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "customer",
+        "operation": "get",
+        "customerId": "={{ $json.customer.id || $json.customer }}"
+      },
+      "id": "stripe-get-customer",
+      "name": "Stripe - Get Customer",
+      "type": "n8n-nodes-base.stripe",
+      "typeVersion": 1,
+      "position": [1140, -60],
+      "credentials": {
+        "stripeApi": {
+          "id": "stripe-credential-id",
+          "name": "Stripe - Aasani"
+        }
+      }
     },
     {
       "parameters": {
@@ -183,13 +222,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process charge.succeeded event\nconst data = $input.first().json.data;\n\n// Extract payment details\nconst amount = data.amount / 100; // Convert cents to dollars\nconst currency = data.currency.toUpperCase();\nconst chargeId = data.id;\nconst customerId = data.customer;\nconst customerName = data.billing_details?.name || data.customer_email || 'Unknown Customer';\nconst customerEmail = data.billing_details?.email || data.customer_email || '';\nconst description = data.description || 'Payment';\nconst receiptUrl = data.receipt_url || '';\n\n// Transaction date\nconst transactionDate = new Date(data.created * 1000).toISOString().split('T')[0];\n\n// Calculate fee (if balance_transaction is expanded)\nlet feeAmount = 0;\nlet netAmount = amount;\nif (data.balance_transaction && typeof data.balance_transaction === 'object') {\n  feeAmount = data.balance_transaction.fee / 100;\n  netAmount = data.balance_transaction.net / 100;\n} else {\n  // Estimate Stripe fee: 2.9% + $0.30\n  feeAmount = Math.round((amount * 0.029 + 0.30) * 100) / 100;\n  netAmount = amount - feeAmount;\n}\n\n// Payment method info\nconst paymentMethod = data.payment_method_details?.type || 'card';\nconst cardBrand = data.payment_method_details?.card?.brand || '';\nconst cardLast4 = data.payment_method_details?.card?.last4 || '';\n\nreturn [{\n  json: {\n    eventType: 'charge.succeeded',\n    chargeId,\n    customerId,\n    customerName,\n    customerEmail,\n    description,\n    amount,\n    feeAmount,\n    netAmount,\n    currency,\n    transactionDate,\n    paymentMethod,\n    cardInfo: cardBrand && cardLast4 ? `${cardBrand} ****${cardLast4}` : '',\n    receiptUrl,\n    incomeTitle: `${customerName} - ${description}`,\n    feeTitle: `Stripe Processing Fee - ${chargeId}`\n  }\n}];"
+        "jsCode": "// Process charge.succeeded event with enriched data from Stripe API\n// Input: Customer data from 'Stripe - Get Customer' node\n// Charge data available from 'Stripe - Get Charge' node\n\nconst customer = $input.first().json;\nconst charge = $('Stripe - Get Charge').first().json;\n\n// Extract payment details from expanded charge\nconst amount = charge.amount / 100; // Convert cents to dollars\nconst currency = charge.currency.toUpperCase();\nconst chargeId = charge.id;\nconst customerId = charge.customer?.id || charge.customer;\nconst description = charge.description || 'Payment';\nconst receiptUrl = charge.receipt_url || '';\n\n// Get ACCURATE fee from expanded balance_transaction (no more estimates!)\nlet feeAmount = 0;\nlet netAmount = amount;\nif (charge.balance_transaction && typeof charge.balance_transaction === 'object') {\n  feeAmount = charge.balance_transaction.fee / 100;\n  netAmount = charge.balance_transaction.net / 100;\n}\n\n// Enriched customer data from Stripe - Get Customer\nconst customerName = customer.name || charge.billing_details?.name || customer.email || 'Unknown Customer';\nconst customerEmail = customer.email || charge.billing_details?.email || '';\nconst customerPhone = customer.phone || '';\nconst customerAddress = customer.address ? \n  [customer.address.line1, customer.address.city, customer.address.state, customer.address.postal_code, customer.address.country].filter(Boolean).join(', ') : '';\nconst customerCreated = customer.created ? new Date(customer.created * 1000).toISOString().split('T')[0] : '';\nconst customerMetadata = customer.metadata || {};\n\n// Transaction date\nconst transactionDate = new Date(charge.created * 1000).toISOString().split('T')[0];\n\n// Payment method info\nconst paymentMethod = charge.payment_method_details?.type || 'card';\nconst cardBrand = charge.payment_method_details?.card?.brand || '';\nconst cardLast4 = charge.payment_method_details?.card?.last4 || '';\nconst cardCountry = charge.payment_method_details?.card?.country || '';\nconst cardFunding = charge.payment_method_details?.card?.funding || ''; // credit, debit, prepaid\n\nreturn [{\n  json: {\n    eventType: 'charge.succeeded',\n    chargeId,\n    customerId,\n    // Enriched customer info\n    customerName,\n    customerEmail,\n    customerPhone,\n    customerAddress,\n    customerSince: customerCreated,\n    customerMetadata,\n    // Payment details\n    description,\n    amount,\n    feeAmount,\n    netAmount,\n    currency,\n    transactionDate,\n    // Card details\n    paymentMethod,\n    cardBrand,\n    cardLast4,\n    cardCountry,\n    cardFunding,\n    cardInfo: cardBrand && cardLast4 ? `${cardBrand.toUpperCase()} ****${cardLast4}` : '',\n    receiptUrl,\n    // Formatted titles\n    incomeTitle: `${customerName} - ${description}`,\n    feeTitle: `Stripe Processing Fee - ${chargeId}`,\n    // Additional context\n    isNewCustomer: customerCreated === transactionDate\n  }\n}];"
       },
       "id": "code-process-charge",
       "name": "Code - Process Charge",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 100]
+      "position": [1360, -60]
     },
     {
       "parameters": {
@@ -224,11 +263,15 @@
             },
             {
               "key": "Customer|rich_text",
-              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
+              "textContent": "={{ $json.customerName }} | {{ $json.customerEmail }}{{ $json.customerPhone ? ' | ' + $json.customerPhone : '' }}"
             },
             {
               "key": "Status|select",
               "selectValue": "Cleared"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "=Payment: {{ $json.cardInfo }}{{ $json.customerAddress ? ' | Address: ' + $json.customerAddress : '' }}{{ $json.isNewCustomer ? ' | 🆕 NEW CUSTOMER' : ' | Customer since: ' + $json.customerSince }}"
             }
           ]
         },
@@ -238,7 +281,7 @@
       "name": "Notion - Create Income Record",
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
-      "position": [1140, 0],
+      "position": [1580, -60],
       "credentials": {
         "notionApi": {
           "id": "notion-credential-id",
@@ -328,14 +371,14 @@
     {
       "parameters": {
         "channel": "#all-aasani-systems",
-        "text": "=:moneybag: *New Payment Received*\n\n*Customer:* {{ $('Code - Process Charge').item.json.customerName }}\n*Amount:* ${{ $('Code - Process Charge').item.json.amount.toFixed(2) }} {{ $('Code - Process Charge').item.json.currency }}\n*Stripe Fee:* ${{ $('Code - Process Charge').item.json.feeAmount.toFixed(2) }}\n*Net:* ${{ $('Code - Process Charge').item.json.netAmount.toFixed(2) }}\n*Description:* {{ $('Code - Process Charge').item.json.description }}\n*Payment:* {{ $('Code - Process Charge').item.json.cardInfo }}\n*Date:* {{ $('Code - Process Charge').item.json.transactionDate }}\n\n<{{ $('Notion - Create Income Record').item.json.url }}|View in Notion>",
+        "text": "=:moneybag: *New Payment Received*{{ $('Code - Process Charge').item.json.isNewCustomer ? ' :star: NEW CUSTOMER!' : '' }}\n\n*Customer:* {{ $('Code - Process Charge').item.json.customerName }}\n*Email:* {{ $('Code - Process Charge').item.json.customerEmail }}\n{{ $('Code - Process Charge').item.json.customerPhone ? '*Phone:* ' + $('Code - Process Charge').item.json.customerPhone + '\\n' : '' }}*Amount:* ${{ $('Code - Process Charge').item.json.amount.toFixed(2) }} {{ $('Code - Process Charge').item.json.currency }}\n*Stripe Fee:* ${{ $('Code - Process Charge').item.json.feeAmount.toFixed(2) }} _(actual)_\n*Net:* ${{ $('Code - Process Charge').item.json.netAmount.toFixed(2) }}\n*Description:* {{ $('Code - Process Charge').item.json.description }}\n*Payment:* {{ $('Code - Process Charge').item.json.cardInfo }} ({{ $('Code - Process Charge').item.json.cardFunding }})\n*Date:* {{ $('Code - Process Charge').item.json.transactionDate }}\n{{ $('Code - Process Charge').item.json.isNewCustomer ? '' : '*Customer Since:* ' + $('Code - Process Charge').item.json.customerSince + '\\n' }}\n<{{ $('Notion - Create Income Record').item.json.url }}|View in Notion>",
         "otherOptions": {}
       },
       "id": "slack-payment-notification",
       "name": "Slack - Payment Notification",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1800, 0],
+      "position": [2020, -60],
       "credentials": {
         "slackApi": {
           "id": "slack-credential-id",
@@ -745,7 +788,7 @@
       "main": [
         [
           {
-            "node": "Code - Process Charge",
+            "node": "Stripe - Get Charge",
             "type": "main",
             "index": 0
           }
@@ -781,6 +824,28 @@
         [
           {
             "node": "Code - Process Refund",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe - Get Charge": {
+      "main": [
+        [
+          {
+            "node": "Stripe - Get Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe - Get Customer": {
+      "main": [
+        [
+          {
+            "node": "Code - Process Charge",
             "type": "main",
             "index": 0
           }
