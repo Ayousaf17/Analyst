@@ -222,7 +222,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process charge.succeeded event with enriched data from Stripe API\n// Input: Customer data from 'Stripe - Get Customer' node\n// Charge data available from 'Stripe - Get Charge' node\n\nconst customer = $input.first().json;\nconst charge = $('Stripe - Get Charge').first().json;\n\n// Extract payment details from expanded charge\nconst amount = charge.amount / 100; // Convert cents to dollars\nconst currency = charge.currency.toUpperCase();\nconst chargeId = charge.id;\nconst customerId = charge.customer?.id || charge.customer;\nconst description = charge.description || 'Payment';\nconst receiptUrl = charge.receipt_url || '';\n\n// Get ACCURATE fee from expanded balance_transaction (no more estimates!)\nlet feeAmount = 0;\nlet netAmount = amount;\nif (charge.balance_transaction && typeof charge.balance_transaction === 'object') {\n  feeAmount = charge.balance_transaction.fee / 100;\n  netAmount = charge.balance_transaction.net / 100;\n}\n\n// Enriched customer data from Stripe - Get Customer\nconst customerName = customer.name || charge.billing_details?.name || customer.email || 'Unknown Customer';\nconst customerEmail = customer.email || charge.billing_details?.email || '';\nconst customerPhone = customer.phone || '';\nconst customerAddress = customer.address ? \n  [customer.address.line1, customer.address.city, customer.address.state, customer.address.postal_code, customer.address.country].filter(Boolean).join(', ') : '';\nconst customerCreated = customer.created ? new Date(customer.created * 1000).toISOString().split('T')[0] : '';\nconst customerMetadata = customer.metadata || {};\n\n// Transaction date\nconst transactionDate = new Date(charge.created * 1000).toISOString().split('T')[0];\n\n// Payment method info\nconst paymentMethod = charge.payment_method_details?.type || 'card';\nconst cardBrand = charge.payment_method_details?.card?.brand || '';\nconst cardLast4 = charge.payment_method_details?.card?.last4 || '';\nconst cardCountry = charge.payment_method_details?.card?.country || '';\nconst cardFunding = charge.payment_method_details?.card?.funding || ''; // credit, debit, prepaid\n\nreturn [{\n  json: {\n    eventType: 'charge.succeeded',\n    chargeId,\n    customerId,\n    // Enriched customer info\n    customerName,\n    customerEmail,\n    customerPhone,\n    customerAddress,\n    customerSince: customerCreated,\n    customerMetadata,\n    // Payment details\n    description,\n    amount,\n    feeAmount,\n    netAmount,\n    currency,\n    transactionDate,\n    // Card details\n    paymentMethod,\n    cardBrand,\n    cardLast4,\n    cardCountry,\n    cardFunding,\n    cardInfo: cardBrand && cardLast4 ? `${cardBrand.toUpperCase()} ****${cardLast4}` : '',\n    receiptUrl,\n    // Formatted titles\n    incomeTitle: `${customerName} - ${description}`,\n    feeTitle: `Stripe Processing Fee - ${chargeId}`,\n    // Additional context\n    isNewCustomer: customerCreated === transactionDate\n  }\n}];"
+        "jsCode": "// Process charge.succeeded event with enriched data from Stripe API\nconst customer = $input.first().json;\nconst charge = $('Stripe - Get Charge').first().json;\n\n// Extract payment details from expanded charge\nconst amount = charge.amount / 100;\nconst currency = charge.currency.toUpperCase();\nconst chargeId = charge.id;\nconst customerId = charge.customer?.id || charge.customer;\nconst description = charge.description || 'Payment';\nconst receiptUrl = charge.receipt_url || '';\n\n// Get ACCURATE fee from expanded balance_transaction\nlet feeAmount = 0;\nlet netAmount = amount;\nif (charge.balance_transaction && typeof charge.balance_transaction === 'object') {\n  feeAmount = charge.balance_transaction.fee / 100;\n  netAmount = charge.balance_transaction.net / 100;\n}\n\n// Enriched customer data\nconst customerName = customer.name || charge.billing_details?.name || customer.email || 'Unknown Customer';\nconst customerEmail = customer.email || charge.billing_details?.email || '';\nconst customerPhone = customer.phone || '';\nconst customerAddress = customer.address ? \n  [customer.address.line1, customer.address.city, customer.address.state, customer.address.postal_code, customer.address.country].filter(Boolean).join(', ') : '';\nconst customerCreated = customer.created ? new Date(customer.created * 1000).toISOString().split('T')[0] : '';\n\n// Transaction date\nconst transactionDate = new Date(charge.created * 1000).toISOString().split('T')[0];\n\n// Payment method info\nconst cardBrand = charge.payment_method_details?.card?.brand || '';\nconst cardLast4 = charge.payment_method_details?.card?.last4 || '';\nconst cardFunding = charge.payment_method_details?.card?.funding || '';\nconst cardInfo = cardBrand && cardLast4 ? `${cardBrand.toUpperCase()} ****${cardLast4}` : '';\n\nconst isNewCustomer = customerCreated === transactionDate;\n\nreturn [{\n  json: {\n    // For Google Sheets Incomes tab\n    date: transactionDate,\n    description: `${customerName} - ${description}`,\n    customerName,\n    customerEmail,\n    amount,\n    stripeFee: feeAmount,\n    netAmount,\n    type: 'Customer Payment',\n    transactionId: chargeId,\n    status: 'Cleared',\n    paymentMethod: cardInfo + (cardFunding ? ` (${cardFunding})` : ''),\n    notes: `${customerAddress ? 'Address: ' + customerAddress + ' | ' : ''}${isNewCustomer ? 'NEW CUSTOMER' : 'Customer since: ' + customerCreated}`,\n    createdAt: new Date().toISOString(),\n    // For Slack notification\n    isNewCustomer,\n    customerPhone,\n    currency\n  }\n}];"
       },
       "id": "code-process-charge",
       "name": "Code - Process Charge",
@@ -232,153 +232,60 @@
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
         },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Income|title",
-              "title": "={{ $json.incomeTitle }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ $json.netAmount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $json.transactionDate }}"
-            },
-            {
-              "key": "Type|select",
-              "selectValue": "Customer Payment"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $json.chargeId }}"
-            },
-            {
-              "key": "Customer|rich_text",
-              "textContent": "={{ $json.customerName }} | {{ $json.customerEmail }}{{ $json.customerPhone ? ' | ' + $json.customerPhone : '' }}"
-            },
-            {
-              "key": "Status|select",
-              "selectValue": "Cleared"
-            },
-            {
-              "key": "Notes|rich_text",
-              "textContent": "=Payment: {{ $json.cardInfo }}{{ $json.customerAddress ? ' | Address: ' + $json.customerAddress : '' }}{{ $json.isNewCustomer ? ' | 🆕 NEW CUSTOMER' : ' | Customer since: ' + $json.customerSince }}"
-            }
-          ]
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Incomes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Description": "={{ $json.description }}",
+            "Customer Name": "={{ $json.customerName }}",
+            "Customer Email": "={{ $json.customerEmail }}",
+            "Amount (Gross)": "={{ $json.amount }}",
+            "Stripe Fee": "={{ $json.stripeFee }}",
+            "Net Amount": "={{ $json.netAmount }}",
+            "Type": "={{ $json.type }}",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Status": "={{ $json.status }}",
+            "Payment Method": "={{ $json.paymentMethod }}",
+            "Notes": "={{ $json.notes }}",
+            "Created At": "={{ $json.createdAt }}"
+          }
         },
         "options": {}
       },
-      "id": "notion-create-income",
-      "name": "Notion - Create Income Record",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
+      "id": "sheets-append-income",
+      "name": "Sheets - Append Income",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [1580, -60],
       "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "leftValue": "={{ $('Code - Process Charge').item.json.feeAmount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "if-has-fee",
-      "name": "IF - Has Fee",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1360, 0]
-    },
-    {
-      "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
-        },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Income|title",
-              "title": "={{ $('Code - Process Charge').item.json.feeTitle }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ -$('Code - Process Charge').item.json.feeAmount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $('Code - Process Charge').item.json.transactionDate }}"
-            },
-            {
-              "key": "Type|select",
-              "selectValue": "Stripe Fee"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $('Code - Process Charge').item.json.chargeId }}_fee"
-            },
-            {
-              "key": "Status|select",
-              "selectValue": "Cleared"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "notion-create-fee",
-      "name": "Notion - Create Fee Record",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
-      "position": [1580, -80],
-      "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets - Aasani"
         }
       }
     },
     {
       "parameters": {
         "channel": "#all-aasani-systems",
-        "text": "=:moneybag: *New Payment Received*{{ $('Code - Process Charge').item.json.isNewCustomer ? ' :star: NEW CUSTOMER!' : '' }}\n\n*Customer:* {{ $('Code - Process Charge').item.json.customerName }}\n*Email:* {{ $('Code - Process Charge').item.json.customerEmail }}\n{{ $('Code - Process Charge').item.json.customerPhone ? '*Phone:* ' + $('Code - Process Charge').item.json.customerPhone + '\\n' : '' }}*Amount:* ${{ $('Code - Process Charge').item.json.amount.toFixed(2) }} {{ $('Code - Process Charge').item.json.currency }}\n*Stripe Fee:* ${{ $('Code - Process Charge').item.json.feeAmount.toFixed(2) }} _(actual)_\n*Net:* ${{ $('Code - Process Charge').item.json.netAmount.toFixed(2) }}\n*Description:* {{ $('Code - Process Charge').item.json.description }}\n*Payment:* {{ $('Code - Process Charge').item.json.cardInfo }} ({{ $('Code - Process Charge').item.json.cardFunding }})\n*Date:* {{ $('Code - Process Charge').item.json.transactionDate }}\n{{ $('Code - Process Charge').item.json.isNewCustomer ? '' : '*Customer Since:* ' + $('Code - Process Charge').item.json.customerSince + '\\n' }}\n<{{ $('Notion - Create Income Record').item.json.url }}|View in Notion>",
+        "text": "=:moneybag: *New Payment Received*{{ $('Code - Process Charge').item.json.isNewCustomer ? ' :star: NEW CUSTOMER!' : '' }}\n\n*Customer:* {{ $('Code - Process Charge').item.json.customerName }}\n*Email:* {{ $('Code - Process Charge').item.json.customerEmail }}\n{{ $('Code - Process Charge').item.json.customerPhone ? '*Phone:* ' + $('Code - Process Charge').item.json.customerPhone + '\\n' : '' }}*Amount:* ${{ $('Code - Process Charge').item.json.amount.toFixed(2) }} {{ $('Code - Process Charge').item.json.currency }}\n*Stripe Fee:* ${{ $('Code - Process Charge').item.json.stripeFee.toFixed(2) }} _(actual)_\n*Net:* ${{ $('Code - Process Charge').item.json.netAmount.toFixed(2) }}\n*Payment:* {{ $('Code - Process Charge').item.json.paymentMethod }}\n*Date:* {{ $('Code - Process Charge').item.json.date }}\n\n_Logged to Google Sheets_",
         "otherOptions": {}
       },
       "id": "slack-payment-notification",
       "name": "Slack - Payment Notification",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [2020, -60],
+      "position": [1800, -60],
       "credentials": {
         "slackApi": {
           "id": "slack-credential-id",
@@ -388,7 +295,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process invoice.paid event\nconst data = $input.first().json.data;\n\n// Determine if this is OUR expense or customer REVENUE\nconst customerEmail = data.customer_email || '';\nconst isOurExpense = customerEmail.includes('aasani.ai') || \n                     customerEmail.includes('ayub@') ||\n                     customerEmail === 'ayub@aasani.ai';\n\n// Extract invoice details\nconst invoiceId = data.id;\nconst amount = data.amount_paid / 100;\nconst currency = data.currency.toUpperCase();\nconst customerId = data.customer;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst invoiceUrl = data.hosted_invoice_url || data.invoice_pdf || '';\nconst transactionDate = new Date(data.effective_at * 1000 || data.created * 1000).toISOString().split('T')[0];\n\n// Get line item descriptions\nlet description = 'Subscription Payment';\nif (data.lines && data.lines.data && data.lines.data.length > 0) {\n  description = data.lines.data.map(line => line.description || line.plan?.nickname || 'Subscription').join(', ');\n}\n\n// Subscription info\nconst subscriptionId = data.subscription || '';\nconst periodStart = data.period_start ? new Date(data.period_start * 1000).toISOString().split('T')[0] : '';\nconst periodEnd = data.period_end ? new Date(data.period_end * 1000).toISOString().split('T')[0] : '';\n\nreturn [{\n  json: {\n    eventType: 'invoice.paid',\n    isOurExpense,\n    invoiceId,\n    amount,\n    currency,\n    customerId,\n    customerName,\n    customerEmail,\n    description,\n    invoiceUrl,\n    transactionDate,\n    subscriptionId,\n    periodStart,\n    periodEnd,\n    title: isOurExpense ? `${description} Subscription` : `${customerName} - ${description}`\n  }\n}];"
+        "jsCode": "// Process invoice.paid event\nconst data = $input.first().json.data;\n\n// Determine if this is OUR expense or customer REVENUE\nconst customerEmail = data.customer_email || '';\nconst isOurExpense = customerEmail.includes('aasani.ai') || \n                     customerEmail.includes('ayub@') ||\n                     customerEmail === 'ayub@aasani.ai';\n\n// Extract invoice details\nconst invoiceId = data.id;\nconst amount = data.amount_paid / 100;\nconst currency = data.currency.toUpperCase();\nconst customerId = data.customer;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst invoiceUrl = data.hosted_invoice_url || data.invoice_pdf || '';\nconst transactionDate = new Date(data.effective_at * 1000 || data.created * 1000).toISOString().split('T')[0];\n\n// Get line item descriptions\nlet description = 'Subscription Payment';\nif (data.lines && data.lines.data && data.lines.data.length > 0) {\n  description = data.lines.data.map(line => line.description || line.plan?.nickname || 'Subscription').join(', ');\n}\n\n// Subscription info\nconst periodStart = data.period_start ? new Date(data.period_start * 1000).toISOString().split('T')[0] : '';\nconst periodEnd = data.period_end ? new Date(data.period_end * 1000).toISOString().split('T')[0] : '';\n\nreturn [{\n  json: {\n    isOurExpense,\n    // For Google Sheets\n    date: transactionDate,\n    description: isOurExpense ? `${description} Subscription` : `${customerName} - ${description}`,\n    customerName,\n    customerEmail,\n    amount,\n    transactionId: invoiceId,\n    invoiceUrl,\n    periodStart,\n    periodEnd,\n    createdAt: new Date().toISOString()\n  }\n}];"
       },
       "id": "code-process-invoice",
       "name": "Code - Process Invoice",
@@ -426,121 +333,96 @@
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
+          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
         },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Expense|title",
-              "title": "={{ $json.title }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ $json.amount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $json.transactionDate }}"
-            },
-            {
-              "key": "Source|select",
-              "selectValue": "Stripe Subscription"
-            },
-            {
-              "key": "Receipt Status|select",
-              "selectValue": "Added"
-            },
-            {
-              "key": "Receipt URL|url",
-              "urlValue": "={{ $json.invoiceUrl }}"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $json.invoiceId }}"
-            },
-            {
-              "key": "Notes|rich_text",
-              "textContent": "=Auto-logged from Stripe. Period: {{ $json.periodStart }} to {{ $json.periodEnd }}"
-            }
-          ]
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Expenses"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Description": "={{ $json.description }}",
+            "Merchant": "=Stripe Subscription",
+            "Amount": "={{ $json.amount }}",
+            "Category": "=Software & Subscriptions",
+            "Source": "=Stripe",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Receipt Status": "=Added",
+            "Receipt URL": "={{ $json.invoiceUrl }}",
+            "Deadline": "",
+            "Notes": "=Auto-logged from Stripe. Period: {{ $json.periodStart }} to {{ $json.periodEnd }}",
+            "Created At": "={{ $json.createdAt }}"
+          }
         },
         "options": {}
       },
-      "id": "notion-create-expense",
-      "name": "Notion - Create Expense",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
+      "id": "sheets-append-expense",
+      "name": "Sheets - Append Expense",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [1360, 200],
       "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets - Aasani"
         }
       }
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
         },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Income|title",
-              "title": "={{ $json.title }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ $json.amount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $json.transactionDate }}"
-            },
-            {
-              "key": "Type|select",
-              "selectValue": "Subscription"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $json.invoiceId }}"
-            },
-            {
-              "key": "Customer|rich_text",
-              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
-            },
-            {
-              "key": "Status|select",
-              "selectValue": "Cleared"
-            }
-          ]
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Incomes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Description": "={{ $json.description }}",
+            "Customer Name": "={{ $json.customerName }}",
+            "Customer Email": "={{ $json.customerEmail }}",
+            "Amount (Gross)": "={{ $json.amount }}",
+            "Stripe Fee": "=0",
+            "Net Amount": "={{ $json.amount }}",
+            "Type": "=Subscription",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Status": "=Cleared",
+            "Payment Method": "",
+            "Notes": "=Period: {{ $json.periodStart }} to {{ $json.periodEnd }}",
+            "Created At": "={{ $json.createdAt }}"
+          }
         },
         "options": {}
       },
-      "id": "notion-create-income-sub",
-      "name": "Notion - Create Income (Subscription)",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
+      "id": "sheets-append-income-sub",
+      "name": "Sheets - Append Income (Sub)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [1360, 360],
       "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets - Aasani"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Process payment failed event\nconst data = $input.first().json.data;\n\nconst invoiceId = data.id;\nconst amount = (data.amount_due || data.total) / 100;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst customerEmail = data.customer_email || '';\nconst transactionDate = new Date(data.created * 1000).toISOString().split('T')[0];\n\n// Failure details\nconst failureMessage = data.last_finalization_error?.message || \n                       data.charge?.failure_message || \n                       'Payment failed';\nconst attemptCount = data.attempt_count || 1;\nconst nextAttempt = data.next_payment_attempt \n  ? new Date(data.next_payment_attempt * 1000).toISOString()\n  : null;\n\n// Invoice URL for manual payment\nconst hostedInvoiceUrl = data.hosted_invoice_url || '';\n\nreturn [{\n  json: {\n    eventType: 'invoice.payment_failed',\n    invoiceId,\n    amount,\n    customerName,\n    customerEmail,\n    transactionDate,\n    failureMessage,\n    attemptCount,\n    nextAttempt,\n    hostedInvoiceUrl,\n    title: `FAILED: ${customerName} - $${amount.toFixed(2)}`\n  }\n}];"
+        "jsCode": "// Process payment failed event\nconst data = $input.first().json.data;\n\nconst invoiceId = data.id;\nconst amount = (data.amount_due || data.total) / 100;\nconst customerName = data.customer_name || data.customer_email || 'Unknown';\nconst customerEmail = data.customer_email || '';\nconst transactionDate = new Date(data.created * 1000).toISOString().split('T')[0];\n\n// Failure details\nconst failureMessage = data.last_finalization_error?.message || \n                       data.charge?.failure_message || \n                       'Payment failed';\nconst attemptCount = data.attempt_count || 1;\nconst nextAttempt = data.next_payment_attempt \n  ? new Date(data.next_payment_attempt * 1000).toISOString()\n  : null;\nconst hostedInvoiceUrl = data.hosted_invoice_url || '';\n\nreturn [{\n  json: {\n    // For Google Sheets\n    date: transactionDate,\n    description: `FAILED: ${customerName} - $${amount.toFixed(2)}`,\n    customerName,\n    customerEmail,\n    amount,\n    transactionId: invoiceId,\n    status: 'Failed',\n    notes: `Reason: ${failureMessage} | Attempt #${attemptCount}`,\n    createdAt: new Date().toISOString(),\n    // For Slack\n    failureMessage,\n    attemptCount,\n    nextAttempt,\n    hostedInvoiceUrl\n  }\n}];"
       },
       "id": "code-process-failed",
       "name": "Code - Process Failed Payment",
@@ -550,63 +432,53 @@
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
         },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Income|title",
-              "title": "={{ $json.title }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ $json.amount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $json.transactionDate }}"
-            },
-            {
-              "key": "Type|select",
-              "selectValue": "Customer Payment"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $json.invoiceId }}"
-            },
-            {
-              "key": "Customer|rich_text",
-              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
-            },
-            {
-              "key": "Status|select",
-              "selectValue": "Failed"
-            }
-          ]
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Incomes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Description": "={{ $json.description }}",
+            "Customer Name": "={{ $json.customerName }}",
+            "Customer Email": "={{ $json.customerEmail }}",
+            "Amount (Gross)": "={{ $json.amount }}",
+            "Stripe Fee": "=0",
+            "Net Amount": "=0",
+            "Type": "=Customer Payment",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Status": "={{ $json.status }}",
+            "Payment Method": "",
+            "Notes": "={{ $json.notes }}",
+            "Created At": "={{ $json.createdAt }}"
+          }
         },
         "options": {}
       },
-      "id": "notion-create-failed",
-      "name": "Notion - Create Failed Record",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
+      "id": "sheets-append-failed",
+      "name": "Sheets - Append Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [1140, 460],
       "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets - Aasani"
         }
       }
     },
     {
       "parameters": {
         "channel": "#all-aasani-systems",
-        "text": "=:warning: *PAYMENT FAILED*\n\n*Customer:* {{ $('Code - Process Failed Payment').item.json.customerName }}\n*Amount:* ${{ $('Code - Process Failed Payment').item.json.amount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Failed Payment').item.json.failureMessage }}\n*Attempt:* #{{ $('Code - Process Failed Payment').item.json.attemptCount }}\n{{ $('Code - Process Failed Payment').item.json.nextAttempt ? '*Next Attempt:* ' + $('Code - Process Failed Payment').item.json.nextAttempt : '' }}\n\n*Action Required:* Contact customer\n\n{{ $('Code - Process Failed Payment').item.json.hostedInvoiceUrl ? '<' + $('Code - Process Failed Payment').item.json.hostedInvoiceUrl + '|Payment Link>' : '' }}",
+        "text": "=:warning: *PAYMENT FAILED*\n\n*Customer:* {{ $('Code - Process Failed Payment').item.json.customerName }}\n*Amount:* ${{ $('Code - Process Failed Payment').item.json.amount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Failed Payment').item.json.failureMessage }}\n*Attempt:* #{{ $('Code - Process Failed Payment').item.json.attemptCount }}\n{{ $('Code - Process Failed Payment').item.json.nextAttempt ? '*Next Attempt:* ' + $('Code - Process Failed Payment').item.json.nextAttempt : '' }}\n\n*Action Required:* Contact customer\n\n{{ $('Code - Process Failed Payment').item.json.hostedInvoiceUrl ? '<' + $('Code - Process Failed Payment').item.json.hostedInvoiceUrl + '|Payment Link>' : '' }}\n\n_Logged to Google Sheets_",
         "otherOptions": {}
       },
       "id": "slack-failed-alert",
@@ -623,7 +495,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process subscription created/deleted\nconst data = $input.first().json.data;\nconst eventType = $input.first().json.eventType;\nconst isCreated = eventType === 'customer.subscription.created';\n\nconst subscriptionId = data.id;\nconst customerId = data.customer;\nconst status = data.status;\nconst canceledAt = data.canceled_at ? new Date(data.canceled_at * 1000).toISOString() : null;\n\n// Get plan details\nlet planName = 'Unknown Plan';\nlet amount = 0;\nlet interval = 'month';\n\nif (data.items && data.items.data && data.items.data.length > 0) {\n  const item = data.items.data[0];\n  planName = item.price?.nickname || item.plan?.nickname || 'Subscription';\n  amount = (item.price?.unit_amount || item.plan?.amount || 0) / 100;\n  interval = item.price?.recurring?.interval || item.plan?.interval || 'month';\n}\n\n// Current period\nconst periodStart = new Date(data.current_period_start * 1000).toISOString().split('T')[0];\nconst periodEnd = new Date(data.current_period_end * 1000).toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    eventType,\n    action: isCreated ? 'Created' : 'Canceled',\n    subscriptionId,\n    customerId,\n    status,\n    planName,\n    amount,\n    interval,\n    periodStart,\n    periodEnd,\n    canceledAt\n  }\n}];"
+        "jsCode": "// Process subscription created/deleted\nconst data = $input.first().json.data;\nconst eventType = $input.first().json.eventType;\nconst isCreated = eventType === 'customer.subscription.created';\n\nconst subscriptionId = data.id;\nconst customerId = data.customer;\nconst status = data.status;\nconst canceledAt = data.canceled_at ? new Date(data.canceled_at * 1000).toISOString() : null;\n\n// Get plan details\nlet planName = 'Unknown Plan';\nlet amount = 0;\nlet interval = 'month';\n\nif (data.items && data.items.data && data.items.data.length > 0) {\n  const item = data.items.data[0];\n  planName = item.price?.nickname || item.plan?.nickname || 'Subscription';\n  amount = (item.price?.unit_amount || item.plan?.amount || 0) / 100;\n  interval = item.price?.recurring?.interval || item.plan?.interval || 'month';\n}\n\nconst periodStart = new Date(data.current_period_start * 1000).toISOString().split('T')[0];\nconst periodEnd = new Date(data.current_period_end * 1000).toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    action: isCreated ? 'Created' : 'Canceled',\n    subscriptionId,\n    customerId,\n    status,\n    planName,\n    amount,\n    interval,\n    periodStart,\n    periodEnd,\n    canceledAt\n  }\n}];"
       },
       "id": "code-process-subscription",
       "name": "Code - Process Subscription",
@@ -651,7 +523,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process refund event\nconst data = $input.first().json.data;\n\nconst chargeId = data.id;\nconst refundId = data.refunds?.data?.[0]?.id || `refund_${chargeId}`;\nconst originalAmount = data.amount / 100;\nconst refundedAmount = data.amount_refunded / 100;\nconst customerName = data.billing_details?.name || 'Unknown';\nconst customerEmail = data.billing_details?.email || data.customer_email || '';\nconst transactionDate = new Date().toISOString().split('T')[0];\n\n// Refund reason\nconst reason = data.refunds?.data?.[0]?.reason || 'Customer request';\n\nreturn [{\n  json: {\n    eventType: 'charge.refunded',\n    chargeId,\n    refundId,\n    originalAmount,\n    refundedAmount,\n    customerName,\n    customerEmail,\n    transactionDate,\n    reason,\n    title: `REFUND: ${customerName} - $${refundedAmount.toFixed(2)}`\n  }\n}];"
+        "jsCode": "// Process refund event\nconst data = $input.first().json.data;\n\nconst chargeId = data.id;\nconst refundId = data.refunds?.data?.[0]?.id || `refund_${chargeId}`;\nconst originalAmount = data.amount / 100;\nconst refundedAmount = data.amount_refunded / 100;\nconst customerName = data.billing_details?.name || 'Unknown';\nconst customerEmail = data.billing_details?.email || data.customer_email || '';\nconst transactionDate = new Date().toISOString().split('T')[0];\nconst reason = data.refunds?.data?.[0]?.reason || 'Customer request';\n\nreturn [{\n  json: {\n    // For Google Sheets\n    date: transactionDate,\n    description: `REFUND: ${customerName} - $${refundedAmount.toFixed(2)}`,\n    customerName,\n    customerEmail,\n    amount: -refundedAmount,\n    transactionId: refundId,\n    notes: `Original charge: ${chargeId} | Reason: ${reason}`,\n    createdAt: new Date().toISOString(),\n    // For Slack\n    originalAmount,\n    refundedAmount,\n    reason\n  }\n}];"
       },
       "id": "code-process-refund",
       "name": "Code - Process Refund",
@@ -661,63 +533,53 @@
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "create",
-        "databaseId": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
+          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
         },
-        "propertiesUi": {
-          "propertyValues": [
-            {
-              "key": "Income|title",
-              "title": "={{ $json.title }}"
-            },
-            {
-              "key": "Amount|number",
-              "numberValue": "={{ -$json.refundedAmount }}"
-            },
-            {
-              "key": "Date|date",
-              "date": "={{ $json.transactionDate }}"
-            },
-            {
-              "key": "Type|select",
-              "selectValue": "Refund"
-            },
-            {
-              "key": "Transaction ID|rich_text",
-              "textContent": "={{ $json.refundId }}"
-            },
-            {
-              "key": "Customer|rich_text",
-              "textContent": "={{ $json.customerName }} ({{ $json.customerEmail }})"
-            },
-            {
-              "key": "Status|select",
-              "selectValue": "Cleared"
-            }
-          ]
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Incomes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Description": "={{ $json.description }}",
+            "Customer Name": "={{ $json.customerName }}",
+            "Customer Email": "={{ $json.customerEmail }}",
+            "Amount (Gross)": "={{ $json.amount }}",
+            "Stripe Fee": "=0",
+            "Net Amount": "={{ $json.amount }}",
+            "Type": "=Refund",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Status": "=Cleared",
+            "Payment Method": "",
+            "Notes": "={{ $json.notes }}",
+            "Created At": "={{ $json.createdAt }}"
+          }
         },
         "options": {}
       },
-      "id": "notion-create-refund",
-      "name": "Notion - Create Refund Record",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
+      "id": "sheets-append-refund",
+      "name": "Sheets - Append Refund",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [1140, 820],
       "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets - Aasani"
         }
       }
     },
     {
       "parameters": {
         "channel": "#all-aasani-systems",
-        "text": "=:rotating_light: *Refund Issued*\n\n*Customer:* {{ $('Code - Process Refund').item.json.customerName }}\n*Original Amount:* ${{ $('Code - Process Refund').item.json.originalAmount.toFixed(2) }}\n*Refunded:* ${{ $('Code - Process Refund').item.json.refundedAmount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Refund').item.json.reason }}\n*Date:* {{ $('Code - Process Refund').item.json.transactionDate }}\n\n<{{ $('Notion - Create Refund Record').item.json.url }}|View in Notion>",
+        "text": "=:rotating_light: *Refund Issued*\n\n*Customer:* {{ $('Code - Process Refund').item.json.customerName }}\n*Original Amount:* ${{ $('Code - Process Refund').item.json.originalAmount.toFixed(2) }}\n*Refunded:* ${{ $('Code - Process Refund').item.json.refundedAmount.toFixed(2) }}\n*Reason:* {{ $('Code - Process Refund').item.json.reason }}\n*Date:* {{ $('Code - Process Refund').item.json.date }}\n\n_Logged to Google Sheets_",
         "otherOptions": {}
       },
       "id": "slack-refund-notification",
@@ -734,7 +596,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Error handler - log to Notion and notify\nconst error = $input.first().json;\n\nreturn [{\n  json: {\n    errorMessage: error.message || 'Unknown error',\n    errorStack: error.stack || '',\n    timestamp: new Date().toISOString(),\n    workflow: 'Stripe Revenue Tracker'\n  }\n}];"
+        "jsCode": "// Error handler\nconst error = $input.first().json;\n\nreturn [{\n  json: {\n    errorMessage: error.message || 'Unknown error',\n    errorStack: error.stack || '',\n    timestamp: new Date().toISOString(),\n    workflow: 'Stripe Revenue Tracker'\n  }\n}];"
       },
       "id": "code-error-handler",
       "name": "Code - Error Handler",
@@ -856,43 +718,14 @@
       "main": [
         [
           {
-            "node": "Notion - Create Income Record",
+            "node": "Sheets - Append Income",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notion - Create Income Record": {
-      "main": [
-        [
-          {
-            "node": "IF - Has Fee",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF - Has Fee": {
-      "main": [
-        [
-          {
-            "node": "Notion - Create Fee Record",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Slack - Payment Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notion - Create Fee Record": {
+    "Sheets - Append Income": {
       "main": [
         [
           {
@@ -918,14 +751,14 @@
       "main": [
         [
           {
-            "node": "Notion - Create Expense",
+            "node": "Sheets - Append Expense",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Notion - Create Income (Subscription)",
+            "node": "Sheets - Append Income (Sub)",
             "type": "main",
             "index": 0
           }
@@ -936,14 +769,14 @@
       "main": [
         [
           {
-            "node": "Notion - Create Failed Record",
+            "node": "Sheets - Append Failed",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notion - Create Failed Record": {
+    "Sheets - Append Failed": {
       "main": [
         [
           {
@@ -969,14 +802,14 @@
       "main": [
         [
           {
-            "node": "Notion - Create Refund Record",
+            "node": "Sheets - Append Refund",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notion - Create Refund Record": {
+    "Sheets - Append Refund": {
       "main": [
         [
           {
@@ -1014,6 +847,10 @@
     {
       "name": "Stripe",
       "id": "stripe-tag"
+    },
+    {
+      "name": "Google Sheets",
+      "id": "sheets-tag"
     }
   ],
   "meta": {
