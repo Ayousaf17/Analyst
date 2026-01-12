@@ -26,66 +26,35 @@
     },
     {
       "parameters": {
-        "resource": "databasePage",
-        "operation": "getAll",
-        "databaseId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.NOTION_EXPENSES_DB_ID }}"
-        },
-        "returnAll": true,
-        "filterType": "json",
-        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $json.startDate }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $json.endDate }}\"\n      }\n    }\n  ]\n}",
-        "options": {
-          "sort": [
-            {
-              "key": "Date|date",
-              "direction": "ascending"
-            }
-          ]
-        }
-      },
-      "id": "notion-get-expenses",
-      "name": "Notion - Get Quarter Expenses",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
-      "position": [680, 200],
-      "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "databasePage",
-        "operation": "getAll",
-        "databaseId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.NOTION_INCOMES_DB_ID }}"
-        },
-        "returnAll": true,
-        "filterType": "json",
-        "filterJson": "={\n  \"and\": [\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_after\": \"{{ $('Code - Calculate Quarter Range').item.json.startDate }}\"\n      }\n    },\n    {\n      \"property\": \"Date\",\n      \"date\": {\n        \"on_or_before\": \"{{ $('Code - Calculate Quarter Range').item.json.endDate }}\"\n      }\n    },\n    {\n      \"property\": \"Type\",\n      \"select\": {\n        \"equals\": \"Customer Payment\"\n      }\n    }\n  ]\n}",
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}" },
+        "sheetName": { "__rl": true, "mode": "list", "value": "Expenses" },
         "options": {}
       },
-      "id": "notion-get-revenue",
-      "name": "Notion - Get Quarter Revenue",
-      "type": "n8n-nodes-base.notion",
-      "typeVersion": 2.2,
-      "position": [680, 400],
-      "credentials": {
-        "notionApi": {
-          "id": "notion-credential-id",
-          "name": "Notion - Aasani"
-        }
-      }
+      "id": "sheets-get-expenses",
+      "name": "Sheets - Get Quarter Expenses",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 200],
+      "credentials": { "googleSheetsOAuth2Api": { "id": "google-sheets-credential-id", "name": "Google Sheets - Aasani" } }
     },
     {
       "parameters": {
-        "jsCode": "// Categorize and validate expenses\nconst quarterData = $('Code - Calculate Quarter Range').first().json;\nconst expenseItems = $('Notion - Get Quarter Expenses').all() || [];\nconst revenueItems = $('Notion - Get Quarter Revenue').all() || [];\n\n// IRS Category Mapping\nconst irsCategoryMap = {\n  'Software/SaaS': 'Software',\n  'Marketing & Advertising': 'Advertising',\n  'Office Supplies': 'Office Expense',\n  'Professional Services': 'Legal and Professional Services',\n  'Meals & Entertainment': 'Meals',\n  'Travel & Transportation': 'Travel',\n  'Equipment & Hardware': 'Equipment',\n  'Subscriptions & Memberships': 'Other Business Expenses',\n  'Banking Fees': 'Bank Service Charges',\n  'Taxes & Licenses': 'Taxes and Licenses',\n  'Miscellaneous': 'Other Business Expenses',\n  'Uncategorized': 'Other Business Expenses'\n};\n\nconst validatedExpenses = [];\nconst flaggedExpenses = [];\n\nexpenseItems.forEach(item => {\n  const expense = item.json;\n  const notionCategory = expense.properties?.Categories?.relation?.[0]?.id || 'Uncategorized';\n  const irsCategory = irsCategoryMap[notionCategory] || 'Other Business Expenses';\n  const receiptStatus = expense.properties?.['Receipt Status']?.select?.name || 'Pending';\n  const hasReceipt = receiptStatus === 'Validated' || receiptStatus === 'Added';\n  \n  const expenseData = {\n    date: expense.properties?.Date?.date?.start || '',\n    merchant: expense.properties?.Expense?.title?.[0]?.plain_text || 'Unknown',\n    amount: expense.properties?.Amount?.number || 0,\n    notionCategory,\n    irsCategory,\n    hasReceipt,\n    receiptStatus,\n    receiptUrl: expense.properties?.['Receipt URL']?.url || '',\n    transactionId: expense.properties?.['Transaction ID']?.rich_text?.[0]?.plain_text || '',\n    notes: expense.properties?.Notes?.rich_text?.[0]?.plain_text || '',\n    notionUrl: expense.url\n  };\n  \n  if (hasReceipt) {\n    validatedExpenses.push(expenseData);\n  } else {\n    flaggedExpenses.push(expenseData);\n  }\n});\n\n// Group by IRS category\nconst expensesByIRSCategory = {};\nvalidatedExpenses.forEach(exp => {\n  if (!expensesByIRSCategory[exp.irsCategory]) {\n    expensesByIRSCategory[exp.irsCategory] = {\n      total: 0,\n      count: 0,\n      items: []\n    };\n  }\n  \n  expensesByIRSCategory[exp.irsCategory].total += exp.amount;\n  expensesByIRSCategory[exp.irsCategory].count++;\n  expensesByIRSCategory[exp.irsCategory].items.push(exp);\n});\n\n// Calculate revenue\nconst grossRevenue = revenueItems.reduce((sum, item) => \n  sum + (item.json.properties?.Amount?.number || 0), 0\n);\n\n// Revenue by month\nconst revenueByMonth = {};\nrevenueItems.forEach(item => {\n  const dateStr = item.json.properties?.Date?.date?.start;\n  if (dateStr) {\n    const month = dateStr.substring(0, 7);\n    revenueByMonth[month] = (revenueByMonth[month] || 0) + (item.json.properties?.Amount?.number || 0);\n  }\n});\n\n// Totals\nconst totalDeductible = validatedExpenses.reduce((sum, exp) => sum + exp.amount, 0);\nconst totalFlagged = flaggedExpenses.reduce((sum, exp) => sum + exp.amount, 0);\nconst taxableIncome = grossRevenue - totalDeductible;\nconst estimatedTax = Math.max(0, taxableIncome * 0.25); // ~25% combined estimate\n\nreturn [{\n  json: {\n    ...quarterData,\n    validatedExpenses,\n    flaggedExpenses,\n    expensesByIRSCategory,\n    revenue: {\n      grossRevenue,\n      revenueByMonth,\n      transactionCount: revenueItems.length\n    },\n    totals: {\n      totalDeductible,\n      totalFlagged,\n      taxableIncome,\n      estimatedTax\n    }\n  }\n}];"
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}" },
+        "sheetName": { "__rl": true, "mode": "list", "value": "Incomes" },
+        "options": {}
+      },
+      "id": "sheets-get-incomes",
+      "name": "Sheets - Get Quarter Revenue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 400],
+      "credentials": { "googleSheetsOAuth2Api": { "id": "google-sheets-credential-id", "name": "Google Sheets - Aasani" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Categorize and validate expenses for tax purposes\nconst quarterData = $('Code - Calculate Quarter Range').first().json;\nconst expenseItems = $('Sheets - Get Quarter Expenses').all() || [];\nconst incomeItems = $('Sheets - Get Quarter Revenue').all() || [];\n\nconst startDate = new Date(quarterData.startDate);\nconst endDate = new Date(quarterData.endDate);\n\n// Filter to quarter range\nconst quarterExpenses = expenseItems.filter(item => {\n  const date = new Date(item.json.Date);\n  return date >= startDate && date <= endDate;\n}).map(e => e.json);\n\nconst quarterIncomes = incomeItems.filter(item => {\n  const date = new Date(item.json.Date);\n  return date >= startDate && date <= endDate && item.json.Type === 'Customer Payment';\n}).map(i => i.json);\n\n// IRS Category Mapping\nconst irsCategoryMap = {\n  'Software/SaaS': 'Software',\n  'Marketing & Advertising': 'Advertising',\n  'Office Supplies': 'Office Expense',\n  'Professional Services': 'Legal and Professional Services',\n  'Meals & Entertainment': 'Meals',\n  'Travel & Transportation': 'Travel',\n  'Equipment & Hardware': 'Equipment',\n  'Subscriptions & Memberships': 'Other Business Expenses',\n  'Banking Fees': 'Bank Service Charges',\n  'Taxes & Licenses': 'Taxes and Licenses',\n  'Miscellaneous': 'Other Business Expenses',\n  'Uncategorized': 'Other Business Expenses'\n};\n\nconst validatedExpenses = [];\nconst flaggedExpenses = [];\n\nquarterExpenses.forEach(expense => {\n  const category = expense.Category || 'Uncategorized';\n  const irsCategory = irsCategoryMap[category] || 'Other Business Expenses';\n  const receiptStatus = expense['Receipt Status'] || 'Missing';\n  const hasReceipt = receiptStatus === 'Added';\n  \n  const expenseData = {\n    date: expense.Date || '',\n    merchant: expense.Merchant || 'Unknown',\n    amount: parseFloat(expense.Amount) || 0,\n    category,\n    irsCategory,\n    hasReceipt,\n    receiptStatus,\n    receiptUrl: expense['Receipt URL'] || '',\n    transactionId: expense['Transaction ID'] || '',\n    notes: expense.Notes || '',\n    rowNumber: expense.row_number\n  };\n  \n  if (hasReceipt) {\n    validatedExpenses.push(expenseData);\n  } else {\n    flaggedExpenses.push(expenseData);\n  }\n});\n\n// Group by IRS category\nconst expensesByIRSCategory = {};\nvalidatedExpenses.forEach(exp => {\n  if (!expensesByIRSCategory[exp.irsCategory]) {\n    expensesByIRSCategory[exp.irsCategory] = {\n      total: 0,\n      count: 0,\n      items: []\n    };\n  }\n  \n  expensesByIRSCategory[exp.irsCategory].total += exp.amount;\n  expensesByIRSCategory[exp.irsCategory].count++;\n  expensesByIRSCategory[exp.irsCategory].items.push(exp);\n});\n\n// Calculate revenue\nconst grossRevenue = quarterIncomes.reduce((sum, i) => sum + (parseFloat(i['Gross Amount']) || 0), 0);\n\n// Revenue by month\nconst revenueByMonth = {};\nquarterIncomes.forEach(income => {\n  const dateStr = income.Date;\n  if (dateStr) {\n    const month = dateStr.substring(0, 7);\n    revenueByMonth[month] = (revenueByMonth[month] || 0) + (parseFloat(income['Gross Amount']) || 0);\n  }\n});\n\n// Totals\nconst totalDeductible = validatedExpenses.reduce((sum, exp) => sum + exp.amount, 0);\nconst totalFlagged = flaggedExpenses.reduce((sum, exp) => sum + exp.amount, 0);\nconst taxableIncome = grossRevenue - totalDeductible;\nconst estimatedTax = Math.max(0, taxableIncome * 0.25); // ~25% combined estimate\n\nreturn [{\n  json: {\n    ...quarterData,\n    validatedExpenses,\n    flaggedExpenses,\n    expensesByIRSCategory,\n    revenue: {\n      grossRevenue,\n      revenueByMonth,\n      transactionCount: quarterIncomes.length\n    },\n    totals: {\n      totalDeductible,\n      totalFlagged,\n      taxableIncome,\n      estimatedTax\n    }\n  }\n}];"
       },
       "id": "code-categorize",
       "name": "Code - Categorize & Validate",
@@ -95,7 +64,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate CSV export\nconst data = $input.first().json;\nconst { validatedExpenses, quarter, year } = data;\n\n// CSV header\nlet csv = 'Date,Merchant,Amount,IRS Category,Notion Category,Receipt,Transaction ID,Notes\\n';\n\n// Add each expense\nvalidatedExpenses.forEach(exp => {\n  csv += `\"${exp.date}\",`;\n  csv += `\"${exp.merchant.replace(/\"/g, '\"\"')}\",`;\n  csv += `${exp.amount.toFixed(2)},`;\n  csv += `\"${exp.irsCategory}\",`;\n  csv += `\"${exp.notionCategory}\",`;\n  csv += `\"${exp.receiptUrl}\",`;\n  csv += `\"${exp.transactionId}\",`;\n  csv += `\"${exp.notes.replace(/\"/g, '\"\"')}\"\\n`;\n});\n\nreturn [{\n  json: {\n    ...data,\n    csvContent: csv,\n    csvFilename: `${quarter}_${year}_Deductible_Expenses.csv`\n  }\n}];"
+        "jsCode": "// Generate CSV export\nconst data = $input.first().json;\nconst { validatedExpenses, quarter, year } = data;\n\n// CSV header\nlet csv = 'Date,Merchant,Amount,IRS Category,Category,Receipt,Transaction ID,Notes\\n';\n\n// Add each expense\nvalidatedExpenses.forEach(exp => {\n  csv += `\"${exp.date}\",`;\n  csv += `\"${exp.merchant.replace(/\"/g, '\"\"')}\",`;\n  csv += `${exp.amount.toFixed(2)},`;\n  csv += `\"${exp.irsCategory}\",`;\n  csv += `\"${exp.category}\",`;\n  csv += `\"${exp.receiptUrl}\",`;\n  csv += `\"${exp.transactionId}\",`;\n  csv += `\"${exp.notes.replace(/\"/g, '\"\"')}\"\\n`;\n});\n\nreturn [{\n  json: {\n    ...data,\n    csvContent: csv,\n    csvFilename: `${quarter}_${year}_Deductible_Expenses.csv`\n  }\n}];"
       },
       "id": "code-generate-csv",
       "name": "Code - Generate CSV",
@@ -105,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format email with tax prep summary\nconst data = $input.first().json;\nconst { quarter, year, revenue, totals, flaggedExpenses, expensesByIRSCategory } = data;\n\n// Build category breakdown\nlet categoryRows = '';\nObject.entries(expensesByIRSCategory)\n  .sort((a, b) => b[1].total - a[1].total)\n  .forEach(([category, data]) => {\n    const percentage = ((data.total / totals.totalDeductible) * 100).toFixed(1);\n    categoryRows += `\n      <tr>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${category}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${data.count}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">$${data.total.toFixed(2)}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${percentage}%</td>\n      </tr>\n    `;\n  });\n\n// Build flagged items\nlet flaggedRows = '';\nflaggedExpenses.slice(0, 10).forEach(exp => {\n  flaggedRows += `\n    <tr>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.merchant}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">$${exp.amount.toFixed(2)}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.date}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\"><a href=\"${exp.notionUrl}\">Add Receipt</a></td>\n    </tr>\n  `;\n});\n\nconst emailHtml = `\n<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <h1>:clipboard: ${quarter} ${year} Tax Prep Package</h1>\n  \n  <div style=\"background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n    <h2 style=\"margin-top: 0;\">:warning: Important Tax Information</h2>\n    <p>Your quarterly tax preparation documents are ready for review.</p>\n  </div>\n  \n  <h2>Summary</h2>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <tr style=\"background: #f3f4f6;\">\n      <td style=\"padding: 12px;\"><strong>Gross Revenue:</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #10b981;\"><strong>$${revenue.grossRevenue.toFixed(2)}</strong></td>\n    </tr>\n    <tr>\n      <td style=\"padding: 12px;\"><strong>Deductible Expenses:</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #ef4444;\"><strong>$${totals.totalDeductible.toFixed(2)}</strong></td>\n    </tr>\n    <tr style=\"background: #f3f4f6;\">\n      <td style=\"padding: 12px;\"><strong>Estimated Taxable Income:</strong></td>\n      <td style=\"padding: 12px; text-align: right;\"><strong>$${totals.taxableIncome.toFixed(2)}</strong></td>\n    </tr>\n    <tr>\n      <td style=\"padding: 12px;\"><strong>Estimated Tax Owed (~25%):</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #dc2626;\"><strong>$${totals.estimatedTax.toFixed(2)}</strong></td>\n    </tr>\n  </table>\n  \n  <h2>Expense Breakdown by IRS Category</h2>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <thead>\n      <tr style=\"background: #f3f4f6;\">\n        <th style=\"padding: 12px; text-align: left;\">Category</th>\n        <th style=\"padding: 12px; text-align: right;\">Count</th>\n        <th style=\"padding: 12px; text-align: right;\">Total</th>\n        <th style=\"padding: 12px; text-align: right;\">%</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${categoryRows}\n    </tbody>\n  </table>\n  \n  ${flaggedExpenses.length > 0 ? `\n  <div style=\"background: #fee2e2; padding: 15px; border-radius: 8px; margin: 20px 0;\">\n    <h3 style=\"margin-top: 0; color: #dc2626;\">:warning: Missing Receipts (${flaggedExpenses.length} expenses - $${totals.totalFlagged.toFixed(2)})</h3>\n    <p>These expenses may not be deductible without proper documentation.</p>\n    <table style=\"width: 100%; border-collapse: collapse;\">\n      <thead>\n        <tr style=\"background: rgba(0,0,0,0.05);\">\n          <th style=\"padding: 8px; text-align: left;\">Merchant</th>\n          <th style=\"padding: 8px; text-align: right;\">Amount</th>\n          <th style=\"padding: 8px; text-align: left;\">Date</th>\n          <th style=\"padding: 8px; text-align: left;\">Action</th>\n        </tr>\n      </thead>\n      <tbody>\n        ${flaggedRows}\n      </tbody>\n    </table>\n    ${flaggedExpenses.length > 10 ? `<p><em>...and ${flaggedExpenses.length - 10} more</em></p>` : ''}\n  </div>\n  ` : ''}\n  \n  <h2>Next Steps</h2>\n  <ol>\n    <li>Review all flagged items and add missing receipts</li>\n    <li>Verify expense categorizations</li>\n    <li>Consult with tax professional if needed</li>\n    <li>File estimated quarterly taxes</li>\n  </ol>\n  \n  <p style=\"margin-top: 30px; font-size: 0.9em; color: #666;\">\n    This report is for informational purposes only. Please consult with a licensed tax professional for tax advice.\n  </p>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...data,\n    emailHtml,\n    emailSubject: `:clipboard: ${quarter} ${year} Tax Prep Ready - $${totals.estimatedTax.toFixed(2)} Estimated Tax`\n  }\n}];"
+        "jsCode": "// Format email with tax prep summary\nconst data = $input.first().json;\nconst { quarter, year, revenue, totals, flaggedExpenses, expensesByIRSCategory } = data;\nconst sheetsUrl = `https://docs.google.com/spreadsheets/d/${$env.GOOGLE_SHEETS_FINANCE_ID}`;\n\n// Build category breakdown\nlet categoryRows = '';\nObject.entries(expensesByIRSCategory)\n  .sort((a, b) => b[1].total - a[1].total)\n  .forEach(([category, data]) => {\n    const percentage = totals.totalDeductible > 0 ? ((data.total / totals.totalDeductible) * 100).toFixed(1) : 0;\n    categoryRows += `\n      <tr>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${category}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${data.count}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">$${data.total.toFixed(2)}</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${percentage}%</td>\n      </tr>\n    `;\n  });\n\n// Build flagged items\nlet flaggedRows = '';\nflaggedExpenses.slice(0, 10).forEach(exp => {\n  flaggedRows += `\n    <tr>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.merchant}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">$${exp.amount.toFixed(2)}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${exp.date}</td>\n      <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">Row ${exp.rowNumber}</td>\n    </tr>\n  `;\n});\n\nconst emailHtml = `\n<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <h1>${quarter} ${year} Tax Prep Package</h1>\n  \n  <div style=\"background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n    <h2 style=\"margin-top: 0;\">Important Tax Information</h2>\n    <p>Your quarterly tax preparation documents are ready for review.</p>\n  </div>\n  \n  <h2>Summary</h2>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <tr style=\"background: #f3f4f6;\">\n      <td style=\"padding: 12px;\"><strong>Gross Revenue:</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #10b981;\"><strong>$${revenue.grossRevenue.toFixed(2)}</strong></td>\n    </tr>\n    <tr>\n      <td style=\"padding: 12px;\"><strong>Deductible Expenses:</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #ef4444;\"><strong>$${totals.totalDeductible.toFixed(2)}</strong></td>\n    </tr>\n    <tr style=\"background: #f3f4f6;\">\n      <td style=\"padding: 12px;\"><strong>Estimated Taxable Income:</strong></td>\n      <td style=\"padding: 12px; text-align: right;\"><strong>$${totals.taxableIncome.toFixed(2)}</strong></td>\n    </tr>\n    <tr>\n      <td style=\"padding: 12px;\"><strong>Estimated Tax Owed (~25%):</strong></td>\n      <td style=\"padding: 12px; text-align: right; color: #dc2626;\"><strong>$${totals.estimatedTax.toFixed(2)}</strong></td>\n    </tr>\n  </table>\n  \n  <h2>Expense Breakdown by IRS Category</h2>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <thead>\n      <tr style=\"background: #f3f4f6;\">\n        <th style=\"padding: 12px; text-align: left;\">Category</th>\n        <th style=\"padding: 12px; text-align: right;\">Count</th>\n        <th style=\"padding: 12px; text-align: right;\">Total</th>\n        <th style=\"padding: 12px; text-align: right;\">%</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${categoryRows}\n    </tbody>\n  </table>\n  \n  ${flaggedExpenses.length > 0 ? `\n  <div style=\"background: #fee2e2; padding: 15px; border-radius: 8px; margin: 20px 0;\">\n    <h3 style=\"margin-top: 0; color: #dc2626;\">Missing Receipts (${flaggedExpenses.length} expenses - $${totals.totalFlagged.toFixed(2)})</h3>\n    <p>These expenses may not be deductible without proper documentation.</p>\n    <table style=\"width: 100%; border-collapse: collapse;\">\n      <thead>\n        <tr style=\"background: rgba(0,0,0,0.05);\">\n          <th style=\"padding: 8px; text-align: left;\">Merchant</th>\n          <th style=\"padding: 8px; text-align: right;\">Amount</th>\n          <th style=\"padding: 8px; text-align: left;\">Date</th>\n          <th style=\"padding: 8px; text-align: left;\">Location</th>\n        </tr>\n      </thead>\n      <tbody>\n        ${flaggedRows}\n      </tbody>\n    </table>\n    ${flaggedExpenses.length > 10 ? `<p><em>...and ${flaggedExpenses.length - 10} more</em></p>` : ''}\n  </div>\n  ` : ''}\n  \n  <h2>Next Steps</h2>\n  <ol>\n    <li>Review all flagged items and add missing receipts</li>\n    <li>Verify expense categorizations</li>\n    <li>Consult with tax professional if needed</li>\n    <li>File estimated quarterly taxes</li>\n  </ol>\n  \n  <p style=\"margin-top: 20px;\">\n    <a href=\"${sheetsUrl}\" style=\"background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;\">\n      View in Google Sheets\n    </a>\n  </p>\n  \n  <p style=\"margin-top: 30px; font-size: 0.9em; color: #666;\">\n    This report is for informational purposes only. Please consult with a licensed tax professional for tax advice.\n  </p>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...data,\n    emailHtml,\n    emailSubject: `${quarter} ${year} Tax Prep Ready - $${totals.estimatedTax.toFixed(2)} Estimated Tax`\n  }\n}];"
       },
       "id": "code-format-email",
       "name": "Code - Format Email",
@@ -126,16 +95,11 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [1560, 300],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "gmail-credential-id",
-          "name": "Gmail - Aasani"
-        }
-      }
+      "credentials": { "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail - Aasani" } }
     },
     {
       "parameters": {
-        "jsCode": "// Format Slack summary\nconst data = $input.first().json;\nconst { quarter, year, revenue, totals, flaggedExpenses } = data;\n\nlet message = `:clipboard: *${quarter} ${year} Tax Prep Complete*\\n\\n`;\nmessage += `*Gross Revenue:* $${revenue.grossRevenue.toFixed(2)}\\n`;\nmessage += `*Deductible Expenses:* $${totals.totalDeductible.toFixed(2)}\\n`;\nmessage += `*Estimated Tax:* $${totals.estimatedTax.toFixed(2)}\\n\\n`;\n\nif (flaggedExpenses.length > 0) {\n  message += `:warning: *Missing Receipts:* ${flaggedExpenses.length} items ($${totals.totalFlagged.toFixed(2)})\\n\\n`;\n}\n\nmessage += `*Documents ready:*\\n`;\nmessage += `• CSV Export\\n`;\nmessage += `• Detailed Email Summary\\n\\n`;\nmessage += `Check your email for the full package.`;\n\nreturn [{\n  json: {\n    ...data,\n    slackMessage: message\n  }\n}];"
+        "jsCode": "// Format Slack summary\nconst data = $input.first().json;\nconst { quarter, year, revenue, totals, flaggedExpenses } = data;\nconst sheetsUrl = `https://docs.google.com/spreadsheets/d/${$env.GOOGLE_SHEETS_FINANCE_ID}`;\n\nlet message = `:clipboard: *${quarter} ${year} Tax Prep Complete*\\n\\n`;\nmessage += `*Gross Revenue:* $${revenue.grossRevenue.toFixed(2)}\\n`;\nmessage += `*Deductible Expenses:* $${totals.totalDeductible.toFixed(2)}\\n`;\nmessage += `*Estimated Tax:* $${totals.estimatedTax.toFixed(2)}\\n\\n`;\n\nif (flaggedExpenses.length > 0) {\n  message += `:warning: *Missing Receipts:* ${flaggedExpenses.length} items ($${totals.totalFlagged.toFixed(2)})\\n\\n`;\n}\n\nmessage += `*Documents ready:*\\n`;\nmessage += `• CSV Export\\n`;\nmessage += `• Detailed Email Summary\\n\\n`;\nmessage += `Check your email for the full package.\\n`;\nmessage += `<${sheetsUrl}|View in Google Sheets>`;\n\nreturn [{ json: { ...data, slackMessage: message } }];"
       },
       "id": "code-format-slack",
       "name": "Code - Format Slack",
@@ -154,20 +118,13 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [2000, 300],
-      "credentials": {
-        "slackApi": {
-          "id": "slack-credential-id",
-          "name": "Slack - Aasani"
-        }
-      }
+      "credentials": { "slackApi": { "id": "slack-credential-id", "name": "Slack - Aasani" } }
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={\n  \"success\": true,\n  \"quarter\": \"{{ $('Code - Calculate Quarter Range').item.json.quarter }}\",\n  \"year\": {{ $('Code - Calculate Quarter Range').item.json.year }},\n  \"grossRevenue\": {{ $('Code - Categorize & Validate').item.json.revenue.grossRevenue }},\n  \"deductibleExpenses\": {{ $('Code - Categorize & Validate').item.json.totals.totalDeductible }},\n  \"estimatedTax\": {{ $('Code - Categorize & Validate').item.json.totals.estimatedTax }},\n  \"flaggedCount\": {{ $('Code - Categorize & Validate').item.json.flaggedExpenses.length }}\n}",
-        "options": {
-          "responseCode": 200
-        }
+        "options": { "responseCode": 200 }
       },
       "id": "respond-webhook",
       "name": "Respond to Webhook",
@@ -177,142 +134,18 @@
     }
   ],
   "connections": {
-    "Webhook - Manual Trigger": {
-      "main": [
-        [
-          {
-            "node": "Code - Calculate Quarter Range",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Calculate Quarter Range": {
-      "main": [
-        [
-          {
-            "node": "Notion - Get Quarter Expenses",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notion - Get Quarter Revenue",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notion - Get Quarter Expenses": {
-      "main": [
-        [
-          {
-            "node": "Code - Categorize & Validate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notion - Get Quarter Revenue": {
-      "main": [
-        [
-          {
-            "node": "Code - Categorize & Validate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Categorize & Validate": {
-      "main": [
-        [
-          {
-            "node": "Code - Generate CSV",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Generate CSV": {
-      "main": [
-        [
-          {
-            "node": "Code - Format Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Format Email": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Send Tax Package",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - Send Tax Package": {
-      "main": [
-        [
-          {
-            "node": "Code - Format Slack",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Format Slack": {
-      "main": [
-        [
-          {
-            "node": "Slack - Send Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack - Send Alert": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook - Manual Trigger": { "main": [[{ "node": "Code - Calculate Quarter Range", "type": "main", "index": 0 }]] },
+    "Code - Calculate Quarter Range": { "main": [[{ "node": "Sheets - Get Quarter Expenses", "type": "main", "index": 0 }, { "node": "Sheets - Get Quarter Revenue", "type": "main", "index": 0 }]] },
+    "Sheets - Get Quarter Expenses": { "main": [[{ "node": "Code - Categorize & Validate", "type": "main", "index": 0 }]] },
+    "Sheets - Get Quarter Revenue": { "main": [[{ "node": "Code - Categorize & Validate", "type": "main", "index": 0 }]] },
+    "Code - Categorize & Validate": { "main": [[{ "node": "Code - Generate CSV", "type": "main", "index": 0 }]] },
+    "Code - Generate CSV": { "main": [[{ "node": "Code - Format Email", "type": "main", "index": 0 }]] },
+    "Code - Format Email": { "main": [[{ "node": "Gmail - Send Tax Package", "type": "main", "index": 0 }]] },
+    "Gmail - Send Tax Package": { "main": [[{ "node": "Code - Format Slack", "type": "main", "index": 0 }]] },
+    "Code - Format Slack": { "main": [[{ "node": "Slack - Send Alert", "type": "main", "index": 0 }]] },
+    "Slack - Send Alert": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": ""
-  },
-  "staticData": null,
-  "tags": [
-    {
-      "name": "Finance",
-      "id": "finance-tag"
-    },
-    {
-      "name": "Tax",
-      "id": "tax-tag"
-    }
-  ],
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "aasani-instance"
-  },
-  "pinData": {}
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner" },
+  "tags": [{ "name": "Finance", "id": "finance-tag" }, { "name": "Tax", "id": "tax-tag" }, { "name": "Google Sheets", "id": "sheets-tag" }],
+  "meta": { "templateCredsSetupCompleted": true, "instanceId": "aasani-instance" }
 }
