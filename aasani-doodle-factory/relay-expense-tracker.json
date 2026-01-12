@@ -4,75 +4,33 @@
     {
       "parameters": {
         "pollTimes": {
-          "item": [
-            {
-              "mode": "everyMinute",
-              "minute": 5
-            }
-          ]
+          "item": [{ "mode": "everyMinute", "minute": 5 }]
         },
         "filters": {
-          "folderId": {
-            "__rl": true,
-            "mode": "list",
-            "value": "INBOX"
-          },
+          "folderId": { "__rl": true, "mode": "list", "value": "INBOX" },
           "sender": "notifications@relayfi.com",
           "readStatus": "unread"
         },
-        "options": {
-          "downloadAttachments": true
-        }
+        "options": { "downloadAttachments": true }
       },
       "id": "gmail-trigger",
       "name": "Gmail - Relay Emails",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.2,
       "position": [240, 300],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "gmail-credential-id",
-          "name": "Gmail - Aasani"
-        }
-      }
+      "credentials": { "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail - Aasani" } }
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "leftValue": "",
-            "caseSensitive": false,
-            "typeValidation": "loose"
-          },
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
           "combinator": "or",
           "conditions": [
-            {
-              "leftValue": "={{ $json.subject }}",
-              "rightValue": "transaction",
-              "operator": {
-                "type": "string",
-                "operation": "contains"
-              }
-            },
-            {
-              "leftValue": "={{ $json.subject }}",
-              "rightValue": "payment",
-              "operator": {
-                "type": "string",
-                "operation": "contains"
-              }
-            },
-            {
-              "leftValue": "={{ $json.subject }}",
-              "rightValue": "charged",
-              "operator": {
-                "type": "string",
-                "operation": "contains"
-              }
-            }
+            { "leftValue": "={{ $json.subject }}", "rightValue": "transaction", "operator": { "type": "string", "operation": "contains" } },
+            { "leftValue": "={{ $json.subject }}", "rightValue": "payment", "operator": { "type": "string", "operation": "contains" } },
+            { "leftValue": "={{ $json.subject }}", "rightValue": "charged", "operator": { "type": "string", "operation": "contains" } }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "filter-transaction-emails",
       "name": "Filter - Transaction Emails",
@@ -82,7 +40,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse Relay transaction email\nconst email = $input.first().json;\nconst subject = email.subject || '';\nconst body = email.text || email.snippet || '';\n\n// Extract amount from subject: \"Card transaction: $45.00 at OpenAI\"\nconst amountMatch = subject.match(/\\$([0-9,]+\\.?[0-9]*)/);\nconst amount = amountMatch \n  ? parseFloat(amountMatch[1].replace(',', '')) \n  : 0;\n\n// Extract merchant from subject\nlet merchant = 'Unknown Merchant';\nconst merchantMatch = subject.match(/at\\s+(.+?)(?:\\s*$|\\s+on)/i);\nif (merchantMatch) {\n  merchant = merchantMatch[1].trim();\n} else {\n  // Try alternate pattern: \"$XX.XX by Merchant\"\n  const altMatch = subject.match(/by\\s+(.+?)(?:\\s*$|\\s+on)/i);\n  if (altMatch) {\n    merchant = altMatch[1].trim();\n  }\n}\n\n// Clean merchant name\nmerchant = merchant.replace(/[*#]+/g, '').trim();\n\n// Extract date from body\nlet transactionDate = new Date().toISOString().split('T')[0];\nconst datePatterns = [\n  /on\\s+([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /Date:\\s*([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})/,\n  /([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i\n];\n\nfor (const pattern of datePatterns) {\n  const dateMatch = body.match(pattern) || subject.match(pattern);\n  if (dateMatch) {\n    try {\n      const parsed = new Date(dateMatch[1]);\n      if (!isNaN(parsed.getTime())) {\n        transactionDate = parsed.toISOString().split('T')[0];\n        break;\n      }\n    } catch (e) {}\n  }\n}\n\n// Extract card last 4 digits\nconst cardMatch = body.match(/ending in (\\d{4})/) || body.match(/\\*{4}\\s*(\\d{4})/) || subject.match(/\\*+(\\d{4})/);\nconst cardLast4 = cardMatch ? cardMatch[1] : '';\n\n// Generate unique transaction ID\nconst timestamp = Date.now();\nconst transactionId = `relay_${cardLast4 || 'xxxx'}_${timestamp}`;\n\n// Calculate validation deadline (24 hours from now)\nconst deadline = new Date();\ndeadline.setHours(deadline.getHours() + 24);\nconst validationDeadline = deadline.toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    amount,\n    merchant,\n    transactionDate,\n    cardLast4,\n    transactionId,\n    validationDeadline,\n    source: 'Relay',\n    emailId: email.id,\n    rawSubject: subject,\n    rawBody: body.substring(0, 500)\n  }\n}];"
+        "jsCode": "// Parse Relay transaction email with enhanced audit fields\nconst email = $input.first().json;\nconst subject = email.subject || '';\nconst body = email.text || email.snippet || '';\n\n// Extract amount from subject: \"Card transaction: $45.00 at OpenAI\"\nconst amountMatch = subject.match(/\\$([0-9,]+\\.?[0-9]*)/);\nconst amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '')) : 0;\n\n// Extract merchant from subject\nlet merchant = 'Unknown Merchant';\nconst merchantMatch = subject.match(/at\\s+(.+?)(?:\\s*$|\\s+on)/i);\nif (merchantMatch) {\n  merchant = merchantMatch[1].trim();\n} else {\n  const altMatch = subject.match(/by\\s+(.+?)(?:\\s*$|\\s+on)/i);\n  if (altMatch) merchant = altMatch[1].trim();\n}\nmerchant = merchant.replace(/[*#]+/g, '').trim();\n\n// Extract date from body\nlet transactionDate = new Date().toISOString().split('T')[0];\nconst datePatterns = [\n  /on\\s+([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /Date:\\s*([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i,\n  /(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})/,\n  /([A-Z][a-z]+\\s+\\d{1,2},?\\s+\\d{4})/i\n];\nfor (const pattern of datePatterns) {\n  const dateMatch = body.match(pattern) || subject.match(pattern);\n  if (dateMatch) {\n    try {\n      const parsed = new Date(dateMatch[1]);\n      if (!isNaN(parsed.getTime())) {\n        transactionDate = parsed.toISOString().split('T')[0];\n        break;\n      }\n    } catch (e) {}\n  }\n}\n\n// Determine payment method (Card vs ACH)\nconst subjectLower = subject.toLowerCase();\nconst bodyLower = body.toLowerCase();\nlet paymentMethod = 'Company Card';\nlet cardLast4 = '';\n\nif (subjectLower.includes('ach') || bodyLower.includes('ach transfer')) {\n  paymentMethod = 'Company Account (ACH)';\n  // Try to extract account last 4\n  const achMatch = body.match(/account\\s*(?:ending in\\s*|\\*+)(\\d{4})/i);\n  if (achMatch) cardLast4 = achMatch[1];\n} else {\n  // Extract card last 4 digits\n  const cardMatch = body.match(/ending in (\\d{4})/) || body.match(/\\*{4}\\s*(\\d{4})/) || subject.match(/\\*+(\\d{4})/);\n  cardLast4 = cardMatch ? cardMatch[1] : '';\n}\n\n// Try to parse location from merchant (common patterns)\nlet locationCity = '';\nlet locationState = '';\nlet venueType = '';\n\n// Pattern: \"Merchant Name - City, ST\" or \"Merchant Name City ST\"\nconst locationPatterns = [\n  /[,-]\\s*([A-Za-z\\s]+),?\\s*([A-Z]{2})\\s*$/,\n  /\\s+([A-Za-z]+)\\s+([A-Z]{2})\\s*$/\n];\nfor (const pattern of locationPatterns) {\n  const locMatch = merchant.match(pattern);\n  if (locMatch) {\n    locationCity = locMatch[1].trim();\n    locationState = locMatch[2];\n    // Clean location from merchant name\n    merchant = merchant.replace(pattern, '').trim();\n    break;\n  }\n}\n\n// Detect venue type from merchant keywords\nconst venueKeywords = {\n  'restaurant': 'Restaurant',\n  'cafe': 'Cafe/Coffee Shop',\n  'coffee': 'Cafe/Coffee Shop',\n  'starbucks': 'Cafe/Coffee Shop',\n  'hotel': 'Hotel',\n  'inn': 'Hotel',\n  'marriott': 'Hotel',\n  'hilton': 'Hotel',\n  'airport': 'Airport',\n  'airlines': 'Airport',\n  'office': 'Office/Coworking',\n  'wework': 'Office/Coworking'\n};\nconst merchantLower = merchant.toLowerCase();\nfor (const [keyword, type] of Object.entries(venueKeywords)) {\n  if (merchantLower.includes(keyword)) {\n    venueType = type;\n    break;\n  }\n}\n\n// Generate unique transaction ID\nconst timestamp = Date.now();\nconst transactionId = `relay_${cardLast4 || 'xxxx'}_${timestamp}`;\n\n// Calculate validation deadline (24 hours from now)\nconst deadline = new Date();\ndeadline.setHours(deadline.getHours() + 24);\nconst validationDeadline = deadline.toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    amount,\n    merchant,\n    transactionDate,\n    paymentMethod,\n    cardLast4,\n    locationCity,\n    locationState,\n    venueType,\n    transactionId,\n    validationDeadline,\n    source: 'Relay',\n    emailId: email.id,\n    rawSubject: subject,\n    rawBody: body.substring(0, 500)\n  }\n}];"
       },
       "id": "code-parse-email",
       "name": "Code - Parse Email",
@@ -92,7 +50,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Auto-categorize merchant\nconst input = $input.first().json;\nconst merchant = input.merchant.toLowerCase();\n\nconst merchantCategories = {\n  // Software/SaaS\n  'openai': 'Software & Subscriptions',\n  'anthropic': 'Software & Subscriptions',\n  'claude': 'Software & Subscriptions',\n  'chatgpt': 'Software & Subscriptions',\n  'framer': 'Software & Subscriptions',\n  'github': 'Software & Subscriptions',\n  'google': 'Software & Subscriptions',\n  'aws': 'Software & Subscriptions',\n  'amazon web': 'Software & Subscriptions',\n  'vercel': 'Software & Subscriptions',\n  'n8n': 'Software & Subscriptions',\n  'notion': 'Software & Subscriptions',\n  'slack': 'Software & Subscriptions',\n  'zoom': 'Software & Subscriptions',\n  'figma': 'Software & Subscriptions',\n  'adobe': 'Software & Subscriptions',\n  'dropbox': 'Software & Subscriptions',\n  'microsoft': 'Software & Subscriptions',\n  'digitalocean': 'Software & Subscriptions',\n  'heroku': 'Software & Subscriptions',\n  'netlify': 'Software & Subscriptions',\n  'stripe': 'Software & Subscriptions',\n  'twilio': 'Software & Subscriptions',\n  'sendgrid': 'Software & Subscriptions',\n  'mailchimp': 'Software & Subscriptions',\n  'hubspot': 'Software & Subscriptions',\n  'intercom': 'Software & Subscriptions',\n  'loom': 'Software & Subscriptions',\n  'calendly': 'Software & Subscriptions',\n  'typeform': 'Software & Subscriptions',\n  'airtable': 'Software & Subscriptions',\n  'zapier': 'Software & Subscriptions',\n  'make': 'Software & Subscriptions',\n  'grammarly': 'Software & Subscriptions',\n  \n  // Travel & Transportation\n  'uber': 'Travel & Transportation',\n  'lyft': 'Travel & Transportation',\n  'delta': 'Travel & Transportation',\n  'united': 'Travel & Transportation',\n  'american airlines': 'Travel & Transportation',\n  'southwest': 'Travel & Transportation',\n  'jetblue': 'Travel & Transportation',\n  'airbnb': 'Travel & Transportation',\n  'marriott': 'Travel & Transportation',\n  'hilton': 'Travel & Transportation',\n  'hyatt': 'Travel & Transportation',\n  'expedia': 'Travel & Transportation',\n  'booking.com': 'Travel & Transportation',\n  'hertz': 'Travel & Transportation',\n  'enterprise': 'Travel & Transportation',\n  'amtrak': 'Travel & Transportation',\n  'parking': 'Travel & Transportation',\n  'toll': 'Travel & Transportation',\n  'gas': 'Travel & Transportation',\n  'shell': 'Travel & Transportation',\n  'exxon': 'Travel & Transportation',\n  'chevron': 'Travel & Transportation',\n  \n  // Meals & Entertainment\n  'starbucks': 'Meals & Entertainment',\n  'chipotle': 'Meals & Entertainment',\n  'panera': 'Meals & Entertainment',\n  'sweetgreen': 'Meals & Entertainment',\n  'doordash': 'Meals & Entertainment',\n  'uber eats': 'Meals & Entertainment',\n  'grubhub': 'Meals & Entertainment',\n  'postmates': 'Meals & Entertainment',\n  'restaurant': 'Meals & Entertainment',\n  'cafe': 'Meals & Entertainment',\n  'coffee': 'Meals & Entertainment',\n  'pizza': 'Meals & Entertainment',\n  'mcdonald': 'Meals & Entertainment',\n  'wendys': 'Meals & Entertainment',\n  'chick-fil-a': 'Meals & Entertainment',\n  'taco bell': 'Meals & Entertainment',\n  'shake shack': 'Meals & Entertainment',\n  'five guys': 'Meals & Entertainment',\n  'whole foods': 'Meals & Entertainment',\n  'trader joe': 'Meals & Entertainment',\n  \n  // Office Supplies\n  'amazon': 'Office Supplies',\n  'staples': 'Office Supplies',\n  'office depot': 'Office Supplies',\n  'target': 'Office Supplies',\n  'walmart': 'Office Supplies',\n  'costco': 'Office Supplies',\n  \n  // Equipment & Hardware\n  'best buy': 'Equipment & Hardware',\n  'apple': 'Equipment & Hardware',\n  'b&h': 'Equipment & Hardware',\n  'newegg': 'Equipment & Hardware',\n  'micro center': 'Equipment & Hardware',\n  \n  // Marketing & Advertising\n  'facebook': 'Marketing & Advertising',\n  'meta': 'Marketing & Advertising',\n  'google ads': 'Marketing & Advertising',\n  'linkedin': 'Marketing & Advertising',\n  'twitter': 'Marketing & Advertising',\n  'tiktok': 'Marketing & Advertising',\n  'canva': 'Marketing & Advertising',\n  \n  // Professional Services\n  'law': 'Professional Services',\n  'legal': 'Professional Services',\n  'attorney': 'Professional Services',\n  'cpa': 'Professional Services',\n  'accountant': 'Professional Services',\n  'consultant': 'Professional Services',\n  \n  // Banking\n  'bank': 'Banking Fees',\n  'wire': 'Banking Fees',\n  'transfer fee': 'Banking Fees'\n};\n\n// Find matching category\nlet category = 'Miscellaneous';\nfor (const [keyword, cat] of Object.entries(merchantCategories)) {\n  if (merchant.includes(keyword)) {\n    category = cat;\n    break;\n  }\n}\n\n// Determine priority based on amount\nconst priority = input.amount > 500 ? 'High' : 'Normal';\n\nreturn [{\n  json: {\n    ...input,\n    category,\n    priority\n  }\n}];"
+        "jsCode": "// Auto-categorize merchant with IRS-aligned categories\nconst input = $input.first().json;\nconst merchant = input.merchant.toLowerCase();\n\n// IRS-aligned expense categories\nconst merchantCategories = {\n  // Software & Subscriptions\n  'openai': 'Software',\n  'anthropic': 'Software',\n  'claude': 'Software',\n  'chatgpt': 'Software',\n  'framer': 'Software',\n  'github': 'Software',\n  'google': 'Software',\n  'aws': 'Software',\n  'amazon web': 'Software',\n  'vercel': 'Software',\n  'n8n': 'Software',\n  'notion': 'Software',\n  'slack': 'Software',\n  'zoom': 'Software',\n  'figma': 'Software',\n  'adobe': 'Software',\n  'dropbox': 'Software',\n  'microsoft': 'Software',\n  'digitalocean': 'Software',\n  'heroku': 'Software',\n  'netlify': 'Software',\n  'stripe': 'Software',\n  'twilio': 'Software',\n  'sendgrid': 'Software',\n  'mailchimp': 'Software',\n  'hubspot': 'Software',\n  'intercom': 'Software',\n  'loom': 'Software',\n  'calendly': 'Software',\n  'typeform': 'Software',\n  'airtable': 'Software',\n  'zapier': 'Software',\n  'make': 'Software',\n  'grammarly': 'Software',\n  \n  // Travel\n  'uber': 'Travel',\n  'lyft': 'Travel',\n  'delta': 'Travel',\n  'united': 'Travel',\n  'american airlines': 'Travel',\n  'southwest': 'Travel',\n  'jetblue': 'Travel',\n  'airbnb': 'Travel',\n  'marriott': 'Travel',\n  'hilton': 'Travel',\n  'hyatt': 'Travel',\n  'expedia': 'Travel',\n  'booking.com': 'Travel',\n  'hertz': 'Travel',\n  'enterprise': 'Travel',\n  'amtrak': 'Travel',\n  'parking': 'Travel',\n  'toll': 'Travel',\n  'gas': 'Travel',\n  'shell': 'Travel',\n  'exxon': 'Travel',\n  'chevron': 'Travel',\n  \n  // Meals\n  'starbucks': 'Meals',\n  'chipotle': 'Meals',\n  'panera': 'Meals',\n  'sweetgreen': 'Meals',\n  'doordash': 'Meals',\n  'uber eats': 'Meals',\n  'grubhub': 'Meals',\n  'postmates': 'Meals',\n  'restaurant': 'Meals',\n  'cafe': 'Meals',\n  'coffee': 'Meals',\n  'pizza': 'Meals',\n  'mcdonald': 'Meals',\n  'wendys': 'Meals',\n  'chick-fil-a': 'Meals',\n  'taco bell': 'Meals',\n  'shake shack': 'Meals',\n  'five guys': 'Meals',\n  'whole foods': 'Meals',\n  'trader joe': 'Meals',\n  \n  // Supplies\n  'amazon': 'Supplies',\n  'staples': 'Supplies',\n  'office depot': 'Supplies',\n  'target': 'Supplies',\n  'walmart': 'Supplies',\n  'costco': 'Supplies',\n  \n  // Equipment\n  'best buy': 'Equipment',\n  'apple': 'Equipment',\n  'b&h': 'Equipment',\n  'newegg': 'Equipment',\n  'micro center': 'Equipment',\n  \n  // Marketing & Advertising\n  'facebook': 'Advertising',\n  'meta': 'Advertising',\n  'google ads': 'Advertising',\n  'linkedin': 'Advertising',\n  'twitter': 'Advertising',\n  'tiktok': 'Advertising',\n  'canva': 'Advertising',\n  \n  // Services\n  'law': 'Services',\n  'legal': 'Services',\n  'attorney': 'Services',\n  'cpa': 'Services',\n  'accountant': 'Services',\n  'consultant': 'Services',\n  \n  // Banking\n  'bank': 'Banking Fees',\n  'wire': 'Banking Fees',\n  'transfer fee': 'Banking Fees'\n};\n\n// Find matching category\nlet category = 'Miscellaneous';\nfor (const [keyword, cat] of Object.entries(merchantCategories)) {\n  if (merchant.includes(keyword)) {\n    category = cat;\n    break;\n  }\n}\n\n// Determine priority based on amount\nconst priority = input.amount > 500 ? 'High' : 'Normal';\n\nreturn [{\n  json: {\n    ...input,\n    category,\n    priority\n  }\n}];"
       },
       "id": "code-categorize",
       "name": "Code - Categorize",
@@ -103,51 +61,45 @@
     {
       "parameters": {
         "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "list",
-          "value": "Expenses"
-        },
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.GOOGLE_SHEETS_FINANCE_ID }}" },
+        "sheetName": { "__rl": true, "mode": "list", "value": "Expenses" },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "Date": "={{ $json.transactionDate }}",
-            "Description": "={{ $json.merchant }}",
             "Merchant": "={{ $json.merchant }}",
             "Amount": "={{ $json.amount }}",
+            "Payment Method": "={{ $json.paymentMethod }}",
+            "Card Last 4": "={{ $json.cardLast4 }}",
             "Category": "={{ $json.category }}",
-            "Source": "={{ $json.source }}",
-            "Transaction ID": "={{ $json.transactionId }}",
+            "Business Purpose": "",
+            "People Involved": "",
+            "People Relationship": "",
+            "Location City": "={{ $json.locationCity }}",
+            "Location State": "={{ $json.locationState }}",
+            "Venue Type": "={{ $json.venueType }}",
             "Receipt Status": "=Missing",
             "Receipt URL": "",
+            "Receipt Itemized": "=No",
             "Deadline": "={{ $json.validationDeadline }}",
-            "Notes": "=Auto-logged from Relay. Card: ****{{ $json.cardLast4 }}. Priority: {{ $json.priority }}",
+            "Transaction ID": "={{ $json.transactionId }}",
+            "Notes": "=Auto-logged from Relay. Priority: {{ $json.priority }}",
             "Created At": "={{ new Date().toISOString() }}"
           }
         },
-        "options": {}
+        "options": { "cellFormat": "USER_ENTERED" }
       },
       "id": "sheets-append-expense",
       "name": "Sheets - Append Expense",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [1120, 300],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-credential-id",
-          "name": "Google Sheets - Aasani"
-        }
-      }
+      "credentials": { "googleSheetsOAuth2Api": { "id": "google-sheets-credential-id", "name": "Google Sheets - Aasani" } }
     },
     {
       "parameters": {
         "channel": "#all-aasani-systems",
-        "text": "=:outbox_tray: *New Expense Logged*\n\n*Merchant:* {{ $('Code - Categorize').item.json.merchant }}\n*Amount:* ${{ $('Code - Categorize').item.json.amount.toFixed(2) }}\n*Category:* {{ $('Code - Categorize').item.json.category }}\n*Card:* **** {{ $('Code - Categorize').item.json.cardLast4 }}\n*Date:* {{ $('Code - Categorize').item.json.transactionDate }}\n\n:alarm_clock: *Receipt due:* {{ $('Code - Categorize').item.json.validationDeadline }}\n{{ $('Code - Categorize').item.json.priority === 'High' ? ':rotating_light: *HIGH PRIORITY* (>$500)' : '' }}\n\n_Logged to Google Sheets - Add receipt within 24 hours_",
+        "text": "=:outbox_tray: *New Expense Logged*\n\n*Merchant:* {{ $('Code - Categorize').item.json.merchant }}\n*Amount:* ${{ $('Code - Categorize').item.json.amount.toFixed(2) }}\n*Category:* {{ $('Code - Categorize').item.json.category }}\n*Payment:* {{ $('Code - Categorize').item.json.paymentMethod }} (*{{ $('Code - Categorize').item.json.cardLast4 }})\n*Date:* {{ $('Code - Categorize').item.json.transactionDate }}\n{{ $('Code - Categorize').item.json.locationCity ? '*Location:* ' + $('Code - Categorize').item.json.locationCity + ($('Code - Categorize').item.json.locationState ? ', ' + $('Code - Categorize').item.json.locationState : '') + '\\n' : '' }}\n:alarm_clock: *Receipt due:* {{ $('Code - Categorize').item.json.validationDeadline }}\n{{ $('Code - Categorize').item.json.priority === 'High' ? ':rotating_light: *HIGH PRIORITY* (>$500)' : '' }}\n\n:clipboard: *Required for audit:*\n• Add receipt (itemized preferred)\n• Add business purpose\n• Add people involved (if meal/meeting)",
         "otherOptions": {}
       },
       "id": "slack-notification",
@@ -155,12 +107,7 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [1340, 300],
-      "credentials": {
-        "slackApi": {
-          "id": "slack-credential-id",
-          "name": "Slack - Aasani"
-        }
-      }
+      "credentials": { "slackApi": { "id": "slack-credential-id", "name": "Slack - Aasani" } }
     },
     {
       "parameters": {
@@ -173,33 +120,21 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [1560, 300],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "gmail-credential-id",
-          "name": "Gmail - Aasani"
-        }
-      }
+      "credentials": { "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail - Aasani" } }
     },
     {
       "parameters": {
         "resource": "message",
         "operation": "addLabels",
         "messageId": "={{ $('Gmail - Relay Emails').item.json.id }}",
-        "labelIds": [
-          "Processed-n8n"
-        ]
+        "labelIds": ["Processed-n8n"]
       },
       "id": "gmail-add-label",
       "name": "Gmail - Add Processed Label",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [1780, 300],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "gmail-credential-id",
-          "name": "Gmail - Aasani"
-        }
-      }
+      "credentials": { "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail - Aasani" } }
     },
     {
       "parameters": {
@@ -222,128 +157,20 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [900, 500],
-      "credentials": {
-        "slackApi": {
-          "id": "slack-credential-id",
-          "name": "Slack - Aasani"
-        }
-      }
+      "credentials": { "slackApi": { "id": "slack-credential-id", "name": "Slack - Aasani" } }
     }
   ],
   "connections": {
-    "Gmail - Relay Emails": {
-      "main": [
-        [
-          {
-            "node": "Filter - Transaction Emails",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Filter - Transaction Emails": {
-      "main": [
-        [
-          {
-            "node": "Code - Parse Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Parse Email": {
-      "main": [
-        [
-          {
-            "node": "Code - Categorize",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Categorize": {
-      "main": [
-        [
-          {
-            "node": "Sheets - Append Expense",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Sheets - Append Expense": {
-      "main": [
-        [
-          {
-            "node": "Slack - Expense Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack - Expense Notification": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Mark as Read",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - Mark as Read": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Add Processed Label",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code - Error Handler": {
-      "main": [
-        [
-          {
-            "node": "Slack - Error Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Gmail - Relay Emails": { "main": [[{ "node": "Filter - Transaction Emails", "type": "main", "index": 0 }]] },
+    "Filter - Transaction Emails": { "main": [[{ "node": "Code - Parse Email", "type": "main", "index": 0 }]] },
+    "Code - Parse Email": { "main": [[{ "node": "Code - Categorize", "type": "main", "index": 0 }]] },
+    "Code - Categorize": { "main": [[{ "node": "Sheets - Append Expense", "type": "main", "index": 0 }]] },
+    "Sheets - Append Expense": { "main": [[{ "node": "Slack - Expense Notification", "type": "main", "index": 0 }]] },
+    "Slack - Expense Notification": { "main": [[{ "node": "Gmail - Mark as Read", "type": "main", "index": 0 }]] },
+    "Gmail - Mark as Read": { "main": [[{ "node": "Gmail - Add Processed Label", "type": "main", "index": 0 }]] },
+    "Code - Error Handler": { "main": [[{ "node": "Slack - Error Notification", "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": ""
-  },
-  "staticData": null,
-  "tags": [
-    {
-      "name": "Finance",
-      "id": "finance-tag"
-    },
-    {
-      "name": "Relay",
-      "id": "relay-tag"
-    },
-    {
-      "name": "Google Sheets",
-      "id": "sheets-tag"
-    }
-  ],
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "aasani-instance"
-  },
-  "pinData": {}
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner" },
+  "tags": [{ "name": "Finance", "id": "finance-tag" }, { "name": "Relay", "id": "relay-tag" }, { "name": "Google Sheets", "id": "sheets-tag" }],
+  "meta": { "templateCredsSetupCompleted": true, "instanceId": "aasani-instance" }
 }

@@ -164,7 +164,8 @@
           "mappingMode": "defineBelow",
           "value": {
             "Receipt Status": "=Added",
-            "Receipt URL": "={{ $json.receiptUrl }}"
+            "Receipt URL": "={{ $json.receiptUrl }}",
+            "Receipt Itemized": "=Pending Review"
           }
         },
         "options": { "cellFormat": "USER_ENTERED" }
